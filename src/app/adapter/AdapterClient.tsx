@@ -131,16 +131,50 @@ function listEnrollment(filters, shouldReEnroll = true) {
     listFilterBranch: {
       filterBranches: [{
         filterBranches: [],
-        filters: filters.map(f => ({
-          property: f.property,
-          operation: {
-            operator: f.operator || "IS_EQUAL_TO",
-            includeObjectsWithNoValueSet: false,
-            values: f.values,
-            operationType: f.operationType || "MULTISTRING",
-          },
-          filterType: "PROPERTY",
-        })),
+        filters: filters.map(f => {
+          // TIME_RANGED filters use a completely different structure
+          if (f.operationType === "TIME_RANGED") {
+            return {
+              property: f.property,
+              operation: {
+                operator: "IS_BETWEEN",
+                includeObjectsWithNoValueSet: false,
+                lowerBoundEndpointBehavior: "INCLUSIVE",
+                upperBoundEndpointBehavior: "INCLUSIVE",
+                propertyParser: "VALUE",
+                lowerBoundTimePoint: f.lowerBoundTimePoint,
+                upperBoundTimePoint: f.upperBoundTimePoint,
+                type: "TIME_RANGED",
+                operationType: "TIME_RANGED",
+              },
+              filterType: "PROPERTY",
+            };
+          }
+          // HAS_PROPERTY → check if property has any value
+          if (f.operator === "HAS_PROPERTY") {
+            return {
+              property: f.property,
+              operation: {
+                operator: "HAS_PROPERTY",
+                includeObjectsWithNoValueSet: false,
+                operationType: "MULTISTRING",
+              },
+              filterType: "PROPERTY",
+            };
+          }
+          // Standard MULTISTRING filters
+          // LIST_BASED only supports IS_EQUAL_TO — for multiple values it works as "is any of"
+          return {
+            property: f.property,
+            operation: {
+              operator: "IS_EQUAL_TO",
+              includeObjectsWithNoValueSet: false,
+              values: f.values || [],
+              operationType: f.operationType || "MULTISTRING",
+            },
+            filterType: "PROPERTY",
+          };
+        }),
         filterBranchType: "AND",
         filterBranchOperator: "AND",
       }],
@@ -200,6 +234,7 @@ function rotateOwnerAction(actionId, userIds, nextActionId) {
     actionTypeVersion: 0,
     actionTypeId: "0-11",
     fields: {
+      property_name: "hubspot_owner_id",
       user_ids: userIds.map(String),
     },
   };
@@ -307,27 +342,27 @@ function buildWorkflows(config, context) {
 
       (config.reglas || []).forEach((r, ri) => {
         const filters = [];
-        // Project filter
-        filters.push({ property: "lista_proyectos_fx", operator: "IS_ANY_OF", values: [optVal(m.nombre)] });
+        // Project filter — IS_EQUAL_TO with array works as "is any of"
+        filters.push({ property: "lista_proyectos_fx", values: [optVal(m.nombre)] });
 
         // Income condition
         if (r.si === "Cumple ingreso mínimo") {
-          filters.push({ property: "rango_ingresos_fx", operator: "IS_EQUAL_TO", values: [optVal(m.rangoMinimo)] });
+          filters.push({ property: "rango_ingresos_fx", values: [optVal(m.rangoMinimo)] });
         } else if (r.si === "Un nivel debajo" && oneBelow) {
-          filters.push({ property: "rango_ingresos_fx", operator: "IS_EQUAL_TO", values: [optVal(oneBelow)] });
+          filters.push({ property: "rango_ingresos_fx", values: [optVal(oneBelow)] });
         } else if (r.si === "No cumple requisito" && allBelow.length) {
-          filters.push({ property: "rango_ingresos_fx", operator: "IS_ANY_OF", values: allBelow.map(optVal) });
+          filters.push({ property: "rango_ingresos_fx", values: allBelow.map(optVal) });
         } else if (r.si === "Inversionista") {
-          filters.push({ property: "proposito_compra_fx", operator: "IS_EQUAL_TO", values: [optVal("Inversión")] });
+          filters.push({ property: "proposito_compra_fx", values: [optVal("Inversión")] });
         } else if (r.si === "No desea ser contactado") {
-          filters.push({ property: "motivo_descarte_fx", operator: "HAS_PROPERTY", values: [], operationType: "STRING" });
+          filters.push({ property: "motivo_descarte_fx", operator: "HAS_PROPERTY" });
         } else if (r.si === "Un nivel debajo" && !oneBelow) return;
         else if (r.si === "No cumple requisito" && !allBelow.length) return;
 
         // Secondary variable
         if (r.y && r.y !== "Cualquiera") {
-          if (r.y === "Con ahorros") filters.push({ property: "tiene_ahorros_fx", operator: "IS_EQUAL_TO", values: [optVal("Sí")] });
-          else if (r.y === "Sin ahorros") filters.push({ property: "tiene_ahorros_fx", operator: "IS_EQUAL_TO", values: [optVal("No")] });
+          if (r.y === "Con ahorros") filters.push({ property: "tiene_ahorros_fx", values: [optVal("Sí")] });
+          else if (r.y === "Sin ahorros") filters.push({ property: "tiene_ahorros_fx", values: [optVal("No")] });
         }
 
         if (filters.length < 2) return;
@@ -371,8 +406,8 @@ function buildWorkflows(config, context) {
       if (!userIds.length) return; // Can't create round robin without user IDs
 
       const filters = [
-        { property: "lista_proyectos_fx", operator: "IS_ANY_OF", values: [optVal(m.nombre)] },
-        { property: "tipo_lead_fx", operator: "IS_ANY_OF", values: niveles.map(optVal) },
+        { property: "lista_proyectos_fx", values: [optVal(m.nombre)] },
+        { property: "tipo_lead_fx", values: niveles.map(optVal) },
       ];
 
       const actions = [];
@@ -427,7 +462,7 @@ function buildWorkflows(config, context) {
         notifyAction("2", "Nuevo negocio creado", "Se creó un deal automáticamente desde el workflow Focux."),
       ],
       enrollmentCriteria: listEnrollment([
-        { property: "etapa_lead_fx", operator: "IS_EQUAL_TO", values: [triggerStageVal] },
+        { property: "etapa_lead_fx", values: [triggerStageVal] },
       ], false),
       type: "CONTACT_FLOW",
       objectTypeId: "0-1",
@@ -462,8 +497,8 @@ function buildWorkflows(config, context) {
           },
         }],
         enrollmentCriteria: listEnrollment([
-          { property: "dealstage", operator: "IS_EQUAL_TO", values: [opcionoStageId], operationType: "MULTISTRING" },
-          { property: "pipeline", operator: "IS_EQUAL_TO", values: [pipelineId], operationType: "MULTISTRING" },
+          { property: "dealstage", values: [opcionoStageId] },
+          { property: "pipeline", values: [pipelineId] },
         ], true),
         type: "PLATFORM_FLOW",
         objectTypeId: "0-3",
@@ -474,26 +509,44 @@ function buildWorkflows(config, context) {
   }
 
   // ── WF-D3: Inactivity Alert ──
-  // Uses event-based enrollment for "no activity in N days"
-  // HubSpot doesn't have a native "no activity" trigger via API — this needs a list-based filter
-  // Workaround: enrollment criteria checks last_activity_date < (today - N days)
-  // We'll create it disabled so the consultant can set the exact filter in HubSpot UI
+  // Uses LIST_BASED enrollment with TIME_RANGED filter
+  // "notes_last_updated is between (today - N days) and (now)" inverted:
+  // We want leads where last activity is BEFORE (today - N days)
+  // Using IS_BETWEEN with a far-past lower bound and (today - N days) as upper bound
+  const diasInact = config.diasSinAct || 7;
   workflows.push({
     id: "WF-D3",
     category: "Ventas",
-    label: `Alerta Inactividad ${config.diasSinAct || 7}d`,
+    label: `Alerta Inactividad ${diasInact}d`,
     payload: {
       isEnabled: false,
       flowType: "WORKFLOW",
-      name: `Focux Alerta Inactividad ${config.diasSinAct || 7}d — ${config.nombreConst || ""}`,
+      name: `Focux Alerta Inactividad ${diasInact}d — ${config.nombreConst || ""}`,
       startActionId: "1",
       nextAvailableActionId: "3",
       actions: [
-        createTaskAction("1", `Lead sin actividad en ${config.diasSinAct || 7} días — hacer seguimiento`, "2"),
-        notifyAction("2", `Alerta: lead sin actividad ${config.diasSinAct || 7}d`, "Un lead no ha tenido actividad. Revisa y haz seguimiento."),
+        createTaskAction("1", `Lead sin actividad en ${diasInact} días — hacer seguimiento`, "2"),
+        notifyAction("2", `Alerta: lead sin actividad ${diasInact}d`, "Un lead no ha tenido actividad. Revisa y haz seguimiento."),
       ],
       enrollmentCriteria: listEnrollment([
-        { property: "notes_last_updated", operator: "IS_BEFORE_DATE", values: [String(-(config.diasSinAct || 7))], operationType: "TIME_RANGED" },
+        {
+          property: "notes_last_updated",
+          operationType: "TIME_RANGED",
+          lowerBoundTimePoint: {
+            timeType: "INDEXED",
+            timezoneSource: "CUSTOM",
+            zoneId: "America/Bogota",
+            indexReference: { referenceType: "TODAY" },
+            offset: { days: -365 },
+          },
+          upperBoundTimePoint: {
+            timeType: "INDEXED",
+            timezoneSource: "CUSTOM",
+            zoneId: "America/Bogota",
+            indexReference: { referenceType: "TODAY" },
+            offset: { days: -diasInact },
+          },
+        },
       ], true),
       type: "CONTACT_FLOW",
       objectTypeId: "0-1",
