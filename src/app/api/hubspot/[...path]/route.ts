@@ -31,7 +31,7 @@ async function handler(
   }
 
   const url = new URL(req.url);
-  const targetUrl = `${HUBSPOT_BASE}${hubspotPath}${url.search}`;
+  const targetUrl = HUBSPOT_BASE + hubspotPath + url.search;
 
   const fetchOpts: RequestInit = {
     method: req.method,
