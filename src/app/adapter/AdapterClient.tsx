@@ -603,7 +603,8 @@ function buildDeploymentPlan(config) {
         return await hubspotAPI(token, "POST", "/crm/v3/pipelines/deals", buildPipelinePayload(config));
       } catch (err) {
         // Pipeline already exists — fetch it and return data for downstream steps
-        if (err.message && err.message.includes("already exists")) {
+        const errMsg = String(err?.message || err?.category || JSON.stringify(err) || "");
+        if (errMsg.includes("already exists") || errMsg.includes("CONFLICT") || err?.status === 409) {
           const pipelines = await hubspotAPI(token, "GET", "/crm/v3/pipelines/deals");
           const existing = (pipelines.results || []).find(p => p.label === config.nombrePipeline);
           if (existing) {
