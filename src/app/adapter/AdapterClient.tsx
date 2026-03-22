@@ -678,9 +678,13 @@ function buildDeploymentPlan(config) {
       const workflows = buildWorkflows(config, wfContext);
       const results = { total: workflows.length, created: 0, errors: [], details: [] };
 
-      for (const wf of workflows) {
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+      for (let wi = 0; wi < workflows.length; wi++) {
+        const wf = workflows[wi];
+
         // Delay between workflow creations to avoid rate limiting
-        await new Promise(r => setTimeout(r, 600));
+        if (wi > 0) await delay(1500);
 
         let attempts = 0;
         let success = false;
@@ -695,9 +699,9 @@ function buildDeploymentPlan(config) {
             if (err.status === 409) {
               results.details.push({ id: wf.id, name: wf.payload.name, status: "exists" });
               success = true;
-            } else if ((err.message?.includes("rate limit") || err.message?.includes("internal error")) && attempts < 3) {
-              // Wait longer and retry
-              await new Promise(r => setTimeout(r, 2000 * attempts));
+            } else if ((err.message?.includes("rate limit") || err.message?.includes("internal error") || err.message?.includes("Burst")) && attempts < 3) {
+              // Wait longer and retry — exponential backoff
+              await delay(3000 * attempts);
             } else {
               results.errors.push({ id: wf.id, name: wf.payload.name, error: err.message });
               results.details.push({ id: wf.id, name: wf.payload.name, status: "error", error: err.message });
@@ -837,7 +841,11 @@ export default function HubSpotAdapter() {
             else addLog(`  ✗ ${d.id}: ${d.error}`, "error");
           });
         } else {
-          const detail = result?.name || result?.label || result?.pipelineId || result?.found !== undefined ? `${result.found} encontrados, ${result.notFound} no encontrados` : (result?.verified ? "✓ Verificado" : "");
+          const detail = (result?.found !== undefined)
+            ? `${result.found} encontrados, ${result.notFound} no encontrados`
+            : result?._skipped ? "⚠ Ya existe — reutilizado" 
+            : result?.verified ? "✓ Verificado"
+            : result?.label || result?.name || "";
           addLog(`[${step.id}] ✓ OK${detail ? ` — ${detail}` : ""}`, "success");
         }
       } catch (err) {

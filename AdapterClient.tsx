@@ -217,7 +217,7 @@ function setPropertyAction(actionId, propName, value, nextActionId) {
     actionTypeId: "0-5",
     fields: {
       property_name: propName,
-      value: { staticValue: optVal(value) },
+      value: { type: "STATIC_VALUE", staticValue: optVal(value) },
     },
   };
   if (nextActionId) {
