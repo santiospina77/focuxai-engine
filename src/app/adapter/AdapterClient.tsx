@@ -598,7 +598,22 @@ function buildDeploymentPlan(config) {
   steps.push({
     id: "PL-01", label: `Pipeline: ${config.nombrePipeline}`, category: "Pipeline",
     resultKey: "pipeline",
-    execute: async (token) => await hubspotAPI(token, "POST", "/crm/v3/pipelines/deals", buildPipelinePayload(config)),
+    execute: async (token) => {
+      try {
+        return await hubspotAPI(token, "POST", "/crm/v3/pipelines/deals", buildPipelinePayload(config));
+      } catch (err) {
+        // Pipeline already exists — fetch it and return data for downstream steps
+        if (err.message && err.message.includes("already exists")) {
+          const pipelines = await hubspotAPI(token, "GET", "/crm/v3/pipelines/deals");
+          const existing = (pipelines.results || []).find(p => p.label === config.nombrePipeline);
+          if (existing) {
+            existing._skipped = true;
+            return existing;
+          }
+        }
+        throw err;
+      }
+    },
     rollback: async (token, ctx) => { if (ctx.pipelineId) { try { await hubspotAPI(token, "DELETE", `/crm/v3/pipelines/deals/${ctx.pipelineId}`); } catch(e) {} } },
   });
 
