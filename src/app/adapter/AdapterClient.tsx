@@ -151,12 +151,14 @@ function listEnrollment(filters, shouldReEnroll = true) {
             };
           }
           // HAS_PROPERTY → check if property has any value
+          // HAS_PROPERTY is not a valid MULTISTRING operator — use IS_NOT_EQUAL_TO with empty value
           if (f.operator === "HAS_PROPERTY") {
             return {
               property: f.property,
               operation: {
-                operator: "HAS_PROPERTY",
+                operator: "IS_NOT_EQUAL_TO",
                 includeObjectsWithNoValueSet: false,
+                values: [""],
                 operationType: "MULTISTRING",
               },
               filterType: "PROPERTY",
@@ -629,7 +631,7 @@ function buildDeploymentPlan(config) {
         const owners = await hubspotAPI(token, "GET", "/crm/v3/owners?limit=500");
         const map = {};
         (owners.results || []).forEach(o => {
-          if (o.email) map[o.email.toLowerCase()] = String(o.userId || o.id);
+          if (o.email) map[o.email.toLowerCase()] = String(o.id || o.userId);
         });
         const resolved = {};
         let found = 0, notFound = 0;
