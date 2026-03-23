@@ -12,6 +12,7 @@ const handler = NextAuth({
   callbacks: {
     async signIn({ user }) {
       if (user.email?.endsWith("@focux.co")) return true;
+      if (user.email?.endsWith("@focuxdigital.com")) return true;
       return false;
     },
     async session({ session }) {
