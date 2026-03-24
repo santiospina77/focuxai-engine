@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useCallback, useRef, useMemo } from "react";
+import { generateScanPDF } from "./ScanReport";
 
 /* ═══════════════════════════════════════════════════════════
    FOCUXAI ENGINE™ — FOCUX SCAN v1.0
@@ -382,6 +383,7 @@ function ProgressBar({ steps, current }) {
    ═══════════════════════════════════════════════════════════ */
 export default function ScanClient() {
   const [token, setToken] = useState("");
+  const [clientName, setClientName] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState(0);
   const [scanStepName, setScanStepName] = useState("");
@@ -412,6 +414,7 @@ export default function ScanClient() {
     setScanDone(false);
     setError(null);
     setScanStep(0);
+    const warnings = [];
 
     try {
       const allProps = [];
@@ -423,14 +426,17 @@ export default function ScanClient() {
         setScanStepName(`Propiedades ${objectTypes[oi]}`);
         try {
           const res = await hubspotAPI(token, "GET", `/crm/v3/properties/${objectTypes[oi]}?archived=false`);
-          (res.results || []).forEach(p => {
-            // Only custom (non-HubSpot-default) — check if groupName is not "contactinformation" etc, or check hubspotDefined
-            if (!p.hubspotDefined) {
+          const results = res.results || [];
+          results.forEach(p => {
+            // Include all non-HubSpot-defined properties (custom props)
+            // hubspotDefined=true means it's a default HubSpot property
+            if (p.hubspotDefined === false || p.hubspotDefined === undefined) {
               allProps.push({ ...p, objectType: objectTypes[oi] });
             }
           });
+          if (results.length === 0) warnings.push(`${objectTypes[oi]}: 0 propiedades encontradas`);
         } catch (e) {
-          console.warn(`Props ${objectTypes[oi]} failed:`, e.message);
+          warnings.push(`Props ${objectTypes[oi]}: ${e.message || "Error"}`);
         }
       }
 
@@ -439,10 +445,10 @@ export default function ScanClient() {
       setScanStepName("Workflows");
       let allWorkflows = [];
       try {
-        const wfRes = await hubspotAPI(token, "GET", "/automation/v4/flows?limit=500");
+        const wfRes = await hubspotAPI(token, "GET", "/automation/v4/flows");
         allWorkflows = wfRes.results || wfRes.flows || [];
       } catch (e) {
-        console.warn("Workflows failed:", e.message);
+        warnings.push(`Workflows: ${e.message || "Error"}`);
       }
 
       // M3: Pipelines
@@ -452,14 +458,14 @@ export default function ScanClient() {
       try {
         const plDeals = await hubspotAPI(token, "GET", "/crm/v3/pipelines/deals");
         (plDeals.results || []).forEach(p => allPipelines.push({ ...p, objectType: "deals" }));
-      } catch (e) { console.warn("Pipelines deals failed:", e.message); }
+      } catch (e) { warnings.push(`Pipelines deals: ${e.message}`); }
 
       setScanStep(6);
       setScanStepName("Pipelines (Tickets)");
       try {
         const plTickets = await hubspotAPI(token, "GET", "/crm/v3/pipelines/tickets");
         (plTickets.results || []).forEach(p => allPipelines.push({ ...p, objectType: "tickets" }));
-      } catch (e) { console.warn("Pipelines tickets failed:", e.message); }
+      } catch (e) { warnings.push(`Pipelines tickets: ${e.message}`); }
 
       // M4: Forms
       setScanStep(7);
@@ -468,7 +474,7 @@ export default function ScanClient() {
       try {
         const formRes = await hubspotAPI(token, "GET", "/marketing/v3/forms?limit=500");
         allForms = formRes.results || [];
-      } catch (e) { console.warn("Forms failed:", e.message); }
+      } catch (e) { warnings.push(`Forms: ${e.message}`); }
 
       // M5: Lists
       setScanStep(8);
@@ -477,7 +483,7 @@ export default function ScanClient() {
       try {
         const listRes = await hubspotAPI(token, "GET", "/crm/v3/lists?limit=500");
         allLists = listRes.lists || listRes.results || [];
-      } catch (e) { console.warn("Lists failed:", e.message); }
+      } catch (e) { warnings.push(`Lists: ${e.message}`); }
 
       // M6: Users + Owners
       setScanStep(9);
@@ -486,7 +492,7 @@ export default function ScanClient() {
       try {
         const userRes = await hubspotAPI(token, "GET", "/settings/v3/users?limit=500");
         allUsers = userRes.results || [];
-      } catch (e) { console.warn("Users failed:", e.message); }
+      } catch (e) { warnings.push(`Users: ${e.message}`); }
 
       setScanStep(10);
       setScanStepName("Owners");
@@ -494,7 +500,7 @@ export default function ScanClient() {
       try {
         const ownerRes = await hubspotAPI(token, "GET", "/crm/v3/owners?limit=500");
         allOwners = ownerRes.results || [];
-      } catch (e) { console.warn("Owners failed:", e.message); }
+      } catch (e) { warnings.push(`Owners: ${e.message}`); }
 
       // Cross-reference
       setScanStep(11);
@@ -542,8 +548,8 @@ export default function ScanClient() {
 
       // KPIs
       const orphanedProps = enrichedProps.filter(p => p.usageStatus === "🔴 Huérfana").length;
-      const offWorkflows = allWorkflows.filter(wf => !wf.enabled).length;
-      const zombieWorkflows = allWorkflows.filter(wf => wf.enabled && (wf.enrollmentCount || 0) === 0).length;
+      const offWorkflows = allWorkflows.filter(wf => wf.enabled === false).length;
+      const zombieWorkflows = allWorkflows.filter(wf => wf.enabled === true && (wf.enrollmentCount || 0) === 0).length;
       const trashWorkflows = allWorkflows.filter(wf => /test|prueba|copy|backup|old/i.test(wf.name || "")).length;
       const zeroSubmForms = allForms.filter(f => (f.submissions || f.submitCount || 0) === 0).length;
       const orphanedLists = allLists.filter(l => {
@@ -582,6 +588,7 @@ export default function ScanClient() {
         owners: allOwners,
         heritage,
         duplicates: dupeGroups,
+        warnings,
         kpis: {
           totalProps: enrichedProps.length,
           orphanedProps,
@@ -651,9 +658,11 @@ export default function ScanClient() {
           </div>
         </div>
         {scanDone && (
-          <div style={{ display:"flex", gap:8 }}>
-            <button onClick={() => exportExcel(scanData, "Portal")} style={{ padding:"6px 16px", borderRadius:8, border:`1px solid ${tk.green}`, background:"transparent", color:tk.green, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:font }}>
-              📥 Excel
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <span style={{ fontSize:11, color:tk.textSec }}>{clientName || "Portal"}</span>
+            <button onClick={() => { setScanDone(false); setScanData(null); setActiveTab("overview"); }}
+              style={{ padding:"6px 16px", borderRadius:8, border:`1px solid ${tk.border}`, background:"transparent", color:tk.textSec, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:font }}>
+              ↻ Nuevo Scan
             </button>
           </div>
         )}
@@ -663,6 +672,14 @@ export default function ScanClient() {
         {/* TOKEN INPUT + SCAN BUTTON */}
         {!scanDone && (
           <div style={{ animation:"slideUp 0.4s ease" }}>
+            <div style={{ background:tk.card, borderRadius:14, padding:24, border:`1px solid ${tk.border}`, marginBottom:16 }}>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:tk.textSec, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Nombre de la Empresa</label>
+              <input value={clientName} onChange={e => setClientName(e.target.value)}
+                placeholder="Ej: Constructora Jiménez"
+                style={{ width:"100%", padding:"12px 16px", borderRadius:10, border:`1.5px solid ${tk.border}`, background:tk.bg, color:tk.text, fontSize:14, fontFamily:font, outline:"none", boxSizing:"border-box" }}
+              />
+              <p style={{ margin:"6px 0 0", fontSize:10, color:tk.textTer }}>Este nombre aparecerá en el PDF del reporte ejecutivo</p>
+            </div>
             <div style={{ background:tk.card, borderRadius:14, padding:24, border:`1px solid ${tk.border}`, marginBottom:24 }}>
               <label style={{ display:"block", fontSize:11, fontWeight:700, color:tk.textSec, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Private App Token</label>
               <div style={{ display:"flex", gap:12 }}>
@@ -716,16 +733,32 @@ export default function ScanClient() {
                   {tab.icon} {tab.label}
                 </button>
               ))}
-              {/* Re-scan button */}
-              <button onClick={() => { setScanDone(false); setScanData(null); setActiveTab("overview"); }}
-                style={{ marginLeft:"auto", padding:"8px 16px", borderRadius:8, border:`1px solid ${tk.border}`, background:"transparent", color:tk.textTer, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:font }}>
-                ↻ Nuevo Scan
-              </button>
+              {/* Export buttons */}
+              <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
+                <button onClick={() => generateScanPDF(scanData, clientName || "Portal")}
+                  style={{ padding:"8px 16px", borderRadius:8, border:`1.5px solid ${tk.purple}`, background:tk.purple+"15", color:tk.purple, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:font }}>
+                  📄 PDF Report
+                </button>
+                <button onClick={() => exportExcel(scanData, clientName || "Portal")}
+                  style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${tk.green}`, background:tk.greenBg, color:tk.green, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:font }}>
+                  📥 Excel
+                </button>
+              </div>
             </div>
 
             {/* ── OVERVIEW TAB ── */}
             {activeTab === "overview" && (
               <div>
+                {/* Scan warnings */}
+                {scanData.warnings?.length > 0 && (
+                  <div style={{ padding:"14px 18px", background:tk.amberBg, borderRadius:10, borderLeft:`3px solid ${tk.amber}`, marginBottom:20 }}>
+                    <p style={{ margin:"0 0 6px", fontSize:12, color:tk.amber, fontWeight:700 }}>⚠ Advertencias del Scan ({scanData.warnings.length})</p>
+                    {scanData.warnings.map((w, i) => (
+                      <p key={i} style={{ margin:"2px 0", fontSize:11, color:tk.textSec }}>{w}</p>
+                    ))}
+                    <p style={{ margin:"8px 0 0", fontSize:10, color:tk.textTer }}>Verifica que la Private App tenga todos los scopes necesarios.</p>
+                  </div>
+                )}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:12, marginBottom:24 }}>
                   <KpiCard value={kpis.totalProps} label="Propiedades Custom" sub={`${kpis.orphanedPropsPct}% huérfanas`} color={tk.cyan} />
                   <KpiCard value={kpis.orphanedProps} label="Huérfanas" sub="Sin referencia" color={tk.red} />
@@ -813,16 +846,22 @@ export default function ScanClient() {
               <ScanTable
                 columns={[
                   { key:"_idx", label:"#", render: (r) => scanData.workflows.indexOf(r)+1 },
-                  { key:"name", label:"Nombre", maxWidth:300 },
+                  { key:"name", label:"Nombre", maxWidth:280 },
                   { key:"enabled", label:"Estado", render: r => <WfBadge wf={r} /> },
                   { key:"type", label:"Tipo", render: r => r.type || r.flowType || "—" },
                   { key:"objectTypeId", label:"Objeto" },
                   { key:"actions", label:"Acciones", render: r => (r.actions||[]).length },
+                  { key:"createdBy", label:"Creado Por", maxWidth:200, render: r => {
+                    const ownerMap = {};
+                    (scanData.owners||[]).forEach(o => { if (o.userId) ownerMap[String(o.userId)] = o.email; });
+                    (scanData.users||[]).forEach(u => { if (u.id) ownerMap[String(u.id)] = u.email; });
+                    return ownerMap[String(r.createdBy)] || r.createdBy || "—";
+                  }},
                   { key:"insertedAt", label:"Creado", render: r => fmtDate(r.insertedAt || r.createdAt) },
                   { key:"updatedAt", label:"Editado", render: r => fmtAgo(r.updatedAt) },
                 ]}
                 data={scanData.workflows}
-                searchKeys={["name","type","objectTypeId"]}
+                searchKeys={["name","type","objectTypeId","createdBy"]}
               />
             )}
 
@@ -879,15 +918,16 @@ export default function ScanClient() {
               <ScanTable
                 columns={[
                   { key:"_idx", label:"#", render: (r) => scanData.forms.indexOf(r)+1 },
-                  { key:"name", label:"Nombre", maxWidth:300 },
+                  { key:"name", label:"Nombre", maxWidth:280 },
                   { key:"formType", label:"Tipo" },
                   { key:"_fields", label:"Campos", render: r => (r.fieldGroups||r.formFieldGroups||[]).reduce((a,g) => a + (g.fields||[]).length, 0) },
                   { key:"_submissions", label:"Submissions", render: r => r.submissions || r.submitCount || 0, color: r => (r.submissions||r.submitCount||0) === 0 ? tk.red : tk.text },
+                  { key:"createdBy", label:"Creado Por", maxWidth:200, render: r => r.createdBy || r.createdUserId || "—" },
                   { key:"createdAt", label:"Creado", render: r => fmtDate(r.createdAt) },
                   { key:"updatedAt", label:"Editado", render: r => fmtAgo(r.updatedAt) },
                 ]}
                 data={scanData.forms}
-                searchKeys={["name","formType"]}
+                searchKeys={["name","formType","createdBy"]}
               />
             )}
 
@@ -896,14 +936,15 @@ export default function ScanClient() {
               <ScanTable
                 columns={[
                   { key:"_idx", label:"#", render: (r) => scanData.lists.indexOf(r)+1 },
-                  { key:"name", label:"Nombre", maxWidth:300 },
+                  { key:"name", label:"Nombre", maxWidth:280 },
                   { key:"_type", label:"Tipo", render: r => r.listType || r.processingType || "—" },
                   { key:"_size", label:"Tamaño", render: r => r.size || r.listSize || 0, color: r => (r.size||r.listSize||0) === 0 ? tk.red : tk.text },
+                  { key:"createdBy", label:"Creado Por", maxWidth:200, render: r => r.createdBy || r.authorUserId || "—" },
                   { key:"createdAt", label:"Creado", render: r => fmtDate(r.createdAt) },
                   { key:"updatedAt", label:"Actualizado", render: r => fmtAgo(r.updatedAt) },
                 ]}
                 data={scanData.lists}
-                searchKeys={["name"]}
+                searchKeys={["name","createdBy"]}
               />
             )}
 
