@@ -8,6 +8,9 @@ const ALLOWED_PREFIXES = [
   "/crm/v3/owners",
   "/crm/v3/objects/",
   "/automation/v4/flows",
+  "/marketing/v3/forms",
+  "/crm/v3/lists",
+  "/settings/v3/users",
 ];
 
 function isAllowed(path: string): boolean {

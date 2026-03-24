@@ -8,5 +8,5 @@ export default withAuth({
 
 // Protect these routes — login and API routes are excluded
 export const config = {
-  matcher: ["/ops/:path*", "/adapter/:path*"],
+  matcher: ["/ops/:path*", "/adapter/:path*", "/scan/:path*"],
 };
