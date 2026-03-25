@@ -14,9 +14,9 @@ const MAX_VERSIONS = 15;
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-async function sGet(k) { try { const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; } catch { return null; } }
-async function sSet(k, v) { try { await window.storage.set(k, JSON.stringify(v)); } catch (e) { console.error("storage set error", e); } }
-async function sDel(k) { try { await window.storage.delete(k); } catch (e) { console.error("storage del error", e); } }
+function sGet(k) { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch { return null; } }
+function sSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { console.error("storage set error", e); } }
+function sDel(k) { try { localStorage.removeItem(k); } catch (e) { console.error("storage del error", e); } }
 
 async function loadIndex() { return (await sGet(IDX_KEY)) || []; }
 async function saveIndex(idx) { await sSet(IDX_KEY, idx); }
