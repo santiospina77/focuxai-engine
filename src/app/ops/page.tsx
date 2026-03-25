@@ -1,10 +1,10 @@
-import OpsWizard from "./OpsClient";
+import App from "./OpsClient";
 
 export const metadata = {
   title: "FocuxAI Ops — Configurador HubSpot",
-  description: "Wizard de configuración para implementaciones HubSpot en constructoras",
+  description: "Central de implementaciones HubSpot para constructoras — FocuxAI Engine™",
 };
 
 export default function OpsPage() {
-  return <OpsWizard />;
+  return <App />;
 }

@@ -1,39 +1,13 @@
 // @ts-nocheck
 "use client";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
-/* ═══════════════════════════════════════════════════════════
-   FOCUXAI OPS v7 — Multi-Client Implementation Engine
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ STORAGE ═══ */
+const SK = "focuxai-v4";
+async function ld() { try { const raw = localStorage.getItem(SK); return raw ? JSON.parse(raw) : null; } catch { return null; } }
+async function sv(d) { try { localStorage.setItem(SK, JSON.stringify(d)); } catch (e) { console.error(e); } }
 
-/* ═══ MULTI-CLIENT STORAGE ═══ */
-const IDX_KEY = "focuxai-clients-idx";
-const CL_PREFIX = "focuxai-cl:";
-const VER_PREFIX = "focuxai-ver:";
-const MAX_VERSIONS = 15;
-
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-
-async function sGet(k) { try { const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; } catch { return null; } }
-async function sSet(k, v) { try { await window.storage.set(k, JSON.stringify(v)); } catch (e) { console.error("storage set error", e); } }
-async function sDel(k) { try { await window.storage.delete(k); } catch (e) { console.error("storage del error", e); } }
-
-async function loadIndex() { return (await sGet(IDX_KEY)) || []; }
-async function saveIndex(idx) { await sSet(IDX_KEY, idx); }
-async function loadClient(id) { return await sGet(CL_PREFIX + id); }
-async function saveClient(id, data) { await sSet(CL_PREFIX + id, data); }
-async function deleteClient(id) { await sDel(CL_PREFIX + id); await sDel(VER_PREFIX + id); }
-async function loadVersions(id) { return (await sGet(VER_PREFIX + id)) || []; }
-async function saveVersions(id, vers) { await sSet(VER_PREFIX + id, vers); }
-
-async function pushVersion(id, data, label) {
-  const vers = await loadVersions(id);
-  vers.unshift({ ts: Date.now(), label: label || "Auto-save", data: JSON.parse(JSON.stringify(data)) });
-  if (vers.length > MAX_VERSIONS) vers.length = MAX_VERSIONS;
-  await saveVersions(id, vers);
-}
-
-/* ═══ METHODOLOGY DEFAULTS (Focux standard — NOT demo data) ═══ */
+/* ═══ DEFAULTS ═══ */
 const DEF_CH = ["Pauta Facebook-IG","Pauta Google","Sitio Web","Mail Marketing","Redes Sociales Orgánicas","Búsqueda Orgánica","Sala de Ventas Física","Referido","Importación Base de Datos","Feria Inmobiliaria","Canal WhatsApp","Llamada Telefónica","Aliado / Portal Inmobiliario","Recompra"];
 const DEF_CT = ["Valla / Carro Valla","Volante","Emisora","Prensa / Revista","Activación Física","Vitrina Salas","Ascensores","SMS"];
 const DEF_EP = ["Lead Nuevo","Intento de Contacto","Contactado en Seguimiento","Calificado por Prospección","Presentación Virtual","Lead Descartado por Prospección"];
@@ -42,7 +16,15 @@ const DEF_PL = [{n:"Cotización Solicitada",p:10},{n:"Opcionó",p:40},{n:"Consig
 const DEF_MD = ["Ingresos insuficientes","Crédito Denegado","Centrales de Riesgo","Precio del proyecto","Ubicación","Área","Acabados","Tiempos de Entrega","Parqueaderos","Compró en competencia","No volvió a contestar","Datos Errados","No interesado","Aplaza Compra","No aplican subsidios","Licencia Turismo"];
 const DEF_MP = ["Calamidad Doméstica","Compró en Otro Proyecto","Cambio condiciones","No firma contratos","Dejó de contestar","No salió préstamo","No salió subsidio","Eligió otra unidad"];
 const DEF_NIVELES = ["AAA","AA","A","B","C","D"];
-const DEF_VARS = [{id:"ingresos",label:"Rango de Ingresos",on:true},{id:"ahorros",label:"Tiene Ahorros o Cesantías",on:true},{id:"proposito",label:"Propósito de Compra (Vivienda/Inversión)",on:true},{id:"credito",label:"Crédito Preaprobado",on:false},{id:"subsidios",label:"Aplica a Subsidios",on:false}];
+const DEF_VARS = [
+  {id:"ingresos",label:"Rango de Ingresos",on:true,opts:[]},
+  {id:"ahorros",label:"Tiene Ahorros o Cesantías",on:true,opts:["Sí","No"]},
+  {id:"proposito",label:"Propósito de Compra",on:true,opts:["Vivienda","Inversión"]},
+  {id:"credito",label:"Crédito Preaprobado",on:false,opts:["Sí","No"]},
+  {id:"subsidios",label:"Aplica a Subsidios",on:false,opts:["Sí","No"]},
+  {id:"horario",label:"Horario de Contacto",on:true,opts:["Lunes a Viernes 9am-12m","Lunes a Viernes 12m-2pm","Lunes a Viernes 2pm-6pm","Lunes a Viernes 6pm-8pm","Sábados en la Mañana"]},
+  {id:"horizonte",label:"Horizonte de Compra",on:true,opts:["Inmediato","Antes de 3 meses","De 3 a 6 meses","Más de 6 meses"]},
+];
 const DEF_REGLAS = [
   {si:"Cumple ingreso mínimo",y:"Con ahorros",entonces:"AAA"},
   {si:"Cumple ingreso mínimo",y:"Sin ahorros",entonces:"AA"},
@@ -53,25 +35,23 @@ const DEF_REGLAS = [
   {si:"No desea ser contactado",y:"Cualquiera",entonces:"D"},
 ];
 
-function makeBlankState() {
-  return {
-    step:0, nombreConst:"", dominio:"", nombrePipeline:"", triggerDeal:"Cotización Solicitada",
-    diasSinAct:7, pais:"Colombia",
-    hubSales:"No", hubMarketing:"No", hubService:"No", hubContent:"No",
-    tieneCotizador:false, tieneAgente:false,
-    crmOrigen:"Ninguno", volRegistros:"", tieneAdj:false,
-    macros:[],
-    chStd:DEF_CH.map(n=>({n,a:true})), chTr:DEF_CT.map(n=>({n,a:false})), chCu:[],
-    rangos:["Menos de $2M","Entre $2M y $4M","Entre $4M y $8M","Entre $8M y $15M","Más de $15M"],
-    niveles:[...DEF_NIVELES], varsCalif:DEF_VARS.map(v=>({...v})), reglas:DEF_REGLAS.map(r=>({...r})),
-    usaCalif:true, umbral:75,
-    etP:[...DEF_EP], etS:[...DEF_ES],
-    pipeline:[...DEF_PL.map(p=>({...p}))],
-    moD:[...DEF_MD], moP:[...DEF_MP],
-    nomAgente:"", tonoAgente:"Profesional y cálido", wabaNum:"", tiposAgente:[],
-    ex:{}, vn:{},
-  };
-}
+const INIT = {
+  step:0, nombreConst:"", dominio:"", nombrePipeline:"", triggerDeal:"Cotización Solicitada",
+  diasSinAct:7, pais:"Colombia",
+  hubSales:"Pro", hubMarketing:"Pro", hubService:"No", hubContent:"No",
+  tieneCotizador:false, tieneAgente:false,
+  crmOrigen:"Ninguno", volRegistros:"", tieneAdj:false,
+  macros:[],
+  chStd:DEF_CH.map(n=>({n,a:true})), chTr:DEF_CT.map(n=>({n,a:false})), chCu:[],
+  rangos:["Menos de $2M","Entre $2M y $4M","Entre $4M y $8M","Entre $8M y $15M","Más de $15M"],
+  niveles:[...DEF_NIVELES], varsCalif:DEF_VARS.map(v=>({...v})), reglas:DEF_REGLAS.map(r=>({...r})),
+  usaCalif:true, umbral:75,
+  etP:[...DEF_EP], etS:[...DEF_ES],
+  pipeline:[...DEF_PL.map(p=>({...p}))],
+  moD:[...DEF_MD], moP:[...DEF_MP],
+  nomAgente:"", tonoAgente:"Profesional y cálido", wabaNum:"", tiposAgente:["AAA","AA","A"],
+  ex:{}, vn:{},
+};
 
 /* ═══ DESIGN TOKENS ═══ */
 const font = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
@@ -84,12 +64,8 @@ const tk = {
   accent: "#0D7AB5", accentLight:"#E0F4FD",
 };
 
-
-const FOCUX_ICON = "data:image/png;base64,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";
-const FOCUX_LOGO = "data:image/png;base64,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";
-
 /* ═══ UI PRIMITIVES ═══ */
-const ss = {
+const ss = { // shared styles
   label: { display:"block", fontSize:12, fontWeight:600, color:tk.text, marginBottom:4, letterSpacing:"0.01em" },
   input: { width:"100%", padding:"10px 12px", borderRadius:8, border:`1.5px solid ${tk.border}`, fontSize:13, color:tk.text, outline:"none", boxSizing:"border-box", fontFamily:font, transition:"border-color 0.2s, box-shadow 0.2s" },
   card: { border:`1px solid ${tk.border}`, borderRadius:12, padding:20, marginBottom:14, background:tk.card, position:"relative", transition:"box-shadow 0.2s" },
@@ -102,6 +78,35 @@ function Inp({ label, value, onChange, type="text", placeholder="", required=fal
       <input type={type} value={value||""} onChange={e => onChange(type==="number" ? (+e.target.value||0) : e.target.value)}
         placeholder={placeholder}
         style={{...ss.input, fontFamily: mono ? "monospace" : font}}
+        onFocus={e => { e.target.style.borderColor = tk.accent; e.target.style.boxShadow = `0 0 0 3px ${tk.accentLight}`; }}
+        onBlur={e => { 
+          e.target.style.borderColor = tk.border; e.target.style.boxShadow = "none";
+          if(type==="email" && e.target.value) onChange(e.target.value.trim().toLowerCase());
+          else if(type==="text" && e.target.value) onChange(e.target.value.trim());
+        }} />
+      {note && <p style={{ fontSize:11, color:tk.textTer, margin:"4px 0 0", lineHeight:1.4 }}>{note}</p>}
+    </div>
+  );
+}
+
+function MoneyInp({ label, value, onChange, placeholder="$0", required=false, note="" }) {
+  const fmt = (v) => {
+    if (!v && v !== 0) return "";
+    const num = String(v).replace(/[^0-9]/g, "");
+    if (!num) return "";
+    return "$" + parseInt(num).toLocaleString("es-CO");
+  };
+  const raw = String(value||"").replace(/[^0-9]/g, "");
+  const handleChange = (input) => {
+    const digits = input.replace(/[^0-9]/g, "");
+    onChange(digits);
+  };
+  return (
+    <div style={{ marginBottom:16 }}>
+      {label && <label style={ss.label}>{label}{required && <span style={{color:tk.red}}> *</span>}</label>}
+      <input type="text" value={fmt(raw)} onChange={e => handleChange(e.target.value)}
+        placeholder={placeholder}
+        style={{...ss.input}}
         onFocus={e => { e.target.style.borderColor = tk.accent; e.target.style.boxShadow = `0 0 0 3px ${tk.accentLight}`; }}
         onBlur={e => { e.target.style.borderColor = tk.border; e.target.style.boxShadow = "none"; }} />
       {note && <p style={{ fontSize:11, color:tk.textTer, margin:"4px 0 0", lineHeight:1.4 }}>{note}</p>}
@@ -300,11 +305,6 @@ function calcPct(d, s) {
   return (checks[s] || (() => 100))();
 }
 
-function calcOverallPct(d) {
-  const pcts = Array.from({length:10},(_,i)=>calcPct(d,i));
-  return Math.round(pcts.reduce((a,b)=>a+b,0)/10);
-}
-
 /* ═══ VALIDATE ═══ */
 function validate(d) {
   const w=[], e=[];
@@ -325,6 +325,9 @@ function validate(d) {
 }
 
 /* ═══ PROMPT GENERATOR ═══ */
+/* ═══ MONEY FORMATTER ═══ */
+const fmtMoney = (v) => { const n = String(v||"").replace(/[^0-9]/g,""); return n ? "$"+parseInt(n).toLocaleString("es-CO") : ""; };
+
 function genPrompts(d) {
   const P=[], ms=d.macros||[];
   const mn = ms.map(m=>m.nombre).filter(Boolean).join(", ");
@@ -334,42 +337,115 @@ function genPrompts(d) {
   const pn = d.nombrePipeline||"Pipeline Ventas";
   const plStages = d.pipeline.map(s=>`${s.n} (${s.p}%)`).join(", ");
 
-  P.push({id:"PRE-01",cat:"0. Setup Base",tp:"spec",pr:`MANUAL — Setup del Portal\n\n1. Crear usuarios:\n${ms.flatMap(m=>(m.asesores||[]).map(a=>`   ${a.nombre}: ${a.email}`)).join("\n")}\n2. Asignar permisos (Marketing, Ventas, Admin)\n3. Conectar correo corporativo\n4. Conectar dominio: ${d.dominio}\n5. Instalar tracking code\n6. Integrar Meta Ads + Google Ads\n7. Crear grupo de propiedades "Focux":\n   Config → Propiedades → Contactos → Groups → Crear → "Focux"\n   Config → Propiedades → Negocios → Groups → Crear → "Focux"`});
+  // Helper: get opts for a varsCalif variable by id
+  const getVarOpts = (id) => {
+    const v = (d.varsCalif||[]).find(v => v.id === id);
+    return v && v.on && (v.opts||[]).length ? v.opts.join(", ") : null;
+  };
 
+  // PRE-REQS (deduplicated users)
+  const allUsers = [];
+  const seenEmails = new Set();
+  ms.forEach(m=>(m.asesores||[]).forEach(a=>{
+    if(a.email && !seenEmails.has(a.email)){seenEmails.add(a.email);allUsers.push(a);}
+  }));
+  P.push({id:"PRE-01",cat:"0. Setup Base",tp:"spec",pr:`MANUAL — Setup del Portal\n\n1. Crear usuarios:\n${allUsers.map(a=>`   ${a.nombre} ${a.apellido||""}: ${a.email}`.trim()).join("\n")}\n2. Asignar permisos (Marketing, Ventas, Admin)\n3. Conectar correo corporativo\n4. Conectar dominio: ${d.dominio}\n5. Instalar tracking code\n6. Integrar Meta Ads + Google Ads\n7. Crear grupo de propiedades "Focux":\n   Config → Propiedades → Contactos → Groups → Crear → "Focux"\n   Config → Propiedades → Negocios → Groups → Crear → "Focux"`});
+
+  // PROPERTIES (dynamic from varsCalif)
   let pb = `Crea estas propiedades en el grupo "Focux". Usa el internal name exacto.\n\nCONTACTOS\n`;
-  [["Lista de Proyectos","lista_proyectos_fx","dropdown",mn],["Canal de Atribución","canal_atribucion_fx","dropdown",allCh],["Etapa del Lead","etapa_lead_fx","dropdown",allEt],["Tipo de Lead","tipo_lead_fx","dropdown",d.niveles.join(", ")],["Motivo de Descarte","motivo_descarte_fx","dropdown",d.moD.join(", ")],["Rango de Ingresos","rango_ingresos_fx","dropdown",d.rangos.join(", ")],["Tiene Ahorros","tiene_ahorros_fx","dropdown","Sí, No"],["Propósito de Compra","proposito_compra_fx","dropdown","Vivienda, Inversión"],["Horizonte de Compra","horizonte_compra_fx","dropdown","Inmediata, Semanas, Meses, Próximo año"],["Horario de Contacto","horario_contacto_fx","dropdown","Mañana (9-12), Almuerzo (12-2), Tarde (2-6), Noche (6-8)"],["Crédito Preaprobado","credito_preaprobado_fx","dropdown","Sí, No"],["Aplica a Subsidios","aplica_subsidios_fx","dropdown","Sí, No"],["Cédula","cedula_fx","texto",""],["ID Externo","id_externo_fx","texto",""]].forEach(([l,n,t,o])=>{pb+=`- ${l} | ${n} | ${t}${o?` | ${o}`:""}\n`});
+  const contactProps = [
+    ["Lista de Proyectos","lista_proyectos_fx","dropdown",mn],
+    ["Canal de Atribución","canal_atribucion_fx","dropdown",allCh],
+    ["Etapa del Lead","etapa_lead_fx","dropdown",allEt],
+    ["Tipo de Lead","tipo_lead_fx","dropdown",d.niveles.join(", ")],
+    ["Motivo de Descarte","motivo_descarte_fx","dropdown",d.moD.join(", ")],
+    ["Rango de Ingresos","rango_ingresos_fx","dropdown",d.rangos.join(", ")],
+    ["Tiene Ahorros","tiene_ahorros_fx","dropdown",getVarOpts("ahorros")||"Sí, No"],
+    ["Propósito de Compra","proposito_compra_fx","dropdown",getVarOpts("proposito")||"Vivienda, Inversión"],
+    ["Horizonte de Compra","horizonte_compra_fx","dropdown",getVarOpts("horizonte")||"Inmediato, Antes de 3 meses, De 3 a 6 meses, Más de 6 meses"],
+    ["Horario de Contacto","horario_contacto_fx","dropdown",getVarOpts("horario")||"Lunes a Viernes 9am-12m, Lunes a Viernes 12m-2pm, Lunes a Viernes 2pm-6pm, Lunes a Viernes 6pm-8pm, Sábados en la Mañana"],
+    ["Crédito Preaprobado","credito_preaprobado_fx","dropdown",getVarOpts("credito")||"Sí, No"],
+    ["Aplica a Subsidios","aplica_subsidios_fx","dropdown",getVarOpts("subsidios")||"Sí, No"],
+    ["Cédula","cedula_fx","texto",""],
+    ["ID Externo","id_externo_fx","texto",""],
+  ];
+  // Add custom variables as properties
+  (d.varsCalif||[]).filter(v=>v.on && v.id.startsWith("custom_") && (v.opts||[]).length).forEach(v=>{
+    const internalName = v.label.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")+"_fx";
+    contactProps.push([v.label, internalName, "dropdown", v.opts.join(", ")]);
+  });
+  contactProps.forEach(([l,n,t,o])=>{pb+=`- ${l} | ${n} | ${t}${o?` | ${o}`:""}\n`});
   pb += `\nNEGOCIOS\n`;
   [["Macroproyecto","macroproyecto_fx","dropdown",mn],["Proyecto Torre","proyecto_torre_fx","dropdown",tn],["Nro Cotización","nro_cotizacion_fx","texto",""],["Valor Cotización","valor_cotizacion_fx","moneda",""],["Unidad Principal","unidad_principal_fx","texto",""],["Tipo Unidad","tipo_unidad_fx","dropdown","Apartamento, Casa, Local, Lote, Bodega"],["Área m2","area_m2_fx","número",""],["Habitaciones","habitaciones_fx","número",""],["Baños","banos_fx","número",""],["Parqueadero","parqueadero_fx","texto",""],["Depósito","deposito_fx","texto",""],["Fecha Entrega","fecha_entrega_fx","fecha",""],["Motivo Pérdida","motivo_perdida_fx","dropdown",d.moP.join(", ")],["ID Externo","id_externo_deal_fx","texto",""],["Canal Atribución","canal_deal_fx","dropdown",allCh],["Tipo Lead","tipo_lead_deal_fx","dropdown",d.niveles.join(", ")],["Propósito Compra","proposito_deal_fx","dropdown","Vivienda, Inversión"],["Cédula Comprador 1","cedula_comp1_fx","texto",""],["Nombre Comprador 2","nombre_comp2_fx","texto",""],["Apellido Comprador 2","apellido_comp2_fx","texto",""],["Teléfono Comprador 2","tel_comp2_fx","texto",""],["Email Comprador 2","email_comp2_fx","texto",""],["Cédula Comprador 2","cedula_comp2_fx","texto",""]].forEach(([l,n,t,o])=>{pb+=`- ${l} | ${n} | ${t}${o?` | ${o}`:""}\n`});
   pb += `\nDevuélveme resumen con internal name y link de cada propiedad.`;
   P.push({id:"PROP-01",cat:"1. Propiedades",tp:"exec",pr:pb});
 
+  // PIPELINE
   P.push({id:"PL-01",cat:"2. Pipeline",tp:"exec",pr:`Crea pipeline "${pn}" con etapas: ${plStages}\n\nDevuélveme resumen con link.`});
 
+  // TEAMS
   let tb=`MANUAL — Equipos de Venta\nConfig → Usuarios y equipos → Equipos\n\n`;
-  ms.forEach(m=>{if(m.nombre&&(m.asesores||[]).length){tb+=`Equipo ${m.nombre}: ${m.asesores.map(a=>a.email).filter(Boolean).join(", ")}\n`}});
+  ms.forEach(m=>{if(m.nombre&&(m.asesores||[]).length){tb+=`Equipo ${m.nombre}: ${m.asesores.map(a=>`${a.nombre} ${a.apellido||""} <${a.email}>`.trim()).filter(Boolean).join(", ")}\n`}});
   P.push({id:"EQ-01",cat:"3. Equipos",tp:"spec",pr:tb});
 
-  ms.forEach((m,i)=>{if(m.nombre)P.push({id:`WF-A${i+1}`,cat:"4. Workflows",tp:"exec",pr:`Workflow "Asignación ${m.nombre}":\nTrigger: lista_proyectos_fx = ${m.nombre}\nAcción: round robin Equipo ${m.nombre}`})});
+  // WF ASSIGNMENT (per project × nivel group, with task)
+  // SIEMPRE filtra por tipo_lead_fx — el workflow espera a que calificación termine
+  ms.forEach((m,i)=>{
+    if(!m.nombre || !(m.asesores||[]).length) return;
+    // Group asesores by their niveles combination
+    const groups = {};
+    (m.asesores||[]).forEach(a => {
+      const key = (a.niveles||[]).sort().join(",") || "ALL";
+      if(!groups[key]) groups[key] = [];
+      groups[key].push(a);
+    });
+    let gi = 0;
+    Object.entries(groups).forEach(([nivKey, asesores]) => {
+      gi++;
+      const niveles = nivKey === "ALL" ? d.niveles : nivKey.split(",");
+      const nivelesStr = niveles.join(", ");
+      const asesoresStr = asesores.map(a => `${a.nombre} ${a.apellido||""} (${a.email})`.trim()).join(", ");
+      const roundRobinStr = asesores.length > 1 ? `round robin entre: ${asesoresStr}` : `asignar a: ${asesoresStr}`;
+      P.push({id:`WF-A${i+1}${gi>1?String.fromCharCode(96+gi):""}`,cat:"4. Workflows",tp:"exec",pr:`Workflow "Asignación ${m.nombre} — ${nivelesStr}":\nTrigger: lista_proyectos_fx = ${m.nombre} Y tipo_lead_fx = cualquiera de [${nivelesStr}]\nAcciones:\n1) ${roundRobinStr}\n2) Crear tarea para el propietario:\n   Título: "Tienes un lead nuevo en ${m.nombre} — contáctalo ya"\n   Vencimiento: día siguiente\n   Recordatorio: 30 minutos antes`});
+    });
+  });
 
+  // WF QUALIFICATION (per project, dynamic matrix using active variables)
   if(d.usaCalif) {
+    const activeVars = (d.varsCalif||[]).filter(v => v.on && v.id !== "ingresos");
     ms.forEach((m,i)=>{
       if(!m.nombre||!m.rangoMinimo) return;
       const rIdx=d.rangos.indexOf(m.rangoMinimo);
       const below=rIdx>0?d.rangos[rIdx-1]:null;
       d.reglas.forEach((r,ri)=>{
         let trigger="", action=r.entonces;
-        if(r.si==="Cumple ingreso mínimo") trigger=`lista_proyectos_fx=${m.nombre} Y rango_ingresos_fx=${m.rangoMinimo} Y tiene_ahorros_fx=${r.y==="Con ahorros"?"Sí":"No"}`;
-        else if(r.si==="Un nivel debajo" && below) trigger=`lista_proyectos_fx=${m.nombre} Y rango_ingresos_fx=${below} Y tiene_ahorros_fx=${r.y==="Con ahorros"?"Sí":"No"}`;
-        else if(r.si==="Inversionista") trigger=`proposito_compra_fx=Inversión`;
-        if(trigger) P.push({id:`WF-Q${i+1}${String.fromCharCode(97+ri)}`,cat:"4. Workflows",tp:"exec",pr:`Workflow "Calif ${m.nombre} → ${action}":\nTrigger: ${trigger}\nAcción: tipo_lead_fx = ${action}`});
+        // Build trigger from matrix rule columns
+        const conditions = [`lista_proyectos_fx = ${m.nombre}`];
+        // Column "si" maps to income
+        if(r.si==="Cumple ingreso mínimo") conditions.push(`rango_ingresos_fx = ${m.rangoMinimo}`);
+        else if(r.si==="Un nivel debajo" && below) conditions.push(`rango_ingresos_fx = ${below}`);
+        else if(r.si==="Inversionista") conditions.push(`proposito_compra_fx = Inversión`);
+        else if(r.si==="No cumple requisito") conditions.push(`rango_ingresos_fx < ${m.rangoMinimo}`);
+        else if(r.si==="No desea ser contactado") { conditions.push(`etapa_lead_fx = Descartado`); }
+        else if(r.si) conditions.push(r.si);
+        // Column "y" maps to second variable (dynamic)
+        if(r.y && r.y !== "Cualquiera") {
+          conditions.push(r.y);
+        }
+        trigger = conditions.join(" Y ");
+        if(conditions.length > 1) {
+          P.push({id:`WF-Q${i+1}${String.fromCharCode(97+ri)}`,cat:"4. Workflows",tp:"exec",pr:`Workflow "Calif ${m.nombre} → ${action}":\nTrigger: ${trigger}\nAcción: tipo_lead_fx = ${action}`});
+        }
       });
     });
   }
 
+  // WF SALES
   P.push({id:"WF-D1",cat:"4. Workflows",tp:"exec",pr:`Workflow "Crear Deal":\nTrigger: etapa_lead_fx = ${d.triggerDeal}\nAcciones:\n1) Crear negocio en ${pn}, Amount=0\n2) Copiar: lista_proyectos_fx→macroproyecto_fx, canal_atribucion_fx→canal_deal_fx, tipo_lead_fx→tipo_lead_deal_fx, proposito_compra_fx→proposito_deal_fx, cedula_fx→cedula_comp1_fx\n3) Notificar propietario: "Nuevo negocio {lista_proyectos_fx} - {firstname} {lastname} ({tipo_lead_fx})"`});
   P.push({id:"WF-D2",cat:"4. Workflows",tp:"exec",pr:`Workflow "Valor al Opcionar":\nTrigger: etapa → Opcionó\nAcción: valor_cotizacion_fx → Amount`});
   P.push({id:"WF-D3",cat:"4. Workflows",tp:"exec",pr:`Workflow "Alerta ${d.diasSinAct}d":\nTrigger: ${d.diasSinAct} días sin actividad\nAcción: tarea + notificación`});
 
+  // SCORING + FORMS + REPORTS + CONTENT
   P.push({id:"LS-01",cat:"5. Lead Scoring",tp:"spec",pr:`MANUAL — Config → HubSpot Score\n\nEmail mktg abrió:+15 | clic:+20 | respondió:+25\nEmail ventas apertura:+15 | clic:+20 | respuesta:+30\nVisitó ${d.dominio}:+15 | Redes:+20 | Form:+50\nDecay: 30%/3m | Umbral: ${d.umbral}pts`});
 
   ms.forEach((m,i)=>{if(!m.nombre)return;const v=m.tipo==="VIS";const filtro=m.preguntaFiltroCustom||(v?`${m.nombre} en ${m.ciudad}, áreas ${m.areaDesde}. ¿Se acomoda?`:`${m.nombre} en ${m.ciudad}, ${m.areaDesde}, ${m.precioDesde}, cuotas ${m.cuotaDesde}. ¿Te interesa?`);
@@ -379,9 +455,9 @@ function genPrompts(d) {
 
   P.push({id:"SEQ-01",cat:"8. Productividad",tp:"spec",pr:`MANUAL — Secuencia + Templates + Snippets + Playbook\n\nSecuencia: Día0:Email Día2:Llamada Día4:Email Día7:Cierre\nTemplates: Primer contacto, Brochure, Post-cotización\nSnippets: ${ms.map(m=>`#${(m.nombre||"").toLowerCase().replace(/\s/g,"_")}`).join(", ")}\nPlaybook: Calificación inmobiliaria\n\nNurturing Proyecto×Buyer:\n${ms.map(m=>(m.buyers||[]).map(b=>`${m.nombre} × ${b.nombre}`).join(", ")).filter(Boolean).join("\n")}`});
 
-  ms.forEach((m,i)=>{if(m.nombre)P.push({id:`LP-${i+1}`,cat:"9. Landing Pages",tp:"spec",pr:`PROMPT IA HubSpot — Landing "${m.nombre}"\n${m.ciudad} | ${m.tipo} | Áreas ${m.areaDesde} | ${m.precioDesde}\n${m.amenities?`Amenidades: ${m.amenities}`:""}\nEstructura: Hero→Beneficios→Galería→Tipologías→Ubicación→Form→Footer`})});
+  ms.forEach((m,i)=>{if(m.nombre)P.push({id:`LP-${i+1}`,cat:"9. Landing Pages",tp:"spec",pr:`PROMPT IA HubSpot — Landing "${m.nombre}"\n${m.ciudad} | ${m.tipo} | Áreas ${m.areaDesde} | ${fmtMoney(m.precioDesde)}\n${m.amenities?`Amenidades: ${m.amenities}`:""}\nEstructura: Hero→Beneficios→Galería→Tipologías→Ubicación→Form→Footer`})});
 
-  if(d.tieneAgente&&d.nomAgente){const info=ms.map(m=>`${m.nombre}: ${m.ciudad}, ${m.precioDesde}, ${m.tipologias}`).join(". ");
+  if(d.tieneAgente&&d.nomAgente){const info=ms.map(m=>`${m.nombre}: ${m.ciudad}, ${fmtMoney(m.precioDesde)}, ${m.tipologias}`).join(". ");
   P.push({id:"AI-01",cat:"10. Agente IA",tp:"spec",pr:`Breeze Studio — "${d.nomAgente}" (${d.tonoAgente})\nWABA: ${d.wabaNum}\nProyectos: ${info}\nReglas: NO descuentos/precios exactos/fechas/legal\nActivar: ${d.tiposAgente.join(", ")}`})};
 
   return P;
@@ -402,6 +478,7 @@ const OBJS = [
 ];
 
 /* ═══ TEMPLATE GENERATOR (Gemini-ready) ═══ */
+/* ═══ TEMPLATE DATA ═══ */
 function getTemplate(type, constructoraName, domain) {
   const nm = constructoraName || "[nombre constructora]";
   const dm = domain || "[dominio.com]";
@@ -413,7 +490,30 @@ function getTemplate(type, constructoraName, domain) {
         ["Firenze","Medellín, El Poblado","No VIS","$350,000,000","45 m2","$3,500,000","1,2,3 hab","Piscina, gym, coworking"],
         ["Caoba","Villavicencio","VIS","$150,000,000","51 m2","","2,3 hab","Zona BBQ, parque infantil"],
       ],
-      prompt: `Visita https://${dm} y extrae TODOS los proyectos en comercialización de ${nm}.\n\nDevuelve una tabla con EXACTAMENTE 8 columnas separadas por TAB, en este orden:\n\nCOL1: Nombre del proyecto\nCOL2: Ciudad / ubicación\nCOL3: Tipo → "VIS" si precio < $187M COP, "No VIS" si mayor, "Mixto" si ambos\nCOL4: Precio desde (formato: $XXX.XXX.XXX o vacío)\nCOL5: Área desde (formato: "XX m2" o vacío)\nCOL6: Cuota mensual desde (formato: $X.XXX.XXX o vacío)\nCOL7: Tipos de unidad\nCOL8: Amenidades principales\n\nREGLAS ESTRICTAS:\n- EXACTAMENTE 8 columnas por fila. Dato faltante = celda VACÍA.\n- Separador: TAB. SIN encabezados. Solo filas de datos.\n- NO inventes datos. Solo lo visible en la web.\n- Una fila por proyecto.`,
+      prompt: `Visita https://${dm} y extrae TODOS los proyectos en comercialización de ${nm}.
+
+Devuelve una tabla con EXACTAMENTE 8 columnas separadas por TAB, en este orden:
+
+COL1: Nombre del proyecto
+COL2: Ciudad / ubicación (ej: "Santa Marta, El Rodadero")
+COL3: Tipo → escribe "VIS" si precio < $187M COP, "No VIS" si es mayor, "Mixto" si tiene ambos
+COL4: Precio desde (formato: $XXX.XXX.XXX o vacío si no hay)
+COL5: Área desde (formato: "XX m2" o vacío)
+COL6: Cuota mensual desde (formato: $X.XXX.XXX o vacío si no hay)
+COL7: Tipos de unidad (ej: "1, 2, 3 hab" o "Apartasuites" o "Locales")
+COL8: Amenidades principales (las más relevantes, separadas por coma)
+
+REGLAS ESTRICTAS:
+- EXACTAMENTE 8 columnas por fila. Si un dato no existe, deja la celda VACÍA (dos tabs seguidos).
+- Separador: TAB (\\t) entre cada columna.
+- SIN encabezados. Solo filas de datos.
+- SIN numeración ni viñetas.
+- NO inventes datos. Solo lo visible en la web.
+- Una fila por proyecto.
+
+EJEMPLO DE FORMATO CORRECTO (tabs entre columnas):
+Firenze[TAB]Medellín, El Poblado[TAB]No VIS[TAB]$350.000.000[TAB]45 m2[TAB]$3.500.000[TAB]1, 2, 3 hab[TAB]Piscina, gym, coworking
+Caoba[TAB]Villavicencio[TAB]VIS[TAB]$150.000.000[TAB]51 m2[TAB][TAB]2, 3 hab[TAB]Zona BBQ, parque infantil`,
     },
     torres: {
       title: "FocuxAI Scraping — Torres / Etapas",
@@ -422,7 +522,22 @@ function getTemplate(type, constructoraName, domain) {
         ["Firenze","Torre 1","2028-06-15","35","1","30","120"],
         ["Firenze","Torre 2","2029-01-20","35","1","30","95"],
       ],
-      prompt: `Visita https://${dm} y para CADA proyecto de ${nm}, extrae las torres o etapas disponibles.\n\nDevuelve una tabla con EXACTAMENTE 7 columnas separadas por TAB.\n\nREGLAS ESTRICTAS:\n- EXACTAMENTE 7 columnas por fila. Dato faltante = celda vacía.\n- Si un proyecto no tiene torres individuales, una fila con "Torre Única".\n- Separador: TAB. SIN encabezados. Solo datos.`,
+      prompt: `Visita https://${dm} y para CADA proyecto de ${nm}, extrae las torres o etapas disponibles.
+
+Devuelve una tabla con EXACTAMENTE 7 columnas separadas por TAB, en este orden:
+
+COL1: Nombre del macroproyecto (EXACTO como aparece en la web)
+COL2: Nombre de la torre o etapa (ej: "Torre 1", "Etapa 2", "Torre Única" si no hay subdivisión)
+COL3: Fecha de entrega estimada (formato YYYY-MM-DD. Si dice "Diciembre 2028" → 2028-12-01)
+COL4: Meses de cuota inicial (número o vacío)
+COL5: % de separación (número o vacío)
+COL6: % de cuota inicial total (número o vacío)
+COL7: Total de unidades (número o vacío)
+
+REGLAS ESTRICTAS:
+- EXACTAMENTE 7 columnas por fila. Dato faltante = celda vacía (dos tabs seguidos).
+- Si un proyecto no tiene torres individuales, una fila con "Torre Única".
+- Separador: TAB. SIN encabezados. Solo datos.`,
     },
     equipos: {
       title: "FocuxAI Scraping — Equipo Comercial",
@@ -431,7 +546,18 @@ function getTemplate(type, constructoraName, domain) {
         ["Firenze","María Gómez","maria@constructora.com",""],
         ["Caoba","Ana Martínez","ana@constructora.com",""],
       ],
-      prompt: `Visita https://${dm} y busca información del equipo comercial de ${nm}.\n\nDevuelve una tabla con EXACTAMENTE 4 columnas separadas por TAB.\n\nREGLAS: Si no encuentras asesores por proyecto, usa el contacto general. EXACTAMENTE 4 columnas. SIN encabezados.`,
+      prompt: `Visita https://${dm} y busca información del equipo comercial de ${nm}.
+
+Busca en: página de contacto, sección "equipo", salas de ventas, WhatsApp de proyectos.
+
+Devuelve una tabla con EXACTAMENTE 4 columnas separadas por TAB:
+
+COL1: Nombre del macroproyecto asignado (EXACTO)
+COL2: Nombre completo del asesor
+COL3: Email corporativo (NO personal)
+COL4: Link de agendamiento (o vacío)
+
+REGLAS: Si no encuentras asesores por proyecto, usa el contacto general. EXACTAMENTE 4 columnas. SIN encabezados.`,
     },
     buyers: {
       title: "FocuxAI Scraping — Buyer Personas",
@@ -440,7 +566,24 @@ function getTemplate(type, constructoraName, domain) {
         ["Firenze","Familia Joven","Parejas 28-38, primer hogar, ingreso $6-12M, buscan 2-3 hab cerca a colegios"],
         ["Firenze","Inversionista","Profesional 35-55, compra para renta, busca ROI y valorización, prefiere 1-2 hab"],
       ],
-      prompt: `Basándote en los proyectos de ${nm} (https://${dm}), genera 2-3 buyer personas por proyecto.\n\nDevuelve una tabla con EXACTAMENTE 3 columnas separadas por TAB.\n\nREGLAS: EXACTAMENTE 3 columnas. SIN encabezados. Una fila por buyer persona.`,
+      prompt: `Basándote en los proyectos de ${nm} (https://${dm}), genera 2-3 buyer personas por proyecto.
+
+Analiza: ubicación, precio, tipo VIS/No VIS, tipologías, amenidades de cada proyecto.
+
+Devuelve una tabla con EXACTAMENTE 3 columnas separadas por TAB:
+
+COL1: Nombre del macroproyecto (EXACTO como aparece en la web)
+COL2: Nombre del buyer persona (descriptivo: "Familia Joven", "Inversionista Turístico", etc.)
+COL3: Descripción (rango edad, composición familiar, ingreso estimado, motivación, necesidades)
+
+Guías:
+- VIS: familias jóvenes, primer hogar, subsidio Mi Casa Ya
+- No VIS turístico: inversionistas de renta corta, nómadas digitales
+- No VIS residencial bajo: parejas profesionales sin subsidio
+- No VIS medio-alto: familias establecidas, upgrade
+- No VIS alto: inversionistas, empty nesters
+
+REGLAS: EXACTAMENTE 3 columnas. SIN encabezados. Una fila por buyer persona.`,
     },
     pipeline: {
       title: "FocuxAI Scraping — Pipeline de Ventas",
@@ -449,7 +592,7 @@ function getTemplate(type, constructoraName, domain) {
         ["Cotización Solicitada","10"],["Opcionó","40"],["Consignó","60"],["Entregó Documentos","70"],
         ["Se vinculó a Fiducia","80"],["Firmó Documentos","90"],["Venta Formalizada","100"],["Perdida","0"],
       ],
-      prompt: `Pipeline estándar Focux para constructoras del sector inmobiliario colombiano.\n\nSi ${nm} tiene un proceso diferente al estándar, ajusta las etapas.\n\nFormato: columnas separadas por TAB, sin encabezados, solo datos.`,
+      prompt: `Este es el pipeline estándar Focux para constructoras del sector inmobiliario colombiano.\n\nSi ${nm} tiene un proceso comercial diferente al estándar, ajusta las etapas.\n\nFormato: columnas separadas por TAB, sin encabezados, solo datos.`,
     },
     etapas_lead: {
       title: "FocuxAI Scraping — Etapas del Lead",
@@ -467,7 +610,7 @@ function getTemplate(type, constructoraName, domain) {
         ["Descarte","Ingresos insuficientes"],["Descarte","No interesado"],["Descarte","Datos Errados"],
         ["Pérdida","Compró en Otro Proyecto"],["Pérdida","No salió préstamo"],["Pérdida","Dejó de contestar"],
       ],
-      prompt: `Motivos de descarte (lead) y pérdida (negocio) estándar del sector inmobiliario.\n\nSi conoces motivos específicos de ${nm}, agrégalos.\n\nFormato: columnas separadas por TAB, sin encabezados, solo datos.`,
+      prompt: `Motivos de descarte (lead, antes de cotizar) y pérdida (negocio, después de cotizar) estándar del sector inmobiliario.\n\nSi conoces motivos específicos de ${nm}, agrégalos.\n\nFormato: columnas separadas por TAB, sin encabezados, solo datos.`,
     },
   };
   return templates[type] || null;
@@ -477,61 +620,111 @@ function getTemplate(type, constructoraName, domain) {
 function TemplateModal({ open, onClose, template }) {
   const [copied, setCopied] = useState("");
   if (!open || !template) return null;
-  const copyPrompt = () => { navigator.clipboard.writeText(template.prompt).then(() => { setCopied("prompt"); setTimeout(() => setCopied(""), 2000); }).catch(() => {}); };
-  const copyTable = () => { const rows = template.examples.map(r => r.join("\t")).join("\n"); navigator.clipboard.writeText(template.headers.join("\t") + "\n" + rows).then(() => { setCopied("table"); setTimeout(() => setCopied(""), 2000); }).catch(() => {}); };
+
+  const copyText = (text, label) => {
+    const fallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); setCopied(label); setTimeout(()=>setCopied(""),2000); }
+      catch(e) {}
+      document.body.removeChild(ta);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(()=>{setCopied(label);setTimeout(()=>setCopied(""),2000)}).catch(fallback);
+    } else { fallback(); }
+  };
+
+  const copyPrompt = () => copyText(template.prompt, "prompt");
+  const copyTable = () => {
+    const rows = template.examples.map(r => r.join("\t")).join("\n");
+    copyText(template.headers.join("\t") + "\n" + rows, "table");
+  };
+
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", display:"flex", justifyContent:"center", alignItems:"center", zIndex:1000, backdropFilter:"blur(4px)" }}>
       <div style={{ background:tk.card, borderRadius:16, padding:24, width:"94%", maxWidth:720, maxHeight:"90vh", overflow:"auto", boxShadow:"0 25px 50px -12px rgba(0,0,0,0.25)" }}>
+        {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:20}}>⚡</span>
+            <div style={{width:32,height:32,borderRadius:8,background:`linear-gradient(135deg,${tk.teal},${tk.blue})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff"}}>⚡</div>
             <div>
-              <h3 style={{margin:0,color:tk.navy,fontSize:16,fontWeight:700}}>{template.title}</h3>
-              <p style={{margin:"2px 0 0",fontSize:11,color:tk.textSec}}>Prompt optimizado para Gemini con acceso web</p>
+              <h3 style={{ margin:0, color:tk.navy, fontSize:16, fontWeight:700 }}>{template.title}</h3>
+              <p style={{margin:"2px 0 0",fontSize:11,color:tk.textTer}}>Copia el prompt → pégalo en Gemini → pega el resultado en la app</p>
             </div>
           </div>
-          <button onClick={onClose} style={{background:tk.bg,border:"none",width:32,height:32,borderRadius:8,fontSize:18,cursor:"pointer",color:tk.textSec,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+          <button onClick={onClose} style={{ background:tk.bg, border:"none", width:32, height:32, borderRadius:8, fontSize:18, cursor:"pointer", color:tk.textSec, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
         </div>
-        <div style={{marginBottom:16}}>
+
+        {/* Step 1: Prompt */}
+        <div style={{ marginBottom:16 }}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <p style={{margin:0,fontSize:12,fontWeight:700,color:tk.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>
               <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",background:tk.accent,color:"#fff",fontSize:10,fontWeight:800,marginRight:6}}>1</span>
-              Prompt para Gemini
+              Prompt para Gemini / ChatGPT
             </p>
-            <button onClick={copyPrompt} style={{padding:"5px 14px",borderRadius:6,border:`1.5px solid ${tk.border}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:font,transition:"all 0.2s",background:copied==="prompt"?tk.greenBg:tk.card,color:copied==="prompt"?tk.green:tk.textSec}}>
+            <button onClick={copyPrompt} style={{
+              padding:"5px 14px", borderRadius:6, border:"none", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:font, transition:"all 0.2s",
+              background: copied==="prompt" ? tk.green : `linear-gradient(135deg,${tk.teal},${tk.blue})`, color:"#fff",
+            }}>
               {copied==="prompt" ? "✓ Copiado" : "Copiar prompt"}
             </button>
           </div>
-          <div style={{padding:14,background:tk.bg,borderRadius:10,border:`1px solid ${tk.border}`,maxHeight:200,overflow:"auto"}}>
-            <pre style={{fontFamily:"monospace",fontSize:11,color:tk.text,whiteSpace:"pre-wrap",margin:0,lineHeight:1.5}}>{template.prompt}</pre>
+          <div style={{background:tk.bg, borderRadius:10, padding:14, border:`1px solid ${tk.border}`, maxHeight:200, overflow:"auto"}}>
+            <pre style={{margin:0, fontSize:12, color:tk.text, whiteSpace:"pre-wrap", lineHeight:1.6, fontFamily:font}}>{template.prompt}</pre>
           </div>
         </div>
+
+        {/* Step 2: Expected format */}
         <div style={{ marginBottom:16 }}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <p style={{margin:0,fontSize:12,fontWeight:700,color:tk.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>
               <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",background:tk.accent,color:"#fff",fontSize:10,fontWeight:800,marginRight:6}}>2</span>
               Formato esperado (ejemplo)
             </p>
-            <button onClick={copyTable} style={{padding:"5px 14px",borderRadius:6,border:`1.5px solid ${tk.border}`,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:font,transition:"all 0.2s",background:copied==="table"?tk.greenBg:tk.card,color:copied==="table"?tk.green:tk.textSec}}>
+            <button onClick={copyTable} style={{
+              padding:"5px 14px", borderRadius:6, border:`1.5px solid ${tk.border}`, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:font, transition:"all 0.2s",
+              background: copied==="table" ? tk.greenBg : tk.card, color: copied==="table" ? tk.green : tk.textSec,
+            }}>
               {copied==="table" ? "✓ Copiado" : "Copiar ejemplo"}
             </button>
           </div>
           <div style={{overflowX:"auto", borderRadius:10, border:`1px solid ${tk.border}`}}>
             <table style={{width:"100%", borderCollapse:"collapse", fontSize:11}}>
-              <thead><tr style={{background:tk.navy}}>{template.headers.map((h,i) => <th key={i} style={{padding:"8px 10px", color:"#fff", fontWeight:600, textAlign:"left", whiteSpace:"nowrap", fontSize:10}}>{h}</th>)}</tr></thead>
-              <tbody>{template.examples.map((row,ri) => <tr key={ri} style={{background:ri%2===0?tk.bg:tk.card, borderBottom:`1px solid ${tk.border}`}}>{row.map((cell,ci) => <td key={ci} style={{padding:"6px 10px", color:tk.text, whiteSpace:"nowrap", fontSize:11}}>{cell || <span style={{color:tk.textTer,fontStyle:"italic"}}>—</span>}</td>)}</tr>)}</tbody>
+              <thead>
+                <tr style={{background:tk.navy}}>
+                  {template.headers.map((h,i) => (
+                    <th key={i} style={{padding:"8px 10px", color:"#fff", fontWeight:600, textAlign:"left", whiteSpace:"nowrap", fontSize:10}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {template.examples.map((row,ri) => (
+                  <tr key={ri} style={{background:ri%2===0?tk.bg:tk.card, borderBottom:`1px solid ${tk.border}`}}>
+                    {row.map((cell,ci) => (
+                      <td key={ci} style={{padding:"6px 10px", color:tk.text, whiteSpace:"nowrap", fontSize:11}}>{cell || <span style={{color:tk.textTer,fontStyle:"italic"}}>—</span>}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>
+
+        {/* Step 3: Instructions */}
         <div style={{padding:12, background:tk.accentLight, borderRadius:10, border:`1px solid ${tk.accent}30`}}>
           <p style={{margin:0,fontSize:12,fontWeight:700,color:tk.navy,marginBottom:4}}>
             <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:"50%",background:tk.accent,color:"#fff",fontSize:10,fontWeight:800,marginRight:6}}>3</span>
             Pegar resultado
           </p>
           <p style={{margin:0,fontSize:12,color:tk.text,lineHeight:1.5}}>
-            Cuando Gemini devuelva los datos, selecciona las filas → copia → vuelve a esta app → usa el botón <strong>"Importar desde Excel"</strong> para pegar.
+            Cuando Gemini devuelva los datos, selecciona las filas → copia → vuelve a esta app → usa el botón <strong>"📋 Importar desde Excel"</strong> para pegar. El parser detecta tabs automáticamente.
           </p>
         </div>
+
+        {/* Close */}
         <div style={{display:"flex", justifyContent:"flex-end", marginTop:16}}>
           <button onClick={onClose} style={{padding:"9px 24px", borderRadius:8, border:"none", background:tk.navy, color:"#fff", fontSize:13, cursor:"pointer", fontWeight:600, fontFamily:font}}>Entendido</button>
         </div>
@@ -582,17 +775,18 @@ function S0({d,u}) {
     <div>
       <SectionHead sub="Información base que se usa en todos los módulos">Datos de la Constructora</SectionHead>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
-        <Inp label="Nombre de la Constructora" value={d.nombreConst} onChange={v=>u("nombreConst",v)} required placeholder="Nombre de la constructora" />
-        <Inp label="Dominio web principal" value={d.dominio} onChange={v=>u("dominio",v)} required placeholder="dominio.com.co" />
+        <Inp label="Nombre de la Constructora" value={d.nombreConst} onChange={v=>u("nombreConst",v)} required placeholder="Constructora Jiménez" />
+        <Inp label="Dominio web principal" value={d.dominio} onChange={v=>u("dominio",v)} required placeholder="jimenez.com.co" />
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
-        <Inp label="Nombre del Pipeline" value={d.nombrePipeline} onChange={v=>u("nombrePipeline",v)} required placeholder="Pipeline Ventas [Constructora]" />
+        <Inp label="Nombre del Pipeline" value={d.nombrePipeline} onChange={v=>u("nombrePipeline",v)} required placeholder="Pipeline Ventas Jiménez" />
         <Sel label="Trigger creación de Deal" value={d.triggerDeal} onChange={v=>u("triggerDeal",v)} required options={["Cotización Solicitada","Visitó Sala de Ventas","Calificado por Prospección"]} />
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
         <Inp label="Días sin actividad para alerta" value={d.diasSinAct} onChange={v=>u("diasSinAct",v)} type="number" required />
         <Sel label="País" value={d.pais} onChange={v=>u("pais",v)} required options={["Colombia","México","Panamá","Costa Rica","Rep. Dominicana","Otro"]} />
       </div>
+
       <SectionHead sub="Define qué módulos están disponibles">Suscripción HubSpot</SectionHead>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:"0 10px"}}>
         <Sel label="Sales Hub" value={d.hubSales} onChange={v=>u("hubSales",v)} options={["No","Starter","Pro","Enterprise"]} />
@@ -602,8 +796,9 @@ function S0({d,u}) {
       </div>
       <div style={{display:"flex",gap:20,marginTop:8,flexWrap:"wrap"}}>
         <Chk label="Módulo 3: Cotizador e Inventario" desc="Requiere al menos 1 Hub Enterprise" checked={d.tieneCotizador} onChange={v=>u("tieneCotizador",v)} />
-        <Chk label="Módulo 4: Agente IA" desc="Requiere Service Hub Pro o Enterprise" checked={d.tieneAgente} onChange={v=>u("tieneAgente",v)} />
+        <Chk label="Módulo 4: Agente IA" desc="Breeze AI — agente conversacional para leads" checked={d.tieneAgente} onChange={v=>u("tieneAgente",v)} />
       </div>
+
       <SectionHead sub="Para planificar el Módulo 5">Migración de Datos</SectionHead>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
         <Sel label="CRM actual del cliente" value={d.crmOrigen} onChange={v=>u("crmOrigen",v)} options={["Ninguno","SmartHome","Pipedrive","Sinco CRM","Excel/Sheets","Bitrix24","Otro"]} />
@@ -626,9 +821,54 @@ function S1({d,u}) {
   const addBuyer=(i)=>{const n=[...ms];n[i]={...n[i],buyers:[...(n[i].buyers||[]),{nombre:"",desc:""}]};u("macros",n)};
   const upBuyer=(mi,bi,f,v)=>{const n=[...ms];n[mi]={...n[mi],buyers:[...(n[mi].buyers||[])]};n[mi].buyers[bi]={...n[mi].buyers[bi],[f]:v};u("macros",n)};
   const rmBuyer=(mi,bi)=>{const n=[...ms];n[mi]={...n[mi],buyers:[...n[mi].buyers]};n[mi].buyers.splice(bi,1);u("macros",n)};
-  const paste=rows=>u("macros",[...ms,...rows.map(r=>({nombre:r[0]||"",ciudad:r[1]||"",tipo:r[2]||"No VIS",precioDesde:r[3]||"",areaDesde:r[4]||"",cuotaDesde:r[5]||"",tipologias:r[6]||"",amenities:r[7]||"",rangoMinimo:"",preguntaFiltroCustom:"",buyers:[],torres:[],asesores:[]}))])
+  const paste=rows=>{
+    const parsed = rows.map(r => {
+      // Smart column detection: expected 8 cols (nombre, ciudad, tipo, precio, area, cuota, tipologias, amenities)
+      // If 7 cols: likely missing "cuota desde" (col 5) — detect by checking if col[5] looks like money or like tipologías
+      // If 6 cols: likely missing cuota AND amenities
+      let nombre, ciudad, tipo, precioDesde, areaDesde, cuotaDesde, tipologias, amenities;
+      
+      if (r.length >= 8) {
+        // Full 8 columns
+        [nombre, ciudad, tipo, precioDesde, areaDesde, cuotaDesde, tipologias, amenities] = r;
+      } else if (r.length === 7) {
+        // 7 cols — check if col[5] looks like a price (starts with $ or is a number > 100000)
+        const col5 = (r[5]||"").trim();
+        const looksLikePrice = /^\$|^\d{3,}/.test(col5.replace(/[.\s]/g,""));
+        if (looksLikePrice) {
+          // Col 5 is cuota, col 6 is tipologias, no amenities
+          [nombre, ciudad, tipo, precioDesde, areaDesde, cuotaDesde, tipologias] = r;
+          amenities = "";
+        } else {
+          // Col 5 is tipologias (cuota missing), col 6 is amenities
+          [nombre, ciudad, tipo, precioDesde, areaDesde, tipologias, amenities] = r;
+          cuotaDesde = "";
+        }
+      } else if (r.length === 6) {
+        [nombre, ciudad, tipo, precioDesde, areaDesde, tipologias] = r;
+        cuotaDesde = ""; amenities = "";
+      } else if (r.length === 5) {
+        [nombre, ciudad, tipo, precioDesde, areaDesde] = r;
+        cuotaDesde = ""; tipologias = ""; amenities = "";
+      } else {
+        nombre = r[0]||""; ciudad = r[1]||""; tipo = r[2]||"No VIS";
+        precioDesde = r[3]||""; areaDesde = "";
+        cuotaDesde = ""; tipologias = ""; amenities = "";
+      }
+      
+      return {
+        nombre: (nombre||"").trim(), ciudad: (ciudad||"").trim(), 
+        tipo: (tipo||"No VIS").trim(), precioDesde: (precioDesde||"").replace(/[^0-9]/g,"").trim(),
+        areaDesde: (areaDesde||"").trim(), cuotaDesde: (cuotaDesde||"").replace(/[^0-9]/g,"").trim(),
+        tipologias: (tipologias||"").trim(), amenities: (amenities||"").trim(),
+        rangoMinimo:"", preguntaFiltroCustom:"", buyers:[], torres:[], asesores:[]
+      };
+    }).filter(m => m.nombre);
+    u("macros", [...ms, ...parsed]);
+  };
   const pasteBuyers=(rows)=>{const mi=bpModal.mi;const n=[...ms];n[mi]={...n[mi],buyers:[...(n[mi].buyers||[]),...rows.map(r=>({nombre:r[0]||"",desc:r[1]||""}))]};u("macros",n)};
-  const filtroAuto=(m)=>m.tipo==="VIS"?`${m.nombre} se encuentra en ${m.ciudad||"..."} con áreas ${m.areaDesde||"..."}. ¿Se acomoda a tus necesidades?`:`El proyecto ${m.nombre} está en ${m.ciudad||"..."}, áreas ${m.areaDesde||"..."}, valor ${m.precioDesde||"..."}, cuotas ${m.cuotaDesde||"..."}. ¿Te interesa?`;
+  const filtroAuto=(m)=>m.tipo==="VIS"?`${m.nombre} se encuentra en ${m.ciudad||"..."} con áreas ${m.areaDesde||"..."}. ¿Se acomoda a tus necesidades?`:`El proyecto ${m.nombre} está en ${m.ciudad||"..."}, áreas ${m.areaDesde||"..."}, valor ${fmtMoney(m.precioDesde)||"..."}, cuotas ${fmtMoney(m.cuotaDesde)||"..."}. ¿Te interesa?`;
+
   return (
     <div>
       <BulkBar onPaste={()=>setSp(true)} onTemplate={()=>setTplModal(getTemplate("macroproyectos",d.nombreConst,d.dominio))} />
@@ -642,19 +882,21 @@ function S1({d,u}) {
         description="Nombre del buyer persona y descripción del perfil"
         cols={[{label:"Nombre Buyer",required:true},{label:"Descripción"}]}
         example={"Familia Joven\tParejas 28-38, primer hogar, ingreso $6-12M\nInversionista\tProfesional 35-55, compra para renta, busca ROI"} />
+
       {ms.map((m,i) => (
         <Card key={i} title={m.nombre||`Macroproyecto ${i+1}`} subtitle={m.ciudad ? `${m.ciudad} · ${m.tipo}` : ""} onRemove={()=>rm(i)} accent>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 14px"}}>
-            <Inp label="Nombre del Macroproyecto" value={m.nombre} onChange={v=>up(i,"nombre",v)} required placeholder="Nombre del proyecto" />
-            <Inp label="Ciudad / Ubicación" value={m.ciudad} onChange={v=>up(i,"ciudad",v)} required placeholder="Ciudad, sector" />
+            <Inp label="Nombre del Macroproyecto" value={m.nombre} onChange={v=>up(i,"nombre",v)} required placeholder="Firenze" />
+            <Inp label="Ciudad / Ubicación" value={m.ciudad} onChange={v=>up(i,"ciudad",v)} required placeholder="Medellín, El Poblado" />
             <Sel label="Tipo de Proyecto" value={m.tipo} onChange={v=>up(i,"tipo",v)} required options={["No VIS","VIS","Mixto"]} />
             <Sel label="Ingreso mínimo requerido" value={m.rangoMinimo||""} onChange={v=>up(i,"rangoMinimo",v)} options={["",...d.rangos]} note="De los rangos definidos en Calificación (Paso 6)" />
-            <Inp label="Precio Desde" value={m.precioDesde} onChange={v=>up(i,"precioDesde",v)} placeholder="$000.000.000" />
-            <Inp label="Área Desde" value={m.areaDesde} onChange={v=>up(i,"areaDesde",v)} placeholder="Desde XX m2" />
-            <Inp label="Cuota Mensual Desde" value={m.cuotaDesde} onChange={v=>up(i,"cuotaDesde",v)} placeholder="$0.000.000" />
-            <Inp label="Tipos de Unidad / Habitaciones" value={m.tipologias} onChange={v=>up(i,"tipologias",v)} placeholder="Tipos de unidad" />
+            <MoneyInp label="Precio Desde" value={m.precioDesde} onChange={v=>up(i,"precioDesde",v)} placeholder="$350.000.000" />
+            <Inp label="Área Desde" value={m.areaDesde} onChange={v=>up(i,"areaDesde",v)} placeholder="Desde 45 m2" />
+            <MoneyInp label="Cuota Mensual Desde" value={m.cuotaDesde} onChange={v=>up(i,"cuotaDesde",v)} placeholder="$3.500.000" />
+            <Inp label="Tipos de Unidad / Habitaciones" value={m.tipologias} onChange={v=>up(i,"tipologias",v)} placeholder="1, 2 y 3 habitaciones" />
           </div>
-          <Inp label="Amenities principales" value={m.amenities} onChange={v=>up(i,"amenities",v)} placeholder="Amenidades del proyecto" />
+          <Inp label="Amenities principales" value={m.amenities} onChange={v=>up(i,"amenities",v)} placeholder="Piscina, gimnasio, salón social, zona BBQ" />
+
           {m.nombre && (
             <div style={{padding:12,background:tk.bg,borderRadius:8,marginTop:8,border:`1px solid ${tk.border}`}}>
               <p style={{fontSize:11,fontWeight:700,color:tk.navy,margin:"0 0 4px",textTransform:"uppercase",letterSpacing:"0.04em"}}>Pregunta filtro ({m.tipo})</p>
@@ -662,15 +904,16 @@ function S1({d,u}) {
               <Inp label="" value={m.preguntaFiltroCustom} onChange={v=>up(i,"preguntaFiltroCustom",v)} placeholder="Vacío = auto-generada. Escribe aquí para personalizar." note="Override manual de la pregunta filtro" />
             </div>
           )}
+
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12}}>
             <SectionHead sub="Cada proyecto tiene sus propios buyer personas">Buyer Personas — {m.nombre||"Proyecto"}</SectionHead>
             <button onClick={()=>setBpModal({open:true,mi:i})} style={{padding:"4px 10px",borderRadius:6,border:`1.5px solid ${tk.border}`,background:tk.card,color:tk.textSec,fontSize:11,cursor:"pointer",fontFamily:font,fontWeight:600,marginTop:8}}>📋 Pegar buyers</button>
           </div>
           {(m.buyers||[]).map((b,bi) => (
             <div key={bi} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
-              <input value={b.nombre} onChange={e=>upBuyer(i,bi,"nombre",e.target.value)} placeholder="Nombre del buyer persona"
+              <input value={b.nombre} onChange={e=>upBuyer(i,bi,"nombre",e.target.value)} placeholder="Ej: Familia Joven"
                 style={{...ss.input, flex:"0 0 180px", padding:"8px 10px", fontSize:12}} />
-              <input value={b.desc} onChange={e=>upBuyer(i,bi,"desc",e.target.value)} placeholder="Descripción del perfil"
+              <input value={b.desc} onChange={e=>upBuyer(i,bi,"desc",e.target.value)} placeholder="Descripción: Parejas 25-35, primer hogar, subsidio Mi Casa Ya"
                 style={{...ss.input, flex:1, padding:"8px 10px", fontSize:12}} />
               <button onClick={()=>rmBuyer(i,bi)} style={{background:"none",border:"none",color:tk.textTer,cursor:"pointer",fontSize:16,padding:"8px 4px"}} onMouseOver={e=>e.target.style.color=tk.red} onMouseOut={e=>e.target.style.color=tk.textTer}>×</button>
             </div>
@@ -686,8 +929,31 @@ function S1({d,u}) {
 /* ═══ STEPS 2-4: Torres, Equipos, Canales ═══ */
 function S2({d,u}) {
   const ms=d.macros||[];const[sp,setSp]=useState(false);const[pt,sPt]=useState(0);const[tplModal,setTplModal]=useState(null);
+  
+  // Auto-create default torre for macros that have none
+  useEffect(()=>{
+    let changed=false;
+    const n=[...ms];
+    n.forEach((m,i)=>{
+      if(m.nombre && !(m.torres||[]).length){
+        n[i]={...m,torres:[{nombre:m.nombre,fechaEntrega:"",mesesCI:"",pctSep:"1",pctCI:"30",totalU:""}]};
+        changed=true;
+      }
+    });
+    if(changed) u("macros",n);
+  },[ms.map(m=>m.nombre+"|"+(m.torres||[]).length).join(",")]);
+  
   const up=(mi,ti,f,v)=>{const n=[...ms];n[mi]={...n[mi],torres:[...(n[mi].torres||[])]};n[mi].torres[ti]={...n[mi].torres[ti],[f]:v};u("macros",n)};
-  const add=mi=>{const n=[...ms];n[mi]={...n[mi],torres:[...(n[mi].torres||[]),{nombre:"",fechaEntrega:"",mesesCI:"",pctSep:"1",pctCI:"30",totalU:""}]};u("macros",n)};
+  const add=mi=>{
+    const n=[...ms];
+    const existing=n[mi].torres||[];
+    const last=existing.length?existing[existing.length-1]:{};
+    // Copy last torre, increment name
+    const lastNum=(last.nombre||"").match(/(\d+)\s*$/);
+    const newName=lastNum?last.nombre.replace(/(\d+)\s*$/,""+(parseInt(lastNum[1])+1)):(n[mi].nombre||"Torre")+" 2";
+    n[mi]={...n[mi],torres:[...existing,{nombre:newName,fechaEntrega:last.fechaEntrega||"",mesesCI:last.mesesCI||"",pctSep:last.pctSep||"1",pctCI:last.pctCI||"30",totalU:last.totalU||""}]};
+    u("macros",n);
+  };
   const rm=(mi,ti)=>{const n=[...ms];n[mi]={...n[mi],torres:[...n[mi].torres]};n[mi].torres.splice(ti,1);u("macros",n)};
   const paste=rows=>{const n=[...ms];n[pt]={...n[pt],torres:[...(n[pt].torres||[]),...rows.map(r=>({nombre:r[0]||"",fechaEntrega:r[1]||"",mesesCI:r[2]||"",pctSep:r[3]||"1",pctCI:r[4]||"30",totalU:r[5]||""}))]};u("macros",n)};
   if(!ms.length) return <InfoBox type="warn">Agrega macroproyectos primero en el Paso 2.</InfoBox>;
@@ -709,7 +975,7 @@ function S2({d,u}) {
             <Card key={ti} title={t.nombre?`${m.nombre} ${t.nombre}`:`Torre ${ti+1}`} onRemove={()=>rm(mi,ti)}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 14px"}}>
                 <Inp label="Nombre Torre/Etapa" value={t.nombre} onChange={v=>up(mi,ti,"nombre",v)} required placeholder="Torre 1" note={t.nombre?`Nombre completo: ${m.nombre} ${t.nombre}`:""} />
-                <Inp label="Fecha de Entrega" value={t.fechaEntrega} onChange={v=>up(mi,ti,"fechaEntrega",v)} type="date" required />
+                <Inp label="Fecha de Entrega" value={t.fechaEntrega} onChange={v=>up(mi,ti,"fechaEntrega",v)} type="date" />
                 {d.tieneCotizador && <>
                   <Inp label="Meses Cuota Inicial" value={t.mesesCI} onChange={v=>up(mi,ti,"mesesCI",v)} type="number" placeholder="35" />
                   <Inp label="% Separación" value={t.pctSep} onChange={v=>up(mi,ti,"pctSep",v)} type="number" placeholder="1" />
@@ -728,18 +994,39 @@ function S2({d,u}) {
 
 function S3({d,u}) {
   const ms=d.macros||[];const[sp,setSp]=useState(false);const[pt,sPt]=useState(0);const[tplModal,setTplModal]=useState(null);
+  const nivelesDisp = d.niveles.length ? d.niveles : DEF_NIVELES;
   const up=(mi,ai,f,v)=>{const n=[...ms];n[mi]={...n[mi],asesores:[...(n[mi].asesores||[])]};n[mi].asesores[ai]={...n[mi].asesores[ai],[f]:v};u("macros",n)};
-  const add=mi=>{const n=[...ms];n[mi]={...n[mi],asesores:[...(n[mi].asesores||[]),{nombre:"",email:"",ml:""}]};u("macros",n)};
+  const toggleNivel=(mi,ai,niv)=>{
+    const n=[...ms];n[mi]={...n[mi],asesores:[...(n[mi].asesores||[])]};
+    const a=n[mi].asesores[ai];const cur=a.niveles||[];
+    a.niveles=cur.includes(niv)?cur.filter(x=>x!==niv):[...cur,niv];
+    n[mi].asesores[ai]=a;u("macros",n);
+  };
+  const add=mi=>{const n=[...ms];n[mi]={...n[mi],asesores:[...(n[mi].asesores||[]),{nombre:"",apellido:"",email:"",tel:"",ml:"",niveles:[...nivelesDisp]}]};u("macros",n)};
   const rm=(mi,ai)=>{const n=[...ms];n[mi]={...n[mi],asesores:[...n[mi].asesores]};n[mi].asesores.splice(ai,1);u("macros",n)};
-  const paste=rows=>{const n=[...ms];n[pt]={...n[pt],asesores:[...(n[pt].asesores||[]),...rows.map(r=>({nombre:r[0]||"",email:r[1]||"",ml:r[2]||""}))]};u("macros",n)};
+  const paste=rows=>{const n=[...ms];n[pt]={...n[pt],asesores:[...(n[pt].asesores||[]),...rows.map(r=>{
+    // Smart parse: if col 0 has space, split into nombre+apellido
+    let nombre=r[0]||"",apellido="";
+    const parts=nombre.trim().split(/\s+/);
+    if(parts.length>=2 && !r[1]?.includes("@")){nombre=parts[0];apellido=parts.slice(1).join(" ");}
+    else if(r[1] && !r[1].includes("@")){apellido=r[1];} 
+    const emailIdx=r.findIndex(c=>(c||"").includes("@"));
+    const email=emailIdx>=0?(r[emailIdx]||"").trim().toLowerCase():"";
+    const afterEmail=emailIdx>=0?r.slice(emailIdx+1):[];
+    const tel=afterEmail.find(c=>/^\+?\d[\d\s-]{6,}/.test(c||""))||"";
+    const ml=afterEmail.find(c=>(c||"").includes("meeting")||(c||"").includes("hubspot.com")||(c||"").includes("calendly"))||"";
+    return {nombre:nombre.trim(),apellido:apellido.trim(),email,tel:tel.trim(),ml:ml.trim(),niveles:[...nivelesDisp]};
+  })]};u("macros",n)};
   if(!ms.length) return <InfoBox type="warn">Agrega macroproyectos primero en el Paso 2.</InfoBox>;
   return (
     <div>
+      <InfoBox>Cada asesor define qué niveles de calificación atiende. Si varios asesores comparten los mismos niveles, HubSpot rota entre ellos (round robin).</InfoBox>
       <BulkBar onPaste={null} onTemplate={()=>setTplModal(getTemplate("equipos",d.nombreConst,d.dominio))} templateLabel="FocuxAI Scraping — Equipos" />
       <TemplateModal open={!!tplModal} onClose={()=>setTplModal(null)} template={tplModal} />
       <PasteModal open={sp} onClose={()=>setSp(false)} onParse={paste} title={`Importar Asesores → ${ms[pt]?.nombre||""}`}
-        description="Nombre del asesor, email corporativo, enlace de agendamiento (opcional)"
-        cols={[{label:"Nombre",required:true},{label:"Email",required:true},{label:"Meeting Link"}]} example="María Gómez\tmaria@constructora.com\tmeetings.hubspot.com/maria" />
+        description="Nombre, apellido, email corporativo, teléfono, enlace de agendamiento"
+        cols={[{label:"Nombre",required:true},{label:"Apellido",required:true},{label:"Email",required:true},{label:"Teléfono"},{label:"Meeting Link"}]} 
+        example={"María\tGómez\tmaria@jimenez.com\t+573001234567\tmeetings.hubspot.com/maria\nCarlos\tLópez\tcarlos@jimenez.com\t+573009876543\t"} />
       {ms.map((m,mi) => (
         <div key={mi} style={{marginBottom:24}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -747,11 +1034,30 @@ function S3({d,u}) {
             <button onClick={()=>{sPt(mi);setSp(true)}} style={{padding:"5px 12px",borderRadius:6,border:`1.5px solid ${tk.border}`,background:tk.card,color:tk.textSec,fontSize:11,cursor:"pointer",fontFamily:font,fontWeight:600}}>📋 Pegar asesores</button>
           </div>
           {(m.asesores||[]).map((a,ai) => (
-            <Card key={ai} title={a.nombre||`Asesor ${ai+1}`} onRemove={()=>rm(mi,ai)}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 10px"}}>
-                <Inp label="Nombre" value={a.nombre} onChange={v=>up(mi,ai,"nombre",v)} required placeholder="Nombre completo" />
-                <Inp label="Email" value={a.email} onChange={v=>up(mi,ai,"email",v)} required placeholder="email@constructora.com" type="email" />
-                <Inp label="Meeting Link" value={a.ml} onChange={v=>up(mi,ai,"ml",v)} placeholder="Opcional" note="Se configura después de crear equipos" />
+            <Card key={ai} title={`${a.nombre||""} ${a.apellido||""}`.trim()||`Asesor ${ai+1}`} onRemove={()=>rm(mi,ai)}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+                <Inp label="Nombre" value={a.nombre} onChange={v=>up(mi,ai,"nombre",v)} required placeholder="María" />
+                <Inp label="Apellido" value={a.apellido} onChange={v=>up(mi,ai,"apellido",v)} required placeholder="Gómez" />
+                <Inp label="Email corporativo" value={a.email} onChange={v=>up(mi,ai,"email",v)} required placeholder="maria@jimenez.com" type="email" />
+                <Inp label="Teléfono" value={a.tel} onChange={v=>up(mi,ai,"tel",v)} placeholder="+57 300 123 4567" />
+              </div>
+              <Inp label="Meeting Link" value={a.ml} onChange={v=>up(mi,ai,"ml",v)} placeholder="meetings.hubspot.com/maria (opcional)" />
+              <div style={{marginTop:4}}>
+                <label style={{...ss.label,marginBottom:6}}>Niveles que atiende</label>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {nivelesDisp.map(niv=>{
+                    const active=(a.niveles||[]).includes(niv);
+                    return (
+                      <button key={niv} onClick={()=>toggleNivel(mi,ai,niv)} style={{
+                        padding:"4px 12px",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",
+                        border:`1.5px solid ${active?tk.accent:tk.border}`,
+                        background:active?tk.accent+"15":tk.card,
+                        color:active?tk.accent:tk.textTer,
+                        fontFamily:font,transition:"all 0.15s",
+                      }}>{niv}</button>
+                    );
+                  })}
+                </div>
               </div>
             </Card>
           ))}
@@ -776,7 +1082,7 @@ function S4({d,u}) {
       <SectionHead sub="Ferias específicas, aliados, etc.">Canales Personalizados</SectionHead>
       {d.chCu.map((c,i) => (
         <div key={i} style={{display:"flex",gap:8,marginBottom:8}}>
-          <input value={c} onChange={e=>{const n=[...d.chCu];n[i]=e.target.value;u("chCu",n)}} placeholder="Nombre del canal personalizado"
+          <input value={c} onChange={e=>{const n=[...d.chCu];n[i]=e.target.value;u("chCu",n)}} placeholder="Ej: Feria Camacol Barranquilla 2026"
             style={{...ss.input, flex:1, padding:"8px 10px", fontSize:12}} />
           <button onClick={()=>{const n=[...d.chCu];n.splice(i,1);u("chCu",n)}} style={{background:"none",border:"none",color:tk.textTer,cursor:"pointer",fontSize:16}} onMouseOver={e=>e.target.style.color=tk.red} onMouseOut={e=>e.target.style.color=tk.textTer}>×</button>
         </div>
@@ -795,8 +1101,10 @@ function S5({d,u}) {
       <Chk label="Esta constructora usa calificación de leads" desc="Si no califica, se saltan los workflows de calificación" checked={d.usaCalif} onChange={v=>u("usaCalif",v)} />
       {d.usaCalif && <>
         <InfoBox>Los rangos de ingreso son comunes a toda la constructora. El ingreso mínimo por proyecto se define en cada macroproyecto (Paso 2).</InfoBox>
+
         <SectionHead sub="Defina todos los rangos de ingreso de la constructora">Rangos de Ingreso</SectionHead>
         <ChipEditor items={d.rangos} onChange={v=>u("rangos",v)} placeholder="Ej: Más de $20M" />
+
         <SectionHead sub="Ingreso mínimo por proyecto">Asignación por Macroproyecto</SectionHead>
         {(d.macros||[]).map((m,i) => (
           <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,padding:"8px 12px",background:tk.bg,borderRadius:8,border:`1px solid ${tk.border}`}}>
@@ -810,12 +1118,54 @@ function S5({d,u}) {
           </div>
         ))}
         {!d.macros.length && <InfoBox type="warn">Agrega macroproyectos en el Paso 2 para asignar rangos mínimos.</InfoBox>}
+
         <SectionHead sub="Etiquetas de prioridad del lead">Niveles de Calificación</SectionHead>
         <ChipEditor items={d.niveles} onChange={v=>u("niveles",v)} placeholder="Ej: E" note="Estándar Focux: AAA, AA, A, B, C, D. Edita según la constructora." />
-        <SectionHead sub="Variables que se capturan en el formulario">Variables de Calificación</SectionHead>
-        {d.varsCalif.map((v,i)=>(
-          <Chk key={i} label={v.label} checked={v.on} onChange={val=>{const n=[...d.varsCalif];n[i]={...n[i],on:val};u("varsCalif",n)}} />
-        ))}
+
+        <SectionHead sub="Variables que se capturan en el formulario. Activa, edita opciones o crea nuevas.">Variables de Calificación</SectionHead>
+        {d.varsCalif.map((v,i)=>{
+          const upVar=(f,val)=>{const n=[...d.varsCalif];n[i]={...n[i],[f]:val};u("varsCalif",n)};
+          const rmVar=()=>{const n=[...d.varsCalif];n.splice(i,1);u("varsCalif",n)};
+          const isCustom = !["ingresos","ahorros","proposito","credito","subsidios","horario","horizonte"].includes(v.id);
+          return (
+            <div key={v.id||i} style={{padding:"12px 14px",marginBottom:8,borderRadius:10,border:`1.5px solid ${v.on?tk.accent+"40":tk.border}`,background:v.on?tk.accentLight+"60":tk.card,transition:"all 0.2s"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:v.on&&(v.opts||[]).length?8:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flex:1}}>
+                  <input type="checkbox" checked={v.on} onChange={e=>upVar("on",e.target.checked)} style={{width:18,height:18,accentColor:tk.accent,flexShrink:0}} />
+                  {isCustom ? (
+                    <input value={v.label} onChange={e=>upVar("label",e.target.value)} placeholder="Nombre de la variable..."
+                      style={{...ss.input,padding:"5px 8px",fontSize:13,fontWeight:500,border:`1px solid ${tk.borderLight}`,flex:1}} />
+                  ) : (
+                    <span style={{fontWeight:500,fontSize:13,color:tk.text}}>{v.label}</span>
+                  )}
+                  {v.id==="ingresos" && <span style={{fontSize:10,color:tk.textTer}}>Opciones = Rangos de Ingreso</span>}
+                </div>
+                <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                  {isCustom && <button onClick={rmVar} style={{background:"none",border:"none",color:tk.textTer,cursor:"pointer",fontSize:14,padding:"2px 4px"}} onMouseOver={e=>e.target.style.color=tk.red} onMouseOut={e=>e.target.style.color=tk.textTer}>×</button>}
+                </div>
+              </div>
+              {v.on && v.id!=="ingresos" && (
+                <div style={{marginTop:4,paddingTop:8,borderTop:`1px solid ${tk.border}`}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+                    {(v.opts||[]).map((opt,oi)=>(
+                      <Pill key={oi} text={opt} color={tk.accent} onRemove={()=>{const no=[...(v.opts||[])];no.splice(oi,1);upVar("opts",no)}} />
+                    ))}
+                    {!(v.opts||[]).length && <span style={{fontSize:11,color:tk.textTer,fontStyle:"italic"}}>Sin opciones definidas</span>}
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    <input placeholder="Agregar opción..." onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){upVar("opts",[...(v.opts||[]),e.target.value.trim()]);e.target.value="";}}}
+                      style={{...ss.input,flex:1,padding:"6px 10px",fontSize:11}} />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <AddBtn onClick={()=>{
+          const id="custom_"+Date.now();
+          u("varsCalif",[...d.varsCalif,{id,label:"Nueva Variable",on:true,opts:[]}]);
+        }} label="Agregar variable de calificación" />
+
         <SectionHead sub="Cómo se combinan las variables para asignar el nivel">Reglas de la Matriz</SectionHead>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
@@ -843,6 +1193,7 @@ function S5({d,u}) {
           </table>
         </div>
         <button onClick={()=>u("reglas",[...d.reglas,{si:"",y:"",entonces:d.niveles[0]||""}])} style={{fontSize:12,color:tk.accent,background:"none",border:"none",cursor:"pointer",fontWeight:600,fontFamily:font,padding:"8px 0",marginTop:4}}>+ Agregar regla</button>
+
         <div style={{marginTop:16}}>
           <Inp label="Umbral de Lead Scoring (puntos)" value={d.umbral} onChange={v=>u("umbral",v)} type="number" required note="Cuando el lead alcanza este puntaje se dispara alerta al asesor. Estándar Focux: 75." />
         </div>
@@ -874,7 +1225,8 @@ function S6({d,u}) {
       <BulkBar onPaste={()=>setSpE(true)} onTemplate={()=>setTplModal(getTemplate("etapas_lead",d.nombreConst,d.dominio))} templateLabel="FocuxAI Scraping — Etapas" />
       <TemplateModal open={!!tplModal} onClose={()=>setTplModal(null)} template={tplModal} />
       <PasteModal open={spE} onClose={()=>setSpE(false)} onParse={pasteEtapas}
-        title="Importar Etapas del Lead" description="Si incluyes columna Fase, las etapas se distribuyen automáticamente"
+        title="Importar Etapas del Lead"
+        description="Si incluyes columna Fase, las etapas se distribuyen automáticamente"
         cols={[{label:"Fase (Prospección/Sala)",required:false},{label:"Nombre Etapa",required:true}]}
         example={"Prospección\tLead Nuevo\nProspección\tIntento de Contacto\nSala\tVisitó Sala de Ventas\nSala\tCotización Enviada"} />
       <SectionHead>Fase Prospección (Marketing / BDR)</SectionHead>
@@ -914,7 +1266,8 @@ function S7({d,u}) {
       <BulkBar onPaste={()=>setSpPl(true)} onTemplate={()=>setTplModal(getTemplate("pipeline",d.nombreConst,d.dominio))} templateLabel="FocuxAI Scraping — Pipeline" />
       <TemplateModal open={!!tplModal} onClose={()=>setTplModal(null)} template={tplModal} />
       <PasteModal open={spPl} onClose={()=>setSpPl(false)} onParse={pastePipeline}
-        title="Importar Etapas del Pipeline" description="Nombre de la etapa y probabilidad de cierre (%)"
+        title="Importar Etapas del Pipeline"
+        description="Nombre de la etapa y probabilidad de cierre (%)"
         cols={[{label:"Nombre Etapa",required:true},{label:"% Probabilidad",required:true}]}
         example={"Cotización Solicitada\t10\nOpcionó\t40\nConsignó\t60\nVenta Formalizada\t100\nPerdida\t0"} />
       <div style={{overflowX:"auto"}}>
@@ -970,7 +1323,8 @@ function S8({d,u}) {
       <BulkBar onPaste={()=>setSpM(true)} onTemplate={()=>setTplModal(getTemplate("motivos",d.nombreConst,d.dominio))} templateLabel="FocuxAI Scraping — Motivos" />
       <TemplateModal open={!!tplModal} onClose={()=>setTplModal(null)} template={tplModal} />
       <PasteModal open={spM} onClose={()=>setSpM(false)} onParse={pasteMotivos}
-        title="Importar Motivos" description="Si incluyes columna Tipo (Descarte/Pérdida), se distribuyen automáticamente"
+        title="Importar Motivos"
+        description="Si incluyes columna Tipo (Descarte/Pérdida), se distribuyen automáticamente"
         cols={[{label:"Tipo (Descarte/Pérdida)",required:false},{label:"Motivo",required:true}]}
         example={"Descarte\tIngresos insuficientes\nDescarte\tNo interesado\nPérdida\tCompró en Otro Proyecto\nPérdida\tNo salió préstamo"} />
       <SectionHead sub="Razones por las que un lead se descarta antes de convertirse en negocio">Motivos de Descarte del Lead</SectionHead>
@@ -998,13 +1352,13 @@ function S9({d,u}) {
   return (
     <div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
-        <Inp label="Nombre del Agente" value={d.nomAgente} onChange={v=>u("nomAgente",v)} required placeholder="Nombre del agente" />
+        <Inp label="Nombre del Agente" value={d.nomAgente} onChange={v=>u("nomAgente",v)} required placeholder="Ana" />
         <Sel label="Tono" value={d.tonoAgente} onChange={v=>u("tonoAgente",v)} required options={["Profesional y cálido","Formal y corporativo","Cercano y juvenil"]} />
       </div>
-      <Inp label="Número WhatsApp WABA" value={d.wabaNum} onChange={v=>u("wabaNum",v)} required placeholder="+57 300 000 0000" />
+      <Inp label="Número WhatsApp WABA" value={d.wabaNum} onChange={v=>u("wabaNum",v)} required placeholder="+57 300 123 4567" />
       <SectionHead>Tipos de Lead que activan el Agente outbound</SectionHead>
       <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-        {(d.niveles.length?d.niveles:DEF_NIVELES).map(t=>(
+        {(d.niveles.length?d.niveles:["AAA","AA","A","B","C","D"]).map(t=>(
           <Chk key={t} label={t} checked={d.tiposAgente.includes(t)} onChange={v=>u("tiposAgente",v?[...d.tiposAgente,t]:d.tiposAgente.filter(x=>x!==t))} />
         ))}
       </div>
@@ -1047,68 +1401,133 @@ function S10({d}) {
 /* ═══ STEP 11: EXECUTION ═══ */
 function S11({d,u}) {
   const prms=useMemo(()=>genPrompts(d),[d]);
-  const ex=d.ex||{};const cats=[...new Set(prms.map(p=>p.cat))];const totE=Object.values(ex).filter(Boolean).length;
-  const[mode,setM]=useState(false);const[ci,setCi]=useState(0);
-  const cp=t=>navigator.clipboard.writeText(t).catch(()=>{});
-  const expJ=()=>{const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const u2=URL.createObjectURL(b);const a=document.createElement("a");a.href=u2;a.download=`${d.nombreConst||"config"}_hubspot.json`;a.click()};
+  const execPrms = prms.filter(p=>p.tp==="exec");
+  const specPrms = prms.filter(p=>p.tp==="spec");
+  const ex=d.ex||{};
+  const [tab,setTab]=useState("exec"); // "exec" or "spec"
+  const [tplModal,setTplModal]=useState(null);
+  const [copied,setCopied]=useState("");
+  const cp=t=>{
+    // Try navigator.clipboard first, fallback to textarea execCommand
+    const fallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = t;
+      ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); setCopied("ok"); setTimeout(()=>setCopied(""),1500); }
+      catch(e) { console.error("Copy failed"); }
+      document.body.removeChild(ta);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(()=>{setCopied("ok");setTimeout(()=>setCopied(""),1500)}).catch(fallback);
+    } else { fallback(); }
+  };
+
+  const expJ=()=>{
+    const json = JSON.stringify(d,null,2);
+    try {
+      const b=new Blob([json],{type:"application/json"});
+      const u2=URL.createObjectURL(b);
+      const a=document.createElement("a");a.href=u2;a.download=`${d.nombreConst||"config"}_hubspot.json`;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u2);
+    } catch(e) {
+      cp(json);
+    }
+  };
   const genCSV=(type)=>{
     let cols=[];
     if(type==="contactos") cols=["email","firstname","lastname","phone","cedula_fx","lista_proyectos_fx","canal_atribucion_fx","tipo_lead_fx","rango_ingresos_fx","tiene_ahorros_fx","proposito_compra_fx","etapa_lead_fx","horizonte_compra_fx","horario_contacto_fx","id_externo_fx"];
     else cols=["dealname","macroproyecto_fx","proyecto_torre_fx","valor_cotizacion_fx","tipo_unidad_fx","area_m2_fx","pipeline","dealstage","cedula_comp1_fx","nombre_comp2_fx","apellido_comp2_fx","tel_comp2_fx","email_comp2_fx","cedula_comp2_fx","id_externo_deal_fx"];
     const csv=cols.join(",")+"\n"+cols.map(()=>"").join(",")+"\n";
-    const b=new Blob([csv],{type:"text/csv"});const u2=URL.createObjectURL(b);const a=document.createElement("a");a.href=u2;a.download=`plantilla_migracion_${type}_${d.nombreConst||"constructora"}.csv`;a.click();
+    try {
+      const b=new Blob([csv],{type:"text/csv"});const u2=URL.createObjectURL(b);
+      const a=document.createElement("a");a.href=u2;a.download=`plantilla_migracion_${type}_${d.nombreConst||"constructora"}.csv`;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u2);
+    } catch(e) { cp(csv); }
   };
-  const [tplModal,setTplModal]=useState(null);
-  const eP=prms.filter(p=>p.tp==="exec").length, sP=prms.filter(p=>p.tp==="spec").length;
 
-  if(mode){const cur=prms[ci];
-    if(!cur) return(<div style={{textAlign:"center",padding:40}}><p style={{fontSize:20,color:tk.green,fontWeight:700}}>🎉 ¡Implementación completa!</p><p style={{color:tk.textSec,marginTop:8}}>Todos los {prms.length} pasos ejecutados.</p><button onClick={()=>setM(false)} style={{marginTop:16,padding:"10px 24px",borderRadius:8,border:"none",background:tk.navy,color:"#fff",cursor:"pointer",fontWeight:600,fontFamily:font,fontSize:14}}>Ver resumen</button></div>);
-    return(
-      <div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><Badge text={cur.tp==="exec"?"⚡ Breeze":"📋 Manual"} color={cur.tp==="exec"?tk.accent:tk.amber} /><span style={{fontSize:12,color:tk.textSec}}>Paso {ci+1} de {prms.length}</span></div>
-          <button onClick={()=>setM(false)} style={{fontSize:12,color:tk.textSec,background:"none",border:`1.5px solid ${tk.border}`,borderRadius:6,padding:"5px 12px",cursor:"pointer",fontFamily:font}}>Salir modo guiado</button>
-        </div>
-        <div style={{background:tk.border,borderRadius:6,padding:2,marginBottom:14}}><div style={{height:4,borderRadius:4,background:`linear-gradient(90deg,${tk.teal},${tk.cyan})`,width:`${((ci+1)/prms.length)*100}%`,transition:"width 0.4s ease"}}/></div>
-        <h3 style={{color:tk.navy,fontSize:16,fontWeight:700,margin:"0 0 10px"}}>{cur.id}</h3>
-        <div style={{background:tk.bg,border:`1.5px solid ${tk.border}`,borderRadius:10,padding:16,marginBottom:14}}>
-          <pre style={{fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:tk.text,whiteSpace:"pre-wrap",margin:0,lineHeight:1.6}}>{cur.pr}</pre>
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>cp(cur.pr)} style={{padding:"9px 20px",borderRadius:8,border:"none",background:tk.accent,color:"#fff",fontSize:13,cursor:"pointer",fontWeight:600,fontFamily:font}}>📋 Copiar</button>
-          <button onClick={()=>{u("ex",{...ex,[cur.id]:true});setCi(ci+1)}} style={{padding:"9px 20px",borderRadius:8,border:"none",background:tk.green,color:"#fff",fontSize:13,cursor:"pointer",fontWeight:600,fontFamily:font}}>✅ Hecho → Siguiente</button>
-          <button onClick={()=>setCi(ci+1)} style={{padding:"9px 20px",borderRadius:8,border:`1.5px solid ${tk.border}`,background:tk.card,color:tk.textSec,fontSize:13,cursor:"pointer",fontFamily:font}}>Saltar</button>
-        </div>
-        <div style={{marginTop:14}}><Inp label="Notas de verificación" value={(d.vn||{})[cur.id]||""} onChange={v=>u("vn",{...(d.vn||{}),[cur.id]:v})} placeholder="Pega aquí el resumen de Breeze o tus notas..." /></div>
-      </div>
-    );
-  }
+  // Copy all prompts of current tab
+  const copyAll = (items) => {
+    const text = items.map(p => `=== ${p.id} ===\n${p.pr}`).join("\n\n");
+    cp(text);
+  };
+  // Copy all of a category
+  const copyCat = (catItems) => {
+    const text = catItems.map(p => `=== ${p.id} ===\n${p.pr}`).join("\n\n");
+    cp(text);
+  };
+  // Toggle all in category: if all done → unmark, if any undone → mark all
+  const markCatDone = (catItems) => {
+    const allDone = catItems.every(p => ex[p.id]);
+    const newEx = {...ex};
+    catItems.forEach(p => { newEx[p.id] = !allDone; });
+    u("ex", newEx);
+  };
+
+  const currentPrms = tab === "exec" ? execPrms : specPrms;
+  const cats = [...new Set(currentPrms.map(p=>p.cat))];
+  const totDone = Object.values(ex).filter(Boolean).length;
 
   return(
     <div>
+      {/* Header stats */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
-          <p style={{margin:0,fontSize:13,fontWeight:600,color:tk.text}}>{prms.length} pasos · <span style={{color:tk.green}}>{totE} hechos</span> · <span style={{color:tk.amber}}>{prms.length-totE} pendientes</span></p>
-          <p style={{margin:"2px 0 0",fontSize:11,color:tk.textTer}}>⏱ Estimado: ~{Math.round((eP*1.5+sP*5)/60*10)/10} horas</p>
+          <p style={{margin:0,fontSize:13,fontWeight:600,color:tk.text}}>{execPrms.length} prompts Breeze · {specPrms.length} pasos manuales · <span style={{color:tk.green}}>{totDone} hechos</span></p>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>{setM(true);const idx=prms.findIndex(p=>!ex[p.id]);setCi(idx>=0?idx:0)}} style={{padding:"8px 16px",borderRadius:8,border:"none",background:`linear-gradient(135deg,${tk.teal},${tk.blue})`,color:"#fff",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font}}>▶ Modo Guiado</button>
           <button onClick={expJ} style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${tk.border}`,background:tk.card,color:tk.text,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font}}>📥 JSON</button>
           <button onClick={()=>genCSV("contactos")} style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${tk.border}`,background:tk.card,color:tk.text,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font}}>📄 CSV Contactos</button>
           <button onClick={()=>genCSV("negocios")} style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${tk.border}`,background:tk.card,color:tk.text,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font}}>📄 CSV Negocios</button>
+          <button onClick={()=>setTplModal(getTemplate("macroproyectos",d.nombreConst,d.dominio))} style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${tk.accent}`,background:tk.accentLight,color:tk.accent,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font}}>⚡ FocuxAI Scraping</button>
         </div>
       </div>
+
       <TemplateModal open={!!tplModal} onClose={()=>setTplModal(null)} template={tplModal} />
-      {cats.map(cat=>{const ps=prms.filter(p=>p.cat===cat);return(
+
+      {/* Tab selector */}
+      <div style={{display:"flex",gap:0,marginBottom:20,borderBottom:`2px solid ${tk.border}`}}>
+        <button onClick={()=>setTab("exec")} style={{padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:font,border:"none",borderBottom:tab==="exec"?`3px solid ${tk.accent}`:"3px solid transparent",background:"none",color:tab==="exec"?tk.navy:tk.textTer,transition:"all 0.2s"}}>
+          ⚡ Prompts Breeze ({execPrms.length})
+        </button>
+        <button onClick={()=>setTab("spec")} style={{padding:"10px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:font,border:"none",borderBottom:tab==="spec"?`3px solid ${tk.amber}`:"3px solid transparent",background:"none",color:tab==="spec"?tk.navy:tk.textTer,transition:"all 0.2s"}}>
+          📋 Guía de Configuración Manual ({specPrms.length})
+        </button>
+      </div>
+
+      {/* Copy all bar + global mark toggle */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>copyAll(currentPrms)} style={{padding:"8px 18px",borderRadius:8,border:"none",background:tab==="exec"?`linear-gradient(135deg,${tk.teal},${tk.blue})`:`linear-gradient(135deg,${tk.amber},#D97706)`,color:"#fff",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font}}>
+            {copied==="ok"?"✓ Copiado":"📋 Copiar todo"} ({currentPrms.length} {tab==="exec"?"prompts":"pasos"})
+          </button>
+          <button onClick={()=>{
+            const allDone = currentPrms.every(p=>ex[p.id]);
+            const newEx={...ex};
+            currentPrms.forEach(p=>{newEx[p.id]=!allDone});
+            u("ex",newEx);
+          }} style={{padding:"8px 18px",borderRadius:8,border:`1.5px solid ${currentPrms.every(p=>ex[p.id])?tk.amber:tk.green}`,background:currentPrms.every(p=>ex[p.id])?tk.amberBg:tk.greenBg,color:currentPrms.every(p=>ex[p.id])?"#92400E":tk.green,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font}}>
+            {currentPrms.every(p=>ex[p.id])?"↩ Desmarcar todo":"✓ Marcar todo"}
+          </button>
+        </div>
+        {tab==="spec" && <p style={{margin:0,fontSize:11,color:tk.textTer,fontStyle:"italic"}}>Instrucciones paso a paso para el consultor Focux</p>}
+      </div>
+
+      {/* Content by category */}
+      {cats.map(cat=>{const ps=currentPrms.filter(p=>p.cat===cat);return(
         <div key={cat} style={{marginBottom:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:6,marginBottom:8,borderBottom:`1.5px solid ${tk.border}`}}>
             <h3 style={{margin:0,fontSize:13,fontWeight:700,color:tk.navy}}>{cat}</h3>
-            <span style={{fontSize:11,color:tk.textTer,fontWeight:600}}>{ps.filter(p=>ex[p.id]).length}/{ps.length}</span>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <button onClick={()=>copyCat(ps)} style={{padding:"3px 10px",borderRadius:5,border:`1.5px solid ${tk.accent}30`,background:tk.card,color:tk.accent,fontSize:10,cursor:"pointer",fontWeight:600,fontFamily:font}}>Copiar sección</button>
+              <span style={{fontSize:11,color:tk.textTer,fontWeight:600}}>{ps.filter(p=>ex[p.id]).length}/{ps.length}</span>
+            </div>
           </div>
           {ps.map(pr=>(
             <div key={pr.id} style={{border:`1.5px solid ${ex[pr.id]?tk.green+"40":tk.border}`,borderRadius:8,padding:10,marginBottom:8,background:ex[pr.id]?tk.greenBg:tk.card,transition:"all 0.2s"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontFamily:"monospace",fontSize:11,fontWeight:700,color:tk.navy}}>{pr.id}</span><Badge text={pr.tp==="exec"?"Breeze":"Manual"} color={pr.tp==="exec"?tk.accent:tk.amber} /></div>
+                <span style={{fontFamily:"monospace",fontSize:11,fontWeight:700,color:tk.navy}}>{pr.id}</span>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>cp(pr.pr)} style={{padding:"3px 10px",borderRadius:5,border:`1.5px solid ${tk.accent}30`,background:tk.card,color:tk.accent,fontSize:10,cursor:"pointer",fontWeight:600}}>Copiar</button>
                   <label style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:tk.green,cursor:"pointer",fontWeight:600}}>
@@ -1116,7 +1535,7 @@ function S11({d,u}) {
                   </label>
                 </div>
               </div>
-              <pre style={{fontFamily:"monospace",fontSize:10,color:tk.textSec,margin:0,whiteSpace:"pre-wrap",lineHeight:1.5,maxHeight:100,overflow:"auto"}}>{pr.pr}</pre>
+              <pre style={{fontFamily:"monospace",fontSize:10,color:tk.textSec,margin:0,whiteSpace:"pre-wrap",lineHeight:1.5,maxHeight:120,overflow:"auto"}}>{pr.pr}</pre>
             </div>
           ))}
         </div>
@@ -1132,7 +1551,7 @@ function S12() {
   const fl=f==="Todas"?OBJS:OBJS.filter(o=>o.c===f);
   return(
     <div>
-      <p style={{fontSize:13,color:tk.textSec,marginBottom:14,lineHeight:1.5}}>Respuestas probadas a las objeciones más comunes durante talleres de kickoff e implementación.</p>
+      <p style={{fontSize:13,color:tk.textSec,marginBottom:14,lineHeight:1.5}}>Respuestas probadas a las objeciones más comunes durante talleres de kickoff e implementación. Usa esta guía para mantener la confianza del cliente en la metodología.</p>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
         {cs.map(c=><button key={c} onClick={()=>sF(c)} style={{padding:"5px 14px",borderRadius:20,border:`1.5px solid ${f===c?tk.accent:tk.border}`,background:f===c?tk.accent:tk.card,color:f===c?"#fff":tk.textSec,fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:font,transition:"all 0.2s"}}>{c}</button>)}
       </div>
@@ -1168,14 +1587,6 @@ function S13({d}) {
         ))}
       </div>
       <Card>
-        <p style={{margin:0,fontSize:12,fontWeight:700,color:tk.navy}}>Proyectos</p>
-        {ms.map((m,i)=>(
-          <p key={i} style={{margin:"4px 0 0",fontSize:12,color:tk.textSec}}>
-            {m.nombre||`Macro ${i+1}`}: {m.ciudad} · {m.tipo} · {(m.torres||[]).length} torres · {(m.asesores||[]).length} asesores · {(m.buyers||[]).length} buyers
-          </p>
-        ))}
-      </Card>
-      <Card>
         <p style={{margin:0,fontSize:12,fontWeight:700,color:tk.navy}}>Suscripción</p>
         <p style={{margin:"4px 0 0",fontSize:12,color:tk.textSec}}>Sales: {d.hubSales} · Marketing: {d.hubMarketing} · Service: {d.hubService} · Content: {d.hubContent}</p>
       </Card>
@@ -1195,238 +1606,80 @@ function S13({d}) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   HOME SCREEN — Multi-Client Central
-   ═══════════════════════════════════════════════════════════ */
-function fmtDate(ts) {
-  const d = new Date(ts);
-  const pad = n => String(n).padStart(2,"0");
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function HomeScreen({ clients, onOpen, onNew, onDelete, onImport, onExport }) {
-  const [confirm, setConfirm] = useState(null);
-  const fileRef = useRef(null);
-  return (
-    <div style={{ fontFamily:font, background:tk.bg, minHeight:"100vh", color:tk.text }}>
-      <div style={{ background:`linear-gradient(135deg, ${tk.navy} 0%, ${tk.blue} 50%, ${tk.teal} 100%)`, padding:"40px 24px 48px", textAlign:"center" }}>
-        <img src={FOCUX_LOGO} alt="Focux" style={{ height:60, marginBottom:12, filter:"brightness(0) invert(1)" }} />
-        <h1 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:800, letterSpacing:"0.05em" }}>FOCUXAI OPS</h1>
-        <p style={{ margin:0, color:"rgba(255,255,255,0.6)", fontSize:13, fontWeight:500 }}>HubSpot Implementation Engine — Central de Clientes</p>
-      </div>
-
-      <div style={{ maxWidth:900, margin:"-28px auto 0", padding:"0 20px 40px" }}>
-        <div style={{ display:"flex", gap:10, marginBottom:24, flexWrap:"wrap" }}>
-          <button onClick={onNew} style={{
-            padding:"12px 24px", borderRadius:10, border:"none",
-            background:`linear-gradient(135deg, ${tk.teal}, ${tk.blue})`,
-            color:"#fff", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:font,
-            boxShadow:"0 4px 14px rgba(13,122,181,0.35)", transition:"all 0.2s",
-          }}>+ Nuevo Cliente</button>
-          <button onClick={()=>fileRef.current?.click()} style={{
-            padding:"12px 24px", borderRadius:10, border:`1.5px solid ${tk.border}`,
-            background:tk.card, color:tk.textSec, fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:font,
-            transition:"all 0.2s",
-          }}>📥 Importar JSON</button>
-          <input ref={fileRef} type="file" accept=".json" style={{display:"none"}} onChange={e => {
-            const file = e.target.files?.[0]; if(!file) return;
-            const reader = new FileReader();
-            reader.onload = ev => { try { onImport(JSON.parse(ev.target.result)); } catch { alert("Archivo JSON inválido"); } };
-            reader.readAsText(file); e.target.value = "";
-          }} />
-        </div>
-
-        {clients.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"60px 20px", background:tk.card, borderRadius:16, border:`1.5px dashed ${tk.border}` }}>
-            <img src={FOCUX_ICON} alt="Focux" style={{ width:64, height:64, margin:"0 auto 12px", display:"block", opacity:0.3 }} />
-            <p style={{ fontSize:16, fontWeight:700, color:tk.navy, margin:"0 0 6px" }}>Sin clientes configurados</p>
-            <p style={{ fontSize:13, color:tk.textSec, margin:0 }}>Crea tu primer cliente para comenzar una implementación HubSpot.</p>
-          </div>
-        ) : (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:14 }}>
-            {clients.map(cl => {
-              const pct = cl.pct || 0;
-              const pctColor = pct === 100 ? tk.green : pct > 50 ? tk.amber : pct > 0 ? tk.accent : tk.textTer;
-              return (
-                <div key={cl.id} style={{
-                  background:tk.card, borderRadius:14, border:`1.5px solid ${tk.border}`, overflow:"hidden",
-                  cursor:"pointer", transition:"all 0.2s", position:"relative",
-                }} onClick={() => onOpen(cl.id)}
-                   onMouseOver={e => { e.currentTarget.style.borderColor = tk.accent; e.currentTarget.style.boxShadow = "0 4px 20px rgba(13,122,181,0.12)"; }}
-                   onMouseOut={e => { e.currentTarget.style.borderColor = tk.border; e.currentTarget.style.boxShadow = "none"; }}>
-                  <div style={{ height:4, background:tk.borderLight }}>
-                    <div style={{ height:4, background:pctColor, width:`${pct}%`, transition:"width 0.3s" }} />
-                  </div>
-                  <div style={{ padding:"16px 18px" }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <h3 style={{ margin:0, fontSize:15, fontWeight:700, color:tk.navy, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                          {cl.name || "Sin nombre"}
-                        </h3>
-                        {cl.domain && <p style={{ margin:"2px 0 0", fontSize:11, color:tk.textTer }}>{cl.domain}</p>}
-                      </div>
-                      <span style={{ fontSize:14, fontWeight:800, color:pctColor, flexShrink:0, marginLeft:8 }}>{pct}%</span>
-                    </div>
-                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
-                      {cl.macros > 0 && <Badge text={`${cl.macros} proy`} color={tk.accent} />}
-                      {cl.sales && cl.sales !== "No" && <Badge text={`Sales ${cl.sales}`} color={tk.teal} />}
-                    </div>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                      <p style={{ margin:0, fontSize:10, color:tk.textTer }}>{cl.updatedAt ? fmtDate(cl.updatedAt) : "—"}</p>
-                      <div style={{ display:"flex", gap:4 }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => onExport(cl.id)} title="Exportar JSON" style={{
-                          background:"none", border:`1px solid ${tk.border}`, borderRadius:6, width:28, height:28,
-                          fontSize:12, cursor:"pointer", color:tk.textSec, display:"flex", alignItems:"center", justifyContent:"center",
-                        }} onMouseOver={e=>e.currentTarget.style.borderColor=tk.accent} onMouseOut={e=>e.currentTarget.style.borderColor=tk.border}>📤</button>
-                        <button onClick={() => setConfirm(cl.id)} title="Eliminar" style={{
-                          background:"none", border:`1px solid ${tk.border}`, borderRadius:6, width:28, height:28,
-                          fontSize:12, cursor:"pointer", color:tk.textTer, display:"flex", alignItems:"center", justifyContent:"center",
-                        }} onMouseOver={e=>{e.currentTarget.style.borderColor=tk.red;e.currentTarget.style.color=tk.red}} onMouseOut={e=>{e.currentTarget.style.borderColor=tk.border;e.currentTarget.style.color=tk.textTer}}>🗑</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Delete confirmation */}
-      {confirm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", display:"flex", justifyContent:"center", alignItems:"center", zIndex:1000, backdropFilter:"blur(4px)" }}>
-          <div style={{ background:tk.card, borderRadius:16, padding:24, maxWidth:400, textAlign:"center", boxShadow:"0 25px 50px -12px rgba(0,0,0,0.25)" }}>
-            <p style={{ fontSize:36, margin:"0 0 12px" }}>⚠️</p>
-            <h3 style={{ margin:"0 0 8px", color:tk.navy, fontSize:16, fontWeight:700 }}>¿Eliminar este cliente?</h3>
-            <p style={{ margin:"0 0 20px", fontSize:13, color:tk.textSec }}>Esta acción eliminará toda la configuración y versiones guardadas. No se puede deshacer.</p>
-            <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
-              <button onClick={() => setConfirm(null)} style={{ padding:"10px 24px", borderRadius:8, border:`1.5px solid ${tk.border}`, background:tk.card, color:tk.textSec, fontSize:13, cursor:"pointer", fontWeight:600, fontFamily:font }}>Cancelar</button>
-              <button onClick={() => { onDelete(confirm); setConfirm(null); }} style={{ padding:"10px 24px", borderRadius:8, border:"none", background:tk.red, color:"#fff", fontSize:13, cursor:"pointer", fontWeight:600, fontFamily:font }}>Eliminar</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   VERSION PANEL
-   ═══════════════════════════════════════════════════════════ */
-function VersionPanel({ open, onClose, versions, onRestore }) {
-  if (!open) return null;
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", display:"flex", justifyContent:"flex-end", zIndex:1000, backdropFilter:"blur(4px)" }} onClick={onClose}>
-      <div style={{ width:380, maxWidth:"90vw", background:tk.card, height:"100%", overflow:"auto", padding:24, boxShadow:"-8px 0 30px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-          <h3 style={{ margin:0, color:tk.navy, fontSize:16, fontWeight:700 }}>Historial de Versiones</h3>
-          <button onClick={onClose} style={{ background:tk.bg, border:"none", width:32, height:32, borderRadius:8, fontSize:18, cursor:"pointer", color:tk.textSec, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-        </div>
-        {versions.length === 0 ? (
-          <p style={{ fontSize:13, color:tk.textTer, textAlign:"center", padding:20 }}>No hay versiones guardadas aún.</p>
-        ) : (
-          versions.map((v, i) => (
-            <div key={i} style={{ padding:12, background:i===0?tk.accentLight:tk.bg, borderRadius:10, marginBottom:8, border:`1px solid ${i===0?tk.accent+"30":tk.border}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                <span style={{ fontSize:12, fontWeight:700, color:tk.navy }}>{v.label}</span>
-                {i === 0 && <Badge text="Más reciente" color={tk.green} />}
-              </div>
-              <p style={{ margin:"0 0 8px", fontSize:11, color:tk.textTer }}>{fmtDate(v.ts)}</p>
-              <div style={{ display:"flex", gap:6 }}>
-                <button onClick={() => onRestore(v.data)} style={{
-                  padding:"5px 14px", borderRadius:6, border:`1.5px solid ${tk.accent}`, background:tk.card,
-                  color:tk.accent, fontSize:11, cursor:"pointer", fontWeight:600, fontFamily:font,
-                }}>Restaurar</button>
-                <span style={{ fontSize:10, color:tk.textTer, paddingTop:4 }}>
-                  {v.data.nombreConst || "Sin nombre"} · {(v.data.macros||[]).length} proy · {calcOverallPct(v.data)}%
-                </span>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   WIZARD SHELL — Client workspace
-   ═══════════════════════════════════════════════════════════ */
-function WizardShell({ clientId, initialData, onBack, onSave }) {
-  const [d, setD] = useState(initialData);
+/* ═══ MAIN APP ═══ */
+export default function OpsWizard() {
+  const [d, setD] = useState(INIT);
+  const [ok, sOk] = useState(false);
   const [saving, sSv] = useState(false);
-  const [verOpen, setVerOpen] = useState(false);
-  const [versions, setVersions] = useState([]);
-  const lastSnap = useRef(Date.now());
 
-  const persist = useCallback(async (nd, label) => {
-    sSv(true);
-    await saveClient(clientId, nd);
-    // Update index metadata
-    const idx = await loadIndex();
-    const ci = idx.findIndex(c => c.id === clientId);
-    if (ci >= 0) {
-      idx[ci] = { ...idx[ci], name: nd.nombreConst, domain: nd.dominio, macros: (nd.macros||[]).length, sales: nd.hubSales, pct: calcOverallPct(nd), updatedAt: Date.now() };
-      await saveIndex(idx);
-    }
-    // Auto-snapshot every 90 seconds
-    const now = Date.now();
-    if (now - lastSnap.current > 90000) {
-      await pushVersion(clientId, nd, label || "Auto-save");
-      lastSnap.current = now;
-    }
-    onSave();
-    setTimeout(() => sSv(false), 400);
-  }, [clientId, onSave]);
+  useEffect(() => {
+    ld().then(s => {
+      if (s) {
+        // Migrate varsCalif opts
+        if (s.varsCalif) {
+          const defMap = {};
+          DEF_VARS.forEach(v => { defMap[v.id] = v; });
+          s.varsCalif = s.varsCalif.map(v => ({
+            ...v,
+            opts: v.opts || (defMap[v.id] ? defMap[v.id].opts : []),
+          }));
+          DEF_VARS.forEach(dv => {
+            if (!s.varsCalif.find(v => v.id === dv.id)) {
+              s.varsCalif.push({...dv});
+            }
+          });
+        }
+        // Migrate asesores: split nombre into nombre+apellido if apellido missing
+        // + clean up prices to digits-only
+        if (s.macros) {
+          s.macros = s.macros.map(m => ({
+            ...m,
+            precioDesde: String(m.precioDesde||"").replace(/[^0-9]/g,""),
+            cuotaDesde: String(m.cuotaDesde||"").replace(/[^0-9]/g,""),
+            asesores: (m.asesores||[]).map(a => {
+              if (a.apellido !== undefined) return a;
+              const parts = (a.nombre||"").trim().split(/\s+/);
+              return { ...a, nombre: parts[0]||"", apellido: parts.slice(1).join(" ")||"", tel: a.tel||"" };
+            }),
+          }));
+        }
+        setD(prev => ({ ...INIT, ...s }));
+      }
+      sOk(true);
+    });
+  }, []);
 
+  const persist = useCallback(async nd => { sSv(true); await sv(nd); setTimeout(() => sSv(false), 500); }, []);
   const u = useCallback((f, v) => { setD(prev => { const next = { ...prev, [f]: v }; persist(next); return next; }); }, [persist]);
-  const goTo = step => { const next = { ...d, step }; setD(next); persist(next, `Paso ${step}: ${STEPS[step]?.t||""}`); };
+  const goTo = step => { const next = { ...d, step }; setD(next); persist(next); };
 
-  const openVersions = async () => { setVersions(await loadVersions(clientId)); setVerOpen(true); };
-  const restoreVersion = async (data) => {
-    await pushVersion(clientId, d, "Pre-restauración");
-    setD({...makeBlankState(), ...data});
-    await persist({...makeBlankState(), ...data}, "Restauración manual");
-    setVerOpen(false);
-  };
-
-  const exportJSON = () => {
-    const b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
-    const u2 = URL.createObjectURL(b);
-    const a = document.createElement("a"); a.href = u2; a.download = `${d.nombreConst || "config"}_focuxai.json`; a.click();
-  };
+  if (!ok) return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: tk.bg, fontFamily: font }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 40, height: 40, border: `3px solid ${tk.border}`, borderTopColor: tk.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
+        <p style={{ color: tk.textSec, fontSize: 13 }}>Cargando configuración...</p>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    </div>
+  );
 
   const Comps = [S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13];
   const Cur = Comps[d.step] || S0;
 
   return (
     <div style={{ fontFamily: font, background: tk.bg, minHeight: "100vh", color: tk.text }}>
-      <VersionPanel open={verOpen} onClose={() => setVerOpen(false)} versions={versions} onRestore={restoreVersion} />
-
       {/* Header */}
       <div style={{ background: `linear-gradient(135deg, ${tk.navy} 0%, ${tk.blue} 50%, ${tk.teal} 100%)`, padding: "0 24px", height: 52, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={async () => { await pushVersion(clientId, d, "Salida manual"); onBack(); }} style={{
-            background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, width: 32, height: 32,
-            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", fontSize: 16,
-          }} title="Volver al Home">←</button>
-          <img src={FOCUX_ICON} alt="Focux" style={{ height:28, borderRadius:4 }} />
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>⚡</div>
           <div>
             <h1 style={{ margin: 0, color: "#fff", fontSize: 14, fontWeight: 800, letterSpacing: "0.05em" }}>FOCUXAI OPS</h1>
             <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: 500 }}>HubSpot Implementation Engine</p>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {saving && <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Guardando...</span>}
-          <button onClick={openVersions} style={{
-            background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, padding: "5px 10px",
-            color: "rgba(255,255,255,0.8)", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: font,
-          }} title="Historial de versiones">🕐 Versiones</button>
-          <button onClick={exportJSON} style={{
-            background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 6, padding: "5px 10px",
-            color: "rgba(255,255,255,0.8)", fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: font,
-          }} title="Exportar JSON">📤 JSON</button>
-          {d.nombreConst && <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: 600, marginLeft: 4 }}>{d.nombreConst}</span>}
+          {d.nombreConst && <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: 600 }}>{d.nombreConst}</span>}
         </div>
       </div>
 
@@ -1442,7 +1695,7 @@ function WizardShell({ clientId, initialData, onBack, onSave }) {
                 background: active ? tk.accentLight : "transparent",
                 border: "none", cursor: "pointer", textAlign: "left",
                 borderRight: active ? `3px solid ${tk.accent}` : "3px solid transparent",
-                transition: "all 0.15s", fontFamily: font,
+                transition: "all 0.15s",
               }}>
                 <span style={{ fontSize: 16, width: 24, textAlign: "center" }}>{s.i}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1493,124 +1746,5 @@ function WizardShell({ clientId, initialData, onBack, onSave }) {
         </div>
       </div>
     </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MAIN APP — Router between Home and Wizard
-   ═══════════════════════════════════════════════════════════ */
-export default function App() {
-  const [ready, setReady] = useState(false);
-  const [clients, setClients] = useState([]);
-  const [activeClient, setActiveClient] = useState(null); // { id, data }
-
-  const refreshClients = useCallback(async () => {
-    const idx = await loadIndex();
-    setClients(idx);
-  }, []);
-
-  // Migrate from old single-client storage
-  useEffect(() => {
-    (async () => {
-      const idx = await loadIndex();
-      if (idx.length === 0) {
-        // Check for legacy data
-        try {
-          const old = await sGet("focuxai-v4");
-          if (old && old.nombreConst) {
-            const id = uid();
-            const data = { ...makeBlankState(), ...old };
-            await saveClient(id, data);
-            const meta = { id, name: old.nombreConst, domain: old.dominio, macros: (old.macros||[]).length, sales: old.hubSales, pct: calcOverallPct(data), updatedAt: Date.now() };
-            await saveIndex([meta]);
-            await pushVersion(id, data, "Migración v6→v7");
-            setClients([meta]);
-          }
-        } catch {}
-      } else {
-        setClients(idx);
-      }
-      setReady(true);
-    })();
-  }, []);
-
-  const openClient = async (id) => {
-    const data = await loadClient(id);
-    if (data) {
-      setActiveClient({ id, data: { ...makeBlankState(), ...data } });
-    }
-  };
-
-  const newClient = async () => {
-    const id = uid();
-    const data = makeBlankState();
-    await saveClient(id, data);
-    const meta = { id, name: "", domain: "", macros: 0, sales: "No", pct: 0, updatedAt: Date.now() };
-    const idx = await loadIndex();
-    idx.unshift(meta);
-    await saveIndex(idx);
-    await pushVersion(id, data, "Creación");
-    setClients(idx);
-    setActiveClient({ id, data });
-  };
-
-  const deleteClientHandler = async (id) => {
-    await deleteClient(id);
-    const idx = (await loadIndex()).filter(c => c.id !== id);
-    await saveIndex(idx);
-    setClients(idx);
-  };
-
-  const importJSON = async (jsonData) => {
-    const id = uid();
-    const data = { ...makeBlankState(), ...jsonData, step: 0 };
-    await saveClient(id, data);
-    const meta = { id, name: data.nombreConst, domain: data.dominio, macros: (data.macros||[]).length, sales: data.hubSales, pct: calcOverallPct(data), updatedAt: Date.now() };
-    const idx = await loadIndex();
-    idx.unshift(meta);
-    await saveIndex(idx);
-    await pushVersion(id, data, "Importación JSON");
-    setClients(idx);
-    setActiveClient({ id, data });
-  };
-
-  const exportClient = async (id) => {
-    const data = await loadClient(id);
-    if (!data) return;
-    const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const u2 = URL.createObjectURL(b);
-    const a = document.createElement("a"); a.href = u2; a.download = `${data.nombreConst || "config"}_focuxai.json`; a.click();
-  };
-
-  if (!ready) return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: tk.bg, fontFamily: font }}>
-      <div style={{ textAlign: "center" }}>
-        <img src={FOCUX_ICON} alt="Focux" style={{ width:48, height:48, animation:"spin 0.8s linear infinite", margin:"0 auto 12px", display:"block" }} />
-        <p style={{ color: tk.textSec, fontSize: 13 }}>Cargando FocuxAI Ops...</p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    </div>
-  );
-
-  if (activeClient) {
-    return (
-      <WizardShell
-        clientId={activeClient.id}
-        initialData={activeClient.data}
-        onBack={() => { refreshClients(); setActiveClient(null); }}
-        onSave={refreshClients}
-      />
-    );
-  }
-
-  return (
-    <HomeScreen
-      clients={clients}
-      onOpen={openClient}
-      onNew={newClient}
-      onDelete={deleteClientHandler}
-      onImport={importJSON}
-      onExport={exportClient}
-    />
   );
 }
