@@ -47,7 +47,7 @@ export default function LoginContent() {
           </p>
         </div>
         <button
-          onClick={() => signIn("google", { callbackUrl: "/ops" })}
+          onClick={() => signIn("google", { callbackUrl: "/home" })}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
             width: "100%", padding: "14px 24px", borderRadius: 10,
