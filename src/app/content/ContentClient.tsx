@@ -572,7 +572,7 @@ export default function ContentWizard() {
 
   if (!ok) return (
     <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", background: tk.bg, fontFamily: font }}>
-      <img src={LOGO_FULL} alt="Focux" style={{ width: 120, marginBottom: 20 }} />
+      <img src="/logo-focux.png" alt="Focux" style={{ width: 120, marginBottom: 20 }} />
       <div style={{ width: 40, height: 40, border: `3px solid ${tk.border}`, borderTopColor: tk.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
       <p style={{ color: tk.textSec, fontSize: 13, marginTop: 12 }}>Cargando FocuxAI Content...</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -590,7 +590,7 @@ export default function ContentWizard() {
       {/* Header */}
       <div style={{ background: `linear-gradient(135deg, ${tk.navy} 0%, ${tk.purple} 50%, ${tk.cyan} 100%)`, padding: "0 24px", height: 52, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src={LOGO_F} alt="Focux" style={{ width: 28, height: 28, borderRadius: 6 }} />
+          <img src="/logo-focux.png" alt="Focux" style={{ width: 28, height: 28, borderRadius: 6 }} />
           <div>
             <h1 style={{ margin: 0, color: "#fff", fontSize: 14, fontWeight: 800, letterSpacing: "0.05em" }}>FOCUXAI CONTENT</h1>
             <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: 500 }}>Strategic Content Onboarding Engine</p>
@@ -607,7 +607,7 @@ export default function ContentWizard() {
         <div style={{ width: 240, minHeight: "calc(100vh - 52px)", background: tk.card, borderRight: `1px solid ${tk.border}`, padding: "12px 0", flexShrink: 0, overflow: "auto" }}>
           {/* Logo in sidebar */}
           <div style={{ textAlign: "center", padding: "8px 0 16px", borderBottom: `1px solid ${tk.borderLight}`, marginBottom: 8 }}>
-            <img src={LOGO_FULL} alt="Focux" style={{ width: 80, opacity: 0.8 }} />
+            <img src="/logo-focux.png" alt="Focux" style={{ width: 80, opacity: 0.8 }} />
           </div>
 
           {PHASES.map((phase, pi) => {
