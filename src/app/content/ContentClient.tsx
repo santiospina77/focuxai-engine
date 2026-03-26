@@ -2,7 +2,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 
-/* ═══ LOGOS BASE64 ═══ */
 
 /* ═══ STORAGE ═══ */
 const SK_IDX = "focuxai-content-clients-idx";
@@ -547,39 +546,22 @@ function StepPlaceholder({ step }) {
   );
 }
 
-/* ═══ MAIN APP ═══ */
-export default function ContentWizard() {
-  const [d, setD] = useState(INIT);
-  const [ok, sOk] = useState(false);
-  const [saving, sSv] = useState(false);
-  const [clientId] = useState(() => genId());
-
-  useEffect(() => {
-    const idx = loadIdx();
-    if (idx.length > 0) {
-      const last = idx[idx.length - 1];
-      const data = loadClient(last.id);
-      if (data) { setD(prev => ({ ...INIT, ...data })); }
-    }
-    sOk(true);
-  }, []);
-
-  const persist = useCallback(async nd => { sSv(true); saveClient(clientId, nd); setTimeout(() => sSv(false), 500); }, [clientId]);
-  const u = useCallback((f, v) => { setD(prev => { const next = { ...prev, [f]: v }; persist(next); return next; }); }, [persist]);
-  const goTo = step => { const next = { ...d, step }; setD(next); persist(next); };
-
-  if (!ok) return (
-    <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", background: tk.bg, fontFamily: font }}>
-      <img src="/logo-focux.png" alt="Focux" style={{ width: 120, marginBottom: 20 }} />
-      <div style={{ width: 40, height: 40, border: `3px solid ${tk.border}`, borderTopColor: tk.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      <p style={{ color: tk.textSec, fontSize: 13, marginTop: 12 }}>Cargando FocuxAI Content...</p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-
-  const curStep = ALL_STEPS[d.step] || ALL_STEPS[0];
-  const Comps = [S01, S02, S03];
-  const Cur = d.step < Comps.length ? Comps[d.step] : null;
+/* ═══ CLIENT HOME ═══ */
+function ClientHome({ clients, onSelect, onNew, onImport, onDelete, onExport }) {
+  const fileRef = { current: null };
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        onImport(data);
+      } catch { alert("Archivo JSON inválido"); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   return (
     <div style={{ fontFamily: font, background: tk.bg, minHeight: "100vh", color: tk.text }}>
@@ -594,9 +576,251 @@ export default function ContentWizard() {
             <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: 500 }}>Strategic Content Onboarding Engine</p>
           </div>
         </div>
+      </div>
+
+      {/* Hero */}
+      <div style={{ textAlign: "center", padding: "40px 20px 20px" }}>
+        <img src="/logo-focux.png" alt="Focux" style={{ width: 100, marginBottom: 16 }} />
+        <h2 style={{ margin: "0 0 4px", color: tk.navy, fontSize: 24, fontWeight: 800 }}>FocuxAI Content</h2>
+        <p style={{ margin: 0, color: tk.textSec, fontSize: 14 }}>Selecciona una constructora o crea una nueva</p>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 12, padding: "0 20px 24px" }}>
+        <button onClick={onNew} style={{
+          padding: "10px 24px", borderRadius: 8, border: "none",
+          background: `linear-gradient(135deg, ${tk.purple}, ${tk.cyan})`,
+          color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+          boxShadow: "0 2px 8px rgba(100,16,247,0.3)", transition: "all 0.2s",
+        }}>+ Nueva Constructora</button>
+        <button onClick={() => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json"; inp.onchange = handleFile; inp.click(); }} style={{
+          padding: "10px 24px", borderRadius: 8, border: `1.5px solid ${tk.border}`,
+          background: tk.card, color: tk.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: font,
+          transition: "all 0.2s",
+        }}>📥 Importar JSON</button>
+      </div>
+
+      {/* Client Cards */}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px 40px" }}>
+        {clients.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px 20px", background: tk.card, borderRadius: 12, border: `1.5px dashed ${tk.border}` }}>
+            <p style={{ fontSize: 40, margin: "0 0 12px" }}>🏗️</p>
+            <p style={{ color: tk.textSec, fontSize: 14, margin: "0 0 4px" }}>No hay constructoras configuradas</p>
+            <p style={{ color: tk.textTer, fontSize: 12 }}>Haz clic en "+ Nueva Constructora" para comenzar</p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+            {clients.map(c => (
+              <div key={c.id} style={{
+                background: tk.card, borderRadius: 12, border: `1px solid ${tk.border}`, overflow: "hidden",
+                cursor: "pointer", transition: "all 0.2s", position: "relative",
+              }}
+                onMouseOver={e => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(100,16,247,0.12)"; e.currentTarget.style.borderColor = tk.accent + "50"; }}
+                onMouseOut={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = tk.border; }}
+              >
+                {/* Card top accent */}
+                <div style={{ height: 4, background: `linear-gradient(90deg, ${tk.purple}, ${tk.cyan})` }} />
+                
+                <div onClick={() => onSelect(c.id)} style={{ padding: 20 }}>
+                  <h3 style={{ margin: "0 0 4px", color: tk.navy, fontSize: 16, fontWeight: 700 }}>{c.nombre || "Sin nombre"}</h3>
+                  <p style={{ margin: "0 0 12px", color: tk.textTer, fontSize: 12 }}>{c.website || "Sin sitio web"}</p>
+                  
+                  <div style={{ display: "flex", gap: 16, fontSize: 11, color: tk.textSec }}>
+                    <span>📍 {c.sede || "—"}</span>
+                    <span>🏠 {c.projectCount || 0} proyectos</span>
+                  </div>
+                  
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+                      <span style={{ color: tk.textTer }}>Completitud</span>
+                      <span style={{ fontWeight: 600, color: tk.accent }}>{c.pct || 0}%</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, background: tk.borderLight }}>
+                      <div style={{ height: 4, borderRadius: 2, background: (c.pct || 0) === 100 ? tk.green : (c.pct || 0) > 30 ? tk.amber : tk.accent, width: `${c.pct || 0}%`, transition: "width 0.3s" }} />
+                    </div>
+                  </div>
+                  
+                  <p style={{ margin: "12px 0 0", fontSize: 10, color: tk.textTer }}>
+                    Actualizado: {c.updated ? new Date(c.updated).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                  </p>
+                </div>
+
+                {/* Card actions */}
+                <div style={{ display: "flex", borderTop: `1px solid ${tk.borderLight}` }}>
+                  <button onClick={(e) => { e.stopPropagation(); onExport(c.id); }} style={{
+                    flex: 1, padding: "8px 0", border: "none", background: "transparent", fontSize: 11, color: tk.textSec, cursor: "pointer", fontFamily: font, fontWeight: 500,
+                  }}
+                    onMouseOver={e => e.target.style.color = tk.accent}
+                    onMouseOut={e => e.target.style.color = tk.textSec}
+                  >📤 Exportar</button>
+                  <div style={{ width: 1, background: tk.borderLight }} />
+                  <button onClick={(e) => { e.stopPropagation(); if (confirm(`¿Eliminar "${c.nombre || "Sin nombre"}"? Esta acción no se puede deshacer.`)) onDelete(c.id); }} style={{
+                    flex: 1, padding: "8px 0", border: "none", background: "transparent", fontSize: 11, color: tk.textSec, cursor: "pointer", fontFamily: font, fontWeight: 500,
+                  }}
+                    onMouseOver={e => e.target.style.color = tk.red}
+                    onMouseOut={e => e.target.style.color = tk.textSec}
+                  >🗑 Eliminar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: "center", padding: "20px", borderTop: `1px solid ${tk.borderLight}` }}>
+        <p style={{ margin: 0, fontSize: 11, color: tk.textTer }}>FocuxAI Engine™ — Focux Digital Group © 2026</p>
+      </div>
+    </div>
+  );
+}
+
+/* ═══ MAIN APP ═══ */
+export default function ContentWizard() {
+  const [view, setView] = useState("home"); // "home" | "wizard"
+  const [clients, setClients] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [d, setD] = useState(INIT);
+  const [ok, sOk] = useState(false);
+  const [saving, sSv] = useState(false);
+
+  // Load clients index on mount
+  useEffect(() => {
+    const idx = loadIdx();
+    setClients(idx);
+    sOk(true);
+  }, []);
+
+  // Persist wizard data
+  const persist = useCallback((nd) => {
+    if (!activeId) return;
+    sSv(true);
+    saveClient(activeId, nd);
+    // Update index metadata
+    setClients(prev => {
+      const next = prev.map(c => c.id === activeId ? {
+        ...c, nombre: nd.nombre || "", website: nd.website || "", sede: nd.sede || "",
+        projectCount: (nd.projects || []).length, updated: new Date().toISOString(),
+        pct: Math.round(([nd.nombre, nd.website, nd.sede, nd.slogan].filter(Boolean).length / 4) * 100),
+      } : c);
+      saveIdx(next);
+      return next;
+    });
+    setTimeout(() => sSv(false), 500);
+  }, [activeId]);
+
+  const u = useCallback((f, v) => {
+    setD(prev => { const next = { ...prev, [f]: v }; persist(next); return next; });
+  }, [persist]);
+
+  const goTo = step => { const next = { ...d, step }; setD(next); persist(next); };
+
+  // Home actions
+  const handleNew = () => {
+    const id = genId();
+    const newClient = { id, nombre: "", website: "", sede: "", projectCount: 0, updated: new Date().toISOString(), pct: 0 };
+    const nextIdx = [...clients, newClient];
+    setClients(nextIdx);
+    saveIdx(nextIdx);
+    saveClient(id, { ...INIT });
+    setActiveId(id);
+    setD({ ...INIT });
+    setView("wizard");
+  };
+
+  const handleSelect = (id) => {
+    const data = loadClient(id);
+    if (data) {
+      setActiveId(id);
+      setD({ ...INIT, ...data });
+      setView("wizard");
+    }
+  };
+
+  const handleDelete = (id) => {
+    const nextIdx = clients.filter(c => c.id !== id);
+    setClients(nextIdx);
+    saveIdx(nextIdx);
+    localStorage.removeItem(SK_CL + id);
+    localStorage.removeItem(SK_VER + id);
+  };
+
+  const handleExport = (id) => {
+    const data = loadClient(id);
+    if (!data) return;
+    const meta = clients.find(c => c.id === id);
+    const blob = new Blob([JSON.stringify({ _meta: meta, ...data }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `FocuxAI_Content_${(data.nombre || "export").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (data) => {
+    const id = genId();
+    const { _meta, ...wizardData } = data;
+    const newClient = {
+      id, nombre: wizardData.nombre || _meta?.nombre || "Importado",
+      website: wizardData.website || "", sede: wizardData.sede || "",
+      projectCount: (wizardData.projects || []).length,
+      updated: new Date().toISOString(), pct: _meta?.pct || 0,
+    };
+    const nextIdx = [...clients, newClient];
+    setClients(nextIdx);
+    saveIdx(nextIdx);
+    saveClient(id, { ...INIT, ...wizardData });
+    setActiveId(id);
+    setD({ ...INIT, ...wizardData });
+    setView("wizard");
+  };
+
+  const handleBackToHome = () => {
+    setView("home");
+    setActiveId(null);
+    // Refresh clients index
+    setClients(loadIdx());
+  };
+
+  // Loading screen
+  if (!ok) return (
+    <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", background: tk.bg, fontFamily: font }}>
+      <img src="/logo-focux.png" alt="Focux" style={{ width: 120, marginBottom: 20 }} />
+      <div style={{ width: 40, height: 40, border: `3px solid ${tk.border}`, borderTopColor: tk.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <p style={{ color: tk.textSec, fontSize: 13, marginTop: 12 }}>Cargando FocuxAI Content...</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
+  // HOME VIEW
+  if (view === "home") {
+    return <ClientHome clients={clients} onSelect={handleSelect} onNew={handleNew} onImport={handleImport} onDelete={handleDelete} onExport={handleExport} />;
+  }
+
+  // WIZARD VIEW
+  const curStep = ALL_STEPS[d.step] || ALL_STEPS[0];
+  const Comps = [S01, S02, S03];
+  const Cur = d.step < Comps.length ? Comps[d.step] : null;
+
+  return (
+    <div style={{ fontFamily: font, background: tk.bg, minHeight: "100vh", color: tk.text }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+
+      {/* Header */}
+      <div style={{ background: `linear-gradient(135deg, ${tk.navy} 0%, ${tk.purple} 50%, ${tk.cyan} 100%)`, padding: "0 24px", height: 52, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img src="/logo-focux.png" alt="Focux" style={{ width: 28, height: 28, borderRadius: 6, cursor: "pointer" }} onClick={handleBackToHome} />
+          <div>
+            <h1 style={{ margin: 0, color: "#fff", fontSize: 14, fontWeight: 800, letterSpacing: "0.05em" }}>FOCUXAI CONTENT</h1>
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: 500 }}>Strategic Content Onboarding Engine</p>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {saving && <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>Guardando...</span>}
           {d.nombre && <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: 600 }}>{d.nombre}</span>}
+          <button onClick={() => handleExport(activeId)} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 6, padding: "6px 12px", color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: font }}>📤 JSON</button>
+          <button onClick={handleBackToHome} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 6, padding: "6px 12px", color: "#fff", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: font }}>← Home</button>
         </div>
       </div>
 
