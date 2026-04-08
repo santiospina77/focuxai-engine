@@ -194,7 +194,7 @@ const HS_PROXY = "/api/hubspot";
 
 async function hsCall(token, method, path, body = null) {
   const url = `${HS_PROXY}${path}`;
-  const opts: any = {
+  const opts = {
     method,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
   };
@@ -292,7 +292,7 @@ export default function FocuxAdapter() {
     // Helper: create property
     const createProp = async (objectType, prop) => {
       if (cancelRef.current) return;
-      const body: any = {
+      const body = {
         name: prop.name, label: prop.label, type: prop.type, fieldType: prop.fieldType,
         groupName: prop.group || "focux",
       };
