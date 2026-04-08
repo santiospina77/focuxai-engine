@@ -680,6 +680,32 @@ export default function ScanClient() {
               />
               <p style={{ margin:"6px 0 0", fontSize:10, color:tk.textTer }}>Este nombre aparecerá en el PDF del reporte ejecutivo</p>
             </div>
+
+            {/* SETUP GUIDE */}
+            <div style={{ background:tk.card, borderRadius:14, padding:20, border:`1px solid ${tk.border}`, marginBottom:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                <div>
+                  <p style={{ margin:0, fontSize:13, fontWeight:700, color:tk.text }}>¿Primera vez? Configura el acceso al portal</p>
+                  <p style={{ margin:"4px 0 0", fontSize:11, color:tk.textSec }}>El cliente debe crear una Private App en HubSpot con los permisos necesarios.</p>
+                </div>
+                <a href="/FocuxScan_Setup_Guide.pdf" download
+                  style={{ padding:"8px 18px", borderRadius:8, border:`1.5px solid ${tk.purple}`, background:tk.purple+"15", color:tk.purple, fontSize:11, fontWeight:700, textDecoration:"none", fontFamily:font, whiteSpace:"nowrap", cursor:"pointer" }}>
+                  📋 Descargar Guía
+                </a>
+              </div>
+              <div style={{ background:tk.bg, borderRadius:10, padding:16, border:`1px solid ${tk.border}` }}>
+                <p style={{ margin:"0 0 8px", fontSize:10, fontWeight:700, color:tk.textSec, textTransform:"uppercase", letterSpacing:"0.06em" }}>Pasos rápidos</p>
+                <div style={{ fontSize:11, color:tk.textSec, lineHeight:"1.8" }}>
+                  <p style={{ margin:"0 0 4px" }}><span style={{ color:tk.purple, fontWeight:700 }}>1.</span> El cliente va a <span style={{ color:tk.text }}>Settings → Integrations → Private Apps</span></p>
+                  <p style={{ margin:"0 0 4px" }}><span style={{ color:tk.purple, fontWeight:700 }}>2.</span> Crea una nueva app con nombre <span style={{ color:tk.text }}>"Focux Scan"</span></p>
+                  <p style={{ margin:"0 0 4px" }}><span style={{ color:tk.purple, fontWeight:700 }}>3.</span> Activa los <span style={{ color:tk.text }}>10 scopes</span> listados en la guía (solo lectura)</p>
+                  <p style={{ margin:"0 0 4px" }}><span style={{ color:tk.purple, fontWeight:700 }}>4.</span> Crea la app y copia el <span style={{ color:tk.text }}>Access Token</span></p>
+                  <p style={{ margin:0 }}><span style={{ color:tk.purple, fontWeight:700 }}>5.</span> Te envía el token → lo pegas abajo y escaneas</p>
+                </div>
+                <p style={{ margin:"10px 0 0", fontSize:10, color:tk.green }}>🔒 El token es solo de lectura — no modifica ni elimina nada del portal.</p>
+              </div>
+            </div>
+
             <div style={{ background:tk.card, borderRadius:14, padding:24, border:`1px solid ${tk.border}`, marginBottom:24 }}>
               <label style={{ display:"block", fontSize:11, fontWeight:700, color:tk.textSec, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Private App Token</label>
               <div style={{ display:"flex", gap:12 }}>
