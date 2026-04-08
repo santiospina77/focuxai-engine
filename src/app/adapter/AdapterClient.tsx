@@ -1,5 +1,6 @@
 "use client";
-// @ts-nocheckimport { useState, useCallback, useRef, useEffect, useMemo } from "react";
+// @ts-nocheck
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 
 /* ═══════════════════════════════════════════════════════════════
    FOCUXAI ADAPTER v2 — HubSpot Portal Deployer
