@@ -292,7 +292,7 @@ export default function FocuxAdapter() {
     // Helper: create property
     const createProp = async (objectType, prop) => {
       if (cancelRef.current) return;
-      const body = {
+      const body: any = {
         name: prop.name, label: prop.label, type: prop.type, fieldType: prop.fieldType,
         groupName: prop.group || "focux",
       };
