@@ -7,6 +7,8 @@ const ALLOWED_PREFIXES = [
   "/crm/v3/pipelines/",
   "/crm/v3/owners",
   "/crm/v3/objects/",
+  "/crm/v3/schemas",
+  "/crm/v4/associations/",
   "/automation/v4/flows",
   "/marketing/v3/forms",
   "/crm/v3/lists",

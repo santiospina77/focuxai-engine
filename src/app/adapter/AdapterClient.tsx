@@ -1,1065 +1,844 @@
-// @ts-nocheck
 "use client";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 
-/* ═══════════════════════════════════════════════════════════
-   FOCUXAI ENGINE™ — HUBSPOT ADAPTER v2
-   Config JSON → HubSpot API (Properties + Pipeline + Workflows)
-   Deterministic. Auditable. Unstoppable.
-   ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   FOCUXAI ADAPTER v2 — HubSpot Portal Deployer
+   Custom Objects + Properties + Pipeline + Associations
+   Reads Focux Config JSON → Deploys to HubSpot via API
+   ═══════════════════════════════════════════════════════════════ */
 
-/* API calls go through /api/hubspot/ proxy → api.hubapi.com */
-const font = "'Plus Jakarta Sans', system-ui, sans-serif";
+/* ═══ DESIGN TOKENS (same as Ops v7) ═══ */
+const font = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
 const tk = {
   navy:"#211968", blue:"#1A4BA8", teal:"#0D7AB5", cyan:"#2099D8",
-  bg:"#0B0E1A", card:"#12162B", cardHover:"#1A1F38", border:"#2A2F4A",
-  text:"#E8ECF4", textSec:"#8B92A8", textTer:"#5A6078",
+  bg:"#FAFBFD", card:"#FFFFFF", border:"#E8ECF1", borderLight:"#F1F4F8",
+  text:"#1A1D26", textSec:"#6B7280", textTer:"#9CA3AF",
   green:"#10B981", red:"#EF4444", amber:"#F59E0B",
-  greenBg:"#10B98115", redBg:"#EF444415", amberBg:"#F59E0B15",
-  accent:"#0D7AB5", accentGlow:"#0D7AB530",
+  greenBg:"#ECFDF5", redBg:"#FEF2F2", amberBg:"#FFFBEB",
+  accent:"#0D7AB5", accentLight:"#E0F4FD",
 };
 
-/* ═══ API HELPER ═══ */
-async function hubspotAPI(token, method, path, body=null) {
+/* ═══ REQUIRED HUBSPOT SCOPES ═══ */
+const REQUIRED_SCOPES = [
+  { scope: "crm.objects.contacts.read", category: "CRM", purpose: "Leer contactos existentes" },
+  { scope: "crm.objects.contacts.write", category: "CRM", purpose: "Crear/actualizar contactos" },
+  { scope: "crm.objects.companies.read", category: "CRM", purpose: "Leer empresas" },
+  { scope: "crm.objects.companies.write", category: "CRM", purpose: "Crear/actualizar empresas" },
+  { scope: "crm.objects.deals.read", category: "CRM", purpose: "Leer negocios y pipeline" },
+  { scope: "crm.objects.deals.write", category: "CRM", purpose: "Crear/actualizar negocios" },
+  { scope: "crm.objects.custom.read", category: "Custom Objects", purpose: "Leer registros de Custom Objects" },
+  { scope: "crm.objects.custom.write", category: "Custom Objects", purpose: "Crear/actualizar registros de Custom Objects" },
+  { scope: "crm.schemas.custom.read", category: "Schemas", purpose: "Leer definiciones de Custom Objects" },
+  { scope: "crm.schemas.custom.write", category: "Schemas", purpose: "Crear Custom Objects y propiedades" },
+  { scope: "crm.schemas.contacts.read", category: "Schemas", purpose: "Leer schema de contactos" },
+  { scope: "crm.schemas.contacts.write", category: "Schemas", purpose: "Crear propiedades de contacto" },
+  { scope: "crm.schemas.companies.read", category: "Schemas", purpose: "Leer schema de empresas" },
+  { scope: "crm.schemas.companies.write", category: "Schemas", purpose: "Crear propiedades de empresa" },
+  { scope: "crm.schemas.deals.read", category: "Schemas", purpose: "Leer schema de negocios" },
+  { scope: "crm.schemas.deals.write", category: "Schemas", purpose: "Crear propiedades de negocio" },
+  { scope: "crm.objects.owners.read", category: "Owners", purpose: "Leer owners/asesores del portal" },
+  { scope: "settings.users.read", category: "Settings", purpose: "Mapear usuarios a asesores" },
+];
+
+/* ═══ PIPELINE DEFINITION (integrated Engine + Jiménez) ═══ */
+const PIPELINE_STAGES = [
+  { n: "Cotización Enviada", p: 20, sinco: "Nada", internal: "cotizacion_enviada" },
+  { n: "Unidad Bloqueada", p: 40, sinco: "Nada (timer 4 días)", internal: "unidad_bloqueada" },
+  { n: "Opcionó", p: 60, sinco: "Nada", internal: "opciono" },
+  { n: "Entregó Documentos", p: 70, sinco: "Nada", internal: "entrego_documentos" },
+  { n: "Unidad Separada", p: 80, sinco: "POST Comprador + PUT ConfirmacionVenta", internal: "unidad_separada" },
+  { n: "Se vinculó a Fiducia", p: 90, sinco: "Nada", internal: "vinculo_fiducia" },
+  { n: "Consignó", p: 95, sinco: "Nada", internal: "consigno" },
+  { n: "Firmó Documentos", p: 98, sinco: "Nada", internal: "firmo_documentos" },
+  { n: "Negocio Legalizado", p: 100, sinco: "PUT ConfirmacionVenta final", internal: "negocio_legalizado" },
+  { n: "En Cartera", p: 100, sinco: "Sync pagos (Fase 2)", internal: "en_cartera" },
+  { n: "Escriturado", p: 100, sinco: "POST Agrupaciones/Actualizar", internal: "escriturado" },
+  { n: "Entregado", p: 100, sinco: "Nada", internal: "entregado" },
+  { n: "Venta Perdida", p: 0, sinco: "Liberar agrupación", internal: "venta_perdida" },
+];
+
+/* ═══ CONTACT PROPERTIES _fx ═══ */
+const CONTACT_PROPERTIES = [
+  { name: "lista_proyectos_fx", label: "Lista de Proyectos", type: "enumeration", fieldType: "checkbox", group: "focux", options: [] },
+  { name: "etapa_lead_fx", label: "Etapa del Lead", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "canal_atribucion_fx", label: "Canal de Atribución", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "canal_tracking_fx", label: "Canal de Tracking", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "rango_ingresos_fx", label: "Rango de Ingresos", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "tiene_ahorros_fx", label: "Tiene Ahorros o Cesantías", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Sí", value: "Sí" }, { label: "No", value: "No" }] },
+  { name: "proposito_compra_fx", label: "Propósito de Compra", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Vivienda", value: "Vivienda" }, { label: "Inversión", value: "Inversión" }] },
+  { name: "nivel_calificacion_fx", label: "Nivel de Calificación", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "motivo_descarte_fx", label: "Motivo de Descarte", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "cotizacion_solicitada_fx", label: "Cotización Solicitada", type: "enumeration", fieldType: "booleancheckbox", group: "focux", options: [{ label: "Sí", value: "true" }, { label: "No", value: "false" }] },
+  { name: "cedula_fx", label: "Cédula / Identificación", type: "string", fieldType: "text", group: "focux" },
+  { name: "tipo_identificacion_fx", label: "Tipo de Identificación", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "CC", value: "CC" }, { label: "CE", value: "CE" }, { label: "NIT", value: "NIT" }, { label: "Pasaporte", value: "PAS" }] },
+  { name: "id_sinco_comprador_fx", label: "ID Comprador Sinco", type: "number", fieldType: "number", group: "focux" },
+  { name: "origen_lead_fx", label: "Origen del Lead", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Orgánico", value: "organico" }, { label: "Pauta", value: "pauta" }, { label: "Referido", value: "referido" }, { label: "Sala de Ventas", value: "sala" }, { label: "Agente IA", value: "agente_ia" }] },
+];
+
+/* ═══ DEAL PROPERTIES _fx ═══ */
+const DEAL_PROPERTIES = [
+  { name: "id_venta_sinco_fx", label: "ID Venta Sinco", type: "number", fieldType: "number", group: "focux" },
+  { name: "id_agrupacion_sinco_fx", label: "ID Agrupación Sinco", type: "number", fieldType: "number", group: "focux" },
+  { name: "id_sinco_comprador_fx", label: "ID Comprador Sinco", type: "number", fieldType: "number", group: "focux" },
+  { name: "valor_separacion_fx", label: "Valor Separación", type: "number", fieldType: "number", group: "focux" },
+  { name: "cuota_inicial_fx", label: "Cuota Inicial Total", type: "number", fieldType: "number", group: "focux" },
+  { name: "numero_cuotas_fx", label: "Número de Cuotas", type: "number", fieldType: "number", group: "focux" },
+  { name: "valor_cuota_fx", label: "Valor Cuota Mensual", type: "number", fieldType: "number", group: "focux" },
+  { name: "valor_credito_fx", label: "Valor Crédito / Saldo Final", type: "number", fieldType: "number", group: "focux" },
+  { name: "porcentaje_financiacion_fx", label: "% Financiación", type: "number", fieldType: "number", group: "focux" },
+  { name: "precio_cotizado_fx", label: "Precio Cotizado (snapshot)", type: "number", fieldType: "number", group: "focux" },
+  { name: "tipo_venta_fx", label: "Tipo de Venta", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Contado", value: "contado" }, { label: "Crédito", value: "credito" }, { label: "Leasing", value: "leasing" }] },
+  { name: "fecha_bloqueo_fx", label: "Fecha de Bloqueo", type: "date", fieldType: "date", group: "focux" },
+  { name: "dias_bloqueo_fx", label: "Días de Bloqueo", type: "number", fieldType: "number", group: "focux" },
+  { name: "writeback_status_fx", label: "Estado Write-back Sinco", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Pendiente", value: "pending" }, { label: "Exitoso", value: "success" }, { label: "Fallido", value: "failed" }] },
+  { name: "origen_fx", label: "Origen de la Cotización", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Cotizador", value: "cotizador" }, { label: "Import", value: "import" }, { label: "Manual", value: "manual" }] },
+  { name: "motivo_perdida_fx", label: "Motivo de Pérdida", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "lista_proyectos_fx", label: "Proyecto", type: "enumeration", fieldType: "select", group: "focux", options: [] },
+  { name: "descuento_fx", label: "Descuento Aplicado", type: "number", fieldType: "number", group: "focux" },
+  { name: "vigencia_cotizacion_fx", label: "Vigencia Cotización (días)", type: "number", fieldType: "number", group: "focux" },
+];
+
+/* ═══ CUSTOM OBJECTS SCHEMAS ═══ */
+const CUSTOM_OBJECT_SCHEMAS = {
+  macroproyecto: {
+    name: "macroproyecto",
+    labels: { singular: "Macroproyecto", plural: "Macroproyectos" },
+    primaryDisplayProperty: "nombre_fx",
+    properties: [
+      { name: "nombre_fx", label: "Nombre", type: "string", fieldType: "text", isPrimary: true },
+      { name: "id_sinco_fx", label: "ID Sinco", type: "number", fieldType: "number" },
+      { name: "ciudad_fx", label: "Ciudad", type: "string", fieldType: "text" },
+      { name: "tipo_fx", label: "Tipo (VIS/No VIS)", type: "enumeration", fieldType: "select", options: [{ label: "VIS", value: "VIS" }, { label: "VIP", value: "VIP" }, { label: "No VIS", value: "No VIS" }] },
+      { name: "precio_desde_fx", label: "Precio Desde", type: "number", fieldType: "number" },
+      { name: "precio_hasta_fx", label: "Precio Hasta", type: "number", fieldType: "number" },
+      { name: "estado_fx", label: "Estado", type: "enumeration", fieldType: "select", options: [{ label: "Activo", value: "Activo" }, { label: "Inactivo", value: "Inactivo" }, { label: "Entregado", value: "Entregado" }] },
+      { name: "id_origen_sinco_fx", label: "ID Empresa Sinco", type: "number", fieldType: "number" },
+      { name: "numero_pisos_fx", label: "Número de Pisos", type: "number", fieldType: "number" },
+    ],
+  },
+  proyecto: {
+    name: "proyecto",
+    labels: { singular: "Proyecto", plural: "Proyectos" },
+    primaryDisplayProperty: "nombre_fx",
+    properties: [
+      { name: "nombre_fx", label: "Nombre", type: "string", fieldType: "text", isPrimary: true },
+      { name: "id_sinco_fx", label: "ID Sinco", type: "number", fieldType: "number" },
+      { name: "id_macro_sinco_fx", label: "ID Macroproyecto Sinco", type: "number", fieldType: "number" },
+      { name: "estrato_fx", label: "Estrato", type: "number", fieldType: "number" },
+      { name: "valor_separacion_fx", label: "Valor Separación Default", type: "number", fieldType: "number" },
+      { name: "porcentaje_cuota_inicial_fx", label: "% Cuota Inicial", type: "number", fieldType: "number" },
+      { name: "porcentaje_financiacion_fx", label: "% Financiación", type: "number", fieldType: "number" },
+      { name: "numero_cuotas_fx", label: "Número Cuotas Default", type: "number", fieldType: "number" },
+      { name: "fecha_entrega_fx", label: "Fecha de Entrega", type: "date", fieldType: "date" },
+      { name: "dias_bloqueo_fx", label: "Días de Bloqueo", type: "number", fieldType: "number" },
+      { name: "vigencia_cotizacion_fx", label: "Vigencia Cotización (días)", type: "number", fieldType: "number" },
+      { name: "agrupaciones_preestablecidas_fx", label: "Agrupaciones Preestablecidas", type: "enumeration", fieldType: "booleancheckbox", options: [{ label: "Sí", value: "true" }, { label: "No", value: "false" }] },
+      { name: "total_unidades_fx", label: "Total Unidades", type: "number", fieldType: "number" },
+      { name: "unidades_disponibles_fx", label: "Unidades Disponibles", type: "number", fieldType: "number" },
+      { name: "estado_fx", label: "Estado", type: "enumeration", fieldType: "select", options: [{ label: "Activo", value: "Activo" }, { label: "Inactivo", value: "Inactivo" }, { label: "Entregado", value: "Entregado" }] },
+    ],
+  },
+  unidad: {
+    name: "unidad",
+    labels: { singular: "Unidad", plural: "Unidades" },
+    primaryDisplayProperty: "nombre_fx",
+    properties: [
+      { name: "nombre_fx", label: "Nombre", type: "string", fieldType: "text", isPrimary: true },
+      { name: "id_sinco_fx", label: "ID Sinco", type: "number", fieldType: "number" },
+      { name: "id_proyecto_sinco_fx", label: "ID Proyecto Sinco", type: "number", fieldType: "number" },
+      { name: "tipo_unidad_fx", label: "Tipo de Unidad", type: "string", fieldType: "text" },
+      { name: "clasificacion_fx", label: "Clasificación", type: "enumeration", fieldType: "select", options: [{ label: "Apartamento", value: "Apartamento" }, { label: "Parqueadero", value: "Parqueadero" }, { label: "Depósito", value: "Deposito" }] },
+      { name: "es_principal_fx", label: "Es Principal", type: "enumeration", fieldType: "booleancheckbox", options: [{ label: "Sí", value: "true" }, { label: "No", value: "false" }] },
+      { name: "precio_lista_fx", label: "Precio Lista", type: "number", fieldType: "number" },
+      { name: "estado_fx", label: "Estado", type: "enumeration", fieldType: "select", options: [{ label: "Disponible", value: "Disponible" }, { label: "Bloqueada", value: "Bloqueada" }, { label: "Separada", value: "Separada" }, { label: "Vendida", value: "Vendida" }] },
+      { name: "area_construida_fx", label: "Área Construida (m²)", type: "number", fieldType: "number" },
+      { name: "area_total_fx", label: "Área Total (m²)", type: "number", fieldType: "number" },
+      { name: "piso_fx", label: "Piso", type: "number", fieldType: "number" },
+      { name: "alcobas_fx", label: "Alcobas", type: "number", fieldType: "number" },
+      { name: "fecha_sync_fx", label: "Fecha Último Sync", type: "datetime", fieldType: "date" },
+    ],
+  },
+  agrupacion: {
+    name: "agrupacion",
+    labels: { singular: "Agrupación", plural: "Agrupaciones" },
+    primaryDisplayProperty: "nombre_fx",
+    properties: [
+      { name: "nombre_fx", label: "Nombre", type: "string", fieldType: "text", isPrimary: true },
+      { name: "id_sinco_fx", label: "ID Sinco", type: "number", fieldType: "number" },
+      { name: "id_proyecto_sinco_fx", label: "ID Proyecto Sinco", type: "number", fieldType: "number" },
+      { name: "valor_subtotal_fx", label: "Valor Subtotal", type: "number", fieldType: "number" },
+      { name: "valor_descuento_fx", label: "Valor Descuento", type: "number", fieldType: "number" },
+      { name: "valor_total_neto_fx", label: "Valor Total Neto", type: "number", fieldType: "number" },
+      { name: "estado_fx", label: "Estado", type: "enumeration", fieldType: "select", options: [{ label: "Disponible", value: "Disponible" }, { label: "Cotizado", value: "Cotizado" }, { label: "Bloqueado", value: "Bloqueado" }, { label: "Separado", value: "Separado" }, { label: "Vendido", value: "Vendido" }] },
+      { name: "id_comprador_sinco_fx", label: "ID Comprador Sinco", type: "number", fieldType: "number" },
+      { name: "id_vendedor_sinco_fx", label: "ID Vendedor Sinco", type: "number", fieldType: "number" },
+      { name: "id_hubspot_deal_fx", label: "ID Deal HubSpot", type: "string", fieldType: "text" },
+      { name: "tipo_venta_fx", label: "Tipo de Venta", type: "enumeration", fieldType: "select", options: [{ label: "Contado", value: "0" }, { label: "Crédito", value: "1" }, { label: "Exterior", value: "3" }] },
+      { name: "fecha_venta_fx", label: "Fecha de Venta", type: "date", fieldType: "date" },
+    ],
+  },
+};
+
+/* ═══ ASSOCIATIONS ═══ */
+const ASSOCIATIONS = [
+  { from: "macroproyecto", to: "proyecto", label: "Macroproyecto a Proyecto" },
+  { from: "proyecto", to: "unidad", label: "Proyecto a Unidad" },
+  { from: "proyecto", to: "agrupacion", label: "Proyecto a Agrupación" },
+  { from: "agrupacion", to: "unidad", label: "Agrupación a Unidad" },
+  { from: "agrupacion", to: "deals", label: "Agrupación a Deal" },
+  { from: "deals", to: "contacts", label: "Deal a Contacto (nativo)" },
+];
+
+/* ═══ HUBSPOT API HELPER ═══ */
+const HS_PROXY = "/api/hubspot";
+
+async function hsCall(token, method, path, body = null) {
+  const url = `${HS_PROXY}${path}`;
   const opts = {
     method,
-    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
   };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`/api/hubspot${path}`, opts);
+  const res = await fetch(url, opts);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw { status: res.status, message: data.message || JSON.stringify(data), category: data.category };
-  return data;
+  return { status: res.status, ok: res.ok, data };
 }
 
-/* ═══ OPTION VALUE NORMALIZER ═══ */
-function optVal(label) {
-  return label.toLowerCase().replace(/[^a-záéíóúñ0-9]+/g, "_").replace(/^_|_$/g, "");
-}
-
-/* ═══ PROPERTY BUILDERS (unchanged from v1) ═══ */
-function buildContactProperties(config) {
-  const macroNames = config.macros.map(m => m.nombre).filter(Boolean);
-  const torreNames = config.macros.flatMap(m => (m.torres||[]).map(t => `${m.nombre} ${t.nombre}`)).filter(Boolean);
-  const channels = [...(config.chStd||[]).filter(c=>c.a).map(c=>c.n), ...(config.chTr||[]).filter(c=>c.a).map(c=>c.n), ...(config.chCu||[]).filter(Boolean)];
-  const etapas = [...(config.etP||[]), ...(config.etS||[])].filter(Boolean);
-  const getVarOpts = (id) => {
-    const v = (config.varsCalif||[]).find(v => v.id === id);
-    return v && v.on && (v.opts||[]).length ? v.opts : null;
-  };
-  const props = [
-    { name:"lista_proyectos_fx", label:"Lista de Proyectos", type:"enumeration", fieldType:"checkbox", options: macroNames },
-    { name:"canal_atribucion_fx", label:"Canal de Atribución", type:"enumeration", fieldType:"select", options: channels },
-    { name:"etapa_lead_fx", label:"Etapa del Lead", type:"enumeration", fieldType:"select", options: etapas },
-    { name:"tipo_lead_fx", label:"Tipo de Lead", type:"enumeration", fieldType:"select", options: config.niveles || [] },
-    { name:"motivo_descarte_fx", label:"Motivo de Descarte", type:"enumeration", fieldType:"select", options: config.moD || [] },
-    { name:"rango_ingresos_fx", label:"Rango de Ingresos", type:"enumeration", fieldType:"select", options: config.rangos || [] },
-    { name:"tiene_ahorros_fx", label:"Tiene Ahorros", type:"enumeration", fieldType:"booleancheckbox", options: getVarOpts("ahorros") || ["Sí","No"] },
-    { name:"proposito_compra_fx", label:"Propósito de Compra", type:"enumeration", fieldType:"select", options: getVarOpts("proposito") || ["Vivienda","Inversión"] },
-    { name:"horizonte_compra_fx", label:"Horizonte de Compra", type:"enumeration", fieldType:"select", options: getVarOpts("horizonte") || ["Inmediato","Antes de 3 meses","De 3 a 6 meses","Más de 6 meses"] },
-    { name:"horario_contacto_fx", label:"Horario de Contacto", type:"enumeration", fieldType:"select", options: getVarOpts("horario") || ["Lunes a Viernes 9am-12m","Lunes a Viernes 12m-2pm","Lunes a Viernes 2pm-6pm","Lunes a Viernes 6pm-8pm","Sábados en la Mañana"] },
-    { name:"credito_preaprobado_fx", label:"Crédito Preaprobado", type:"enumeration", fieldType:"booleancheckbox", options: getVarOpts("credito") || ["Sí","No"] },
-    { name:"aplica_subsidios_fx", label:"Aplica Subsidios", type:"enumeration", fieldType:"booleancheckbox", options: getVarOpts("subsidios") || ["Sí","No"] },
-    { name:"cedula_fx", label:"Cédula", type:"string", fieldType:"text" },
-    { name:"id_externo_fx", label:"ID Externo (Migración)", type:"string", fieldType:"text" },
+/* ═══ HELPER: Build options from config JSON ═══ */
+function buildDynamicOptions(config) {
+  const macroNames = (config.macros || []).map(m => ({ label: m.nombre, value: m.nombre.toLowerCase().replace(/\s+/g, "_") }));
+  const allChannels = [
+    ...(config.chStd || []).filter(c => c.a).map(c => ({ label: c.n, value: c.n.toLowerCase().replace(/\s+/g, "_") })),
+    ...(config.chCu || []).map(c => ({ label: c, value: c.toLowerCase().replace(/\s+/g, "_") })),
   ];
-  (config.varsCalif||[]).filter(v => v.on && v.id.startsWith("custom_") && (v.opts||[]).length).forEach(v => {
-    const internalName = v.label.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")+"_fx";
-    props.push({ name: internalName, label: v.label, type:"enumeration", fieldType:"select", options: v.opts });
-  });
-  return props;
+  const trackingChannels = (config.chTr || []).filter(c => c.a).map(c => ({ label: c.n, value: c.n.toLowerCase().replace(/\s+/g, "_") }));
+  const rangos = (config.rangos || []).map(r => ({ label: r, value: r.toLowerCase().replace(/\s+/g, "_") }));
+  const niveles = (config.niveles || []).map(n => ({ label: n, value: n }));
+  const motD = (config.moD || []).map(m => ({ label: m, value: m.toLowerCase().replace(/\s+/g, "_") }));
+  const motP = (config.moP || []).map(m => ({ label: m, value: m.toLowerCase().replace(/\s+/g, "_") }));
+  const etapas = [...(config.etP || []), ...(config.etS || [])].map(e => ({ label: e.trim(), value: e.trim().toLowerCase().replace(/\s+/g, "_") }));
+  return { macroNames, allChannels, trackingChannels, rangos, niveles, motD, motP, etapas };
 }
 
-function buildDealProperties(config) {
-  const macroNames = config.macros.map(m => m.nombre).filter(Boolean);
-  const torreNames = config.macros.flatMap(m => (m.torres||[]).map(t => `${m.nombre} ${t.nombre}`)).filter(Boolean);
-  const channels = [...(config.chStd||[]).filter(c=>c.a).map(c=>c.n), ...(config.chTr||[]).filter(c=>c.a).map(c=>c.n), ...(config.chCu||[]).filter(Boolean)];
-  return [
-    { name:"macroproyecto_fx", label:"Macroproyecto", type:"enumeration", fieldType:"select", options: macroNames },
-    { name:"proyecto_torre_fx", label:"Proyecto / Torre", type:"enumeration", fieldType:"select", options: torreNames },
-    { name:"nro_cotizacion_fx", label:"Número de Cotización", type:"string", fieldType:"text" },
-    { name:"valor_cotizacion_fx", label:"Valor Cotización", type:"number", fieldType:"number" },
-    { name:"unidad_principal_fx", label:"Unidad Principal", type:"string", fieldType:"text" },
-    { name:"tipo_unidad_fx", label:"Tipo Unidad", type:"enumeration", fieldType:"select", options:["Apartamento","Casa","Local","Lote","Bodega","Apartasuite"] },
-    { name:"area_m2_fx", label:"Área m2", type:"number", fieldType:"number" },
-    { name:"habitaciones_fx", label:"Habitaciones", type:"number", fieldType:"number" },
-    { name:"banos_fx", label:"Baños", type:"number", fieldType:"number" },
-    { name:"parqueadero_fx", label:"Parqueadero", type:"string", fieldType:"text" },
-    { name:"deposito_fx", label:"Depósito", type:"string", fieldType:"text" },
-    { name:"fecha_entrega_fx", label:"Fecha Entrega", type:"date", fieldType:"date" },
-    { name:"motivo_perdida_fx", label:"Motivo Pérdida", type:"enumeration", fieldType:"select", options: config.moP || [] },
-    { name:"id_externo_deal_fx", label:"ID Externo", type:"string", fieldType:"text" },
-    { name:"canal_deal_fx", label:"Canal Atribución", type:"enumeration", fieldType:"select", options: channels },
-    { name:"tipo_lead_deal_fx", label:"Tipo Lead", type:"enumeration", fieldType:"select", options: config.niveles || [] },
-    { name:"proposito_deal_fx", label:"Propósito Compra", type:"enumeration", fieldType:"select", options:["Vivienda","Inversión"] },
-    { name:"cedula_comp1_fx", label:"Cédula Comprador 1", type:"string", fieldType:"text" },
-    { name:"nombre_comp2_fx", label:"Nombre Comprador 2", type:"string", fieldType:"text" },
-    { name:"apellido_comp2_fx", label:"Apellido Comprador 2", type:"string", fieldType:"text" },
-    { name:"tel_comp2_fx", label:"Teléfono Comprador 2", type:"string", fieldType:"text" },
-    { name:"email_comp2_fx", label:"Email Comprador 2", type:"string", fieldType:"text" },
-    { name:"cedula_comp2_fx", label:"Cédula Comprador 2", type:"string", fieldType:"text" },
-  ];
-}
+/* ═══ STYLES ═══ */
+const ss = {
+  label: { display:"block", fontSize:12, fontWeight:600, color:tk.text, marginBottom:4 },
+  input: { width:"100%", padding:"10px 12px", borderRadius:8, border:`1.5px solid ${tk.border}`, fontSize:13, color:tk.text, outline:"none", boxSizing:"border-box", fontFamily:font },
+  textarea: { width:"100%", padding:"10px 12px", borderRadius:8, border:`1.5px solid ${tk.border}`, fontSize:12, color:tk.text, outline:"none", boxSizing:"border-box", fontFamily:"'JetBrains Mono', monospace", minHeight:200, resize:"vertical" },
+  card: { border:`1px solid ${tk.border}`, borderRadius:12, padding:20, marginBottom:14, background:tk.card },
+  btn: (bg, color) => ({ padding:"10px 20px", borderRadius:8, border:"none", background:bg, color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:font }),
+  badge: (bg, color) => ({ display:"inline-flex", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:600, background:bg, color, border:`1px solid ${color}25` }),
+  logLine: (type) => ({
+    padding:"4px 8px", fontSize:12, fontFamily:"'JetBrains Mono', monospace", borderLeft:`3px solid ${type === "ok" ? tk.green : type === "err" ? tk.red : type === "skip" ? tk.amber : tk.accent}`,
+    background: type === "ok" ? tk.greenBg : type === "err" ? tk.redBg : type === "skip" ? tk.amberBg : tk.accentLight,
+    marginBottom:2, borderRadius:"0 4px 4px 0",
+  }),
+};
 
-function buildPropertyPayload(prop) {
-  const payload = { groupName: "focux", name: prop.name, label: prop.label, type: prop.type, fieldType: prop.fieldType };
-  if (prop.options && prop.options.length) {
-    payload.options = prop.options.map((opt, i) => ({ label: opt, value: optVal(opt), displayOrder: i }));
-  }
-  return payload;
-}
-
-function buildPipelinePayload(config) {
-  return {
-    displayOrder: 0,
-    label: config.nombrePipeline || "Pipeline Ventas",
-    stages: (config.pipeline || []).map((s, i) => ({
-      label: s.n, displayOrder: i, metadata: { probability: String(s.p / 100) },
-    })),
-  };
-}
-
-/* ═══════════════════════════════════════════════════════════
-   WORKFLOW BUILDERS — API v4
-   ═══════════════════════════════════════════════════════════ */
-
-/* Helper: build LIST_BASED enrollment with AND filters on contact properties */
-function listEnrollment(filters, shouldReEnroll = true) {
-  return {
-    shouldReEnroll,
-    type: "LIST_BASED",
-    listFilterBranch: {
-      filterBranches: [{
-        filterBranches: [],
-        filters: filters.map(f => {
-          // TIME_RANGED filters use a completely different structure
-          if (f.operationType === "TIME_RANGED") {
-            return {
-              property: f.property,
-              operation: {
-                operator: "IS_BETWEEN",
-                includeObjectsWithNoValueSet: false,
-                lowerBoundEndpointBehavior: "INCLUSIVE",
-                upperBoundEndpointBehavior: "INCLUSIVE",
-                propertyParser: "VALUE",
-                lowerBoundTimePoint: f.lowerBoundTimePoint,
-                upperBoundTimePoint: f.upperBoundTimePoint,
-                type: "TIME_RANGED",
-                operationType: "TIME_RANGED",
-              },
-              filterType: "PROPERTY",
-            };
-          }
-          // HAS_PROPERTY → check if property has any value
-          // HAS_PROPERTY is not a valid MULTISTRING operator — use IS_NOT_EQUAL_TO with empty value
-          if (f.operator === "HAS_PROPERTY") {
-            return {
-              property: f.property,
-              operation: {
-                operator: "IS_NOT_EQUAL_TO",
-                includeObjectsWithNoValueSet: false,
-                values: [""],
-                operationType: "MULTISTRING",
-              },
-              filterType: "PROPERTY",
-            };
-          }
-          // Standard MULTISTRING filters
-          // Use CONTAINS for checkbox properties, IS_EQUAL_TO for select/text
-          return {
-            property: f.property,
-            operation: {
-              operator: f.operator === "CONTAINS" ? "CONTAINS" : "IS_EQUAL_TO",
-              includeObjectsWithNoValueSet: false,
-              values: f.values || [],
-              operationType: f.operationType || "MULTISTRING",
-            },
-            filterType: "PROPERTY",
-          };
-        }),
-        filterBranchType: "AND",
-        filterBranchOperator: "AND",
-      }],
-      filters: [],
-      filterBranchType: "OR",
-      filterBranchOperator: "OR",
-    },
-    unEnrollObjectsNotMeetingCriteria: false,
-    reEnrollmentTriggersFilterBranches: [],
-  };
-}
-
-/* Helper: build EVENT_BASED enrollment on property changed */
-function eventEnrollment(propertyName, shouldReEnroll = true) {
-  return {
-    shouldReEnroll,
-    type: "EVENT_BASED",
-    eventFilterBranches: [{
-      filterBranches: [],
-      filters: propertyName ? [{
-        property: propertyName,
-        operation: { operator: "HAS_EVER_BEEN_ANY_OF", includeObjectsWithNoValueSet: false, operationType: "ENUMERATION" },
-        filterType: "PROPERTY",
-      }] : [],
-      eventTypeId: "4-655002",
-      operator: "HAS_COMPLETED",
-      filterBranchType: "UNIFIED_EVENTS",
-      filterBranchOperator: "AND",
-    }],
-    listMembershipFilterBranches: [],
-  };
-}
-
-/* Action: set a property value */
-function setPropertyAction(actionId, propName, value, nextActionId) {
-  const action = {
-    type: "SINGLE_CONNECTION",
-    actionId: String(actionId),
-    actionTypeVersion: 0,
-    actionTypeId: "0-5",
-    fields: {
-      property_name: propName,
-      value: { type: "STATIC_VALUE", staticValue: optVal(value) },
-    },
-  };
-  if (nextActionId) {
-    action.connection = { edgeType: "STANDARD", nextActionId: String(nextActionId) };
-  }
-  return action;
-}
-
-/* Action: rotate record to owner (round robin) */
-function rotateOwnerAction(actionId, userIds, nextActionId) {
-  const action = {
-    type: "SINGLE_CONNECTION",
-    actionId: String(actionId),
-    actionTypeVersion: 0,
-    actionTypeId: "0-11",
-    fields: {
-      property_name: "hubspot_owner_id",
-      user_ids: userIds.map(String),
-    },
-  };
-  if (nextActionId) {
-    action.connection = { edgeType: "STANDARD", nextActionId: String(nextActionId) };
-  }
-  return action;
-}
-
-/* Action: create task */
-function createTaskAction(actionId, subject, nextActionId) {
-  const action = {
-    type: "SINGLE_CONNECTION",
-    actionId: String(actionId),
-    actionTypeVersion: 0,
-    actionTypeId: "0-3",
-    fields: {
-      task_type: "TODO",
-      subject,
-      body: `<p>${subject}</p>`,
-      associations: [{
-        target: { associationCategory: "HUBSPOT_DEFINED", associationTypeId: 10 },
-        value: { type: "ENROLLED_OBJECT" },
-      }],
-      use_explicit_associations: "true",
-      priority: "HIGH",
-    },
-  };
-  if (nextActionId) {
-    action.connection = { edgeType: "STANDARD", nextActionId: String(nextActionId) };
-  }
-  return action;
-}
-
-/* Action: send in-app notification */
-function notifyAction(actionId, subject, body, nextActionId) {
-  const action = {
-    type: "SINGLE_CONNECTION",
-    actionId: String(actionId),
-    actionTypeVersion: 0,
-    actionTypeId: "0-9",
-    fields: {
-      delivery_method: "APP",
-      subject,
-      body,
-    },
-  };
-  if (nextActionId) {
-    action.connection = { edgeType: "STANDARD", nextActionId: String(nextActionId) };
-  }
-  return action;
-}
-
-/* Action: create a deal record */
-function createDealAction(actionId, pipelineId, stageId, propertyMappings, nextActionId) {
-  const properties = [
-    { targetProperty: "dealstage", value: { type: "STATIC_VALUE", staticValue: stageId } },
-    { targetProperty: "pipeline", value: { type: "STATIC_VALUE", staticValue: pipelineId } },
-    { targetProperty: "amount", value: { type: "STATIC_VALUE", staticValue: "0" } },
-    { targetProperty: "dealname", value: { type: "STATIC_VALUE", staticValue: "Nuevo negocio" } },
-  ];
-  // Add copy-from-contact mappings
-  propertyMappings.forEach(([fromContact, toDeal]) => {
-    properties.push({
-      targetProperty: toDeal,
-      value: { type: "OBJECT_PROPERTY", propertyName: fromContact },
-    });
-  });
-  const action = {
-    type: "SINGLE_CONNECTION",
-    actionId: String(actionId),
-    actionTypeVersion: 0,
-    actionTypeId: "0-14",
-    fields: {
-      object_type_id: "0-3",
-      properties,
-      associations: [{
-        target: { associationCategory: "HUBSPOT_DEFINED", associationTypeId: 3 },
-        value: { type: "ENROLLED_OBJECT" },
-      }],
-      use_explicit_associations: "true",
-    },
-  };
-  if (nextActionId) {
-    action.connection = { edgeType: "STANDARD", nextActionId: String(nextActionId) };
-  }
-  return action;
-}
-
-/* ═══ BUILD ALL WORKFLOW PAYLOADS FROM CONFIG ═══ */
-function buildWorkflows(config, context) {
-  const workflows = [];
-  const ms = config.macros || [];
-  const pipelineId = context.pipelineId || "";
-  const firstStageId = context.firstStageId || "";
-  const userIdMap = context.userIdMap || {}; // email → hubspot user id
-
-  // ── WF-Q: QUALIFICATION (per macro × rule) ──
-  if (config.usaCalif) {
-    ms.forEach((m, mi) => {
-      if (!m.nombre || !m.rangoMinimo) return;
-      const rIdx = (config.rangos || []).indexOf(m.rangoMinimo);
-      const oneBelow = rIdx > 0 ? config.rangos[rIdx - 1] : null;
-      const allBelow = rIdx > 0 ? config.rangos.slice(0, rIdx) : [];
-
-      (config.reglas || []).forEach((r, ri) => {
-        const filters = [];
-        // Project filter — CONTAINS for checkbox property
-        filters.push({ property: "lista_proyectos_fx", operator: "CONTAINS", values: [optVal(m.nombre)] });
-
-        // Income condition
-        if (r.si === "Cumple ingreso mínimo") {
-          filters.push({ property: "rango_ingresos_fx", values: [optVal(m.rangoMinimo)] });
-        } else if (r.si === "Un nivel debajo" && oneBelow) {
-          filters.push({ property: "rango_ingresos_fx", values: [optVal(oneBelow)] });
-        } else if (r.si === "No cumple requisito" && allBelow.length) {
-          filters.push({ property: "rango_ingresos_fx", values: allBelow.map(optVal) });
-        } else if (r.si === "Inversionista") {
-          filters.push({ property: "proposito_compra_fx", values: [optVal("Inversión")] });
-        } else if (r.si === "No desea ser contactado") {
-          filters.push({ property: "motivo_descarte_fx", operator: "HAS_PROPERTY" });
-        } else if (r.si === "Un nivel debajo" && !oneBelow) return;
-        else if (r.si === "No cumple requisito" && !allBelow.length) return;
-
-        // Secondary variable
-        if (r.y && r.y !== "Cualquiera") {
-          if (r.y === "Con ahorros") filters.push({ property: "tiene_ahorros_fx", values: [optVal("Sí")] });
-          else if (r.y === "Sin ahorros") filters.push({ property: "tiene_ahorros_fx", values: [optVal("No")] });
-        }
-
-        if (filters.length < 2) return;
-
-        workflows.push({
-          id: `WF-Q${mi+1}${String.fromCharCode(97+ri)}`,
-          category: "Calificación",
-          label: `Calif ${m.nombre} → ${r.entonces}`,
-          payload: {
-            isEnabled: false,
-            flowType: "WORKFLOW",
-            name: `Focux Calif ${m.nombre} → ${r.entonces}`,
-            startActionId: "1",
-            nextAvailableActionId: "2",
-            actions: [setPropertyAction("1", "tipo_lead_fx", r.entonces)],
-            enrollmentCriteria: listEnrollment(filters),
-            type: "CONTACT_FLOW",
-            objectTypeId: "0-1",
-            timeWindows: [], blockedDates: [], customProperties: {},
-            suppressionListIds: [], canEnrollFromSalesforce: false,
-          },
-        });
-      });
-    });
-  }
-
-  // ── WF-A: ASSIGNMENT (per macro × nivel group) ──
-  ms.forEach((m, mi) => {
-    if (!m.nombre || !(m.asesores || []).length) return;
-    const groups = {};
-    (m.asesores || []).forEach(a => {
-      const key = (a.niveles || []).sort().join(",") || "ALL";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(a);
-    });
-    let gi = 0;
-    Object.entries(groups).forEach(([nivKey, asesores]) => {
-      gi++;
-      const niveles = nivKey === "ALL" ? (config.niveles || []) : nivKey.split(",");
-      const userIds = asesores.map(a => userIdMap[a.email]).filter(Boolean);
-      if (!userIds.length) return; // Can't create round robin without user IDs
-
-      const filters = [
-        { property: "lista_proyectos_fx", operator: "CONTAINS", values: [optVal(m.nombre)] },
-        { property: "tipo_lead_fx", values: niveles.map(optVal) },
-      ];
-
-      const actions = [];
-      let aid = 1;
-      // Action 1: Rotate owner (round robin)
-      actions.push(rotateOwnerAction(aid, userIds, aid + 1)); aid++;
-      // Action 2: Create task
-      actions.push(createTaskAction(aid, `Tienes un lead nuevo en ${m.nombre} — contáctalo ya`)); aid++;
-
-      const nivelesStr = niveles.join(", ");
-      workflows.push({
-        id: `WF-A${mi+1}${gi > 1 ? String.fromCharCode(96+gi) : ""}`,
-        category: "Asignación",
-        label: `Asign ${m.nombre} — ${nivelesStr}`,
-        payload: {
-          isEnabled: false,
-          flowType: "WORKFLOW",
-          name: `Focux Asign ${m.nombre} — ${nivelesStr}`,
-          startActionId: "1",
-          nextAvailableActionId: String(aid),
-          actions,
-          enrollmentCriteria: listEnrollment(filters),
-          type: "CONTACT_FLOW",
-          objectTypeId: "0-1",
-          timeWindows: [], blockedDates: [], customProperties: {},
-          suppressionListIds: [], canEnrollFromSalesforce: false,
-        },
-      });
-    });
-  });
-
-  // ── WF-D1: Create Deal ──
-  const triggerStageVal = optVal(config.triggerDeal || "Cotización Solicitada");
-  workflows.push({
-    id: "WF-D1",
-    category: "Ventas",
-    label: "Crear Deal al " + (config.triggerDeal || "Cotización Solicitada"),
-    payload: {
-      isEnabled: false,
-      flowType: "WORKFLOW",
-      name: `Focux Crear Deal — ${config.nombreConst || ""}`,
-      startActionId: "1",
-      nextAvailableActionId: "3",
-      actions: [
-        createDealAction("1", pipelineId, firstStageId, [
-          ["lista_proyectos_fx", "macroproyecto_fx"],
-          ["canal_atribucion_fx", "canal_deal_fx"],
-          ["tipo_lead_fx", "tipo_lead_deal_fx"],
-          ["proposito_compra_fx", "proposito_deal_fx"],
-          ["cedula_fx", "cedula_comp1_fx"],
-        ], "2"),
-        notifyAction("2", "Nuevo negocio creado", "Se creó un deal automáticamente desde el workflow Focux."),
-      ],
-      enrollmentCriteria: listEnrollment([
-        { property: "etapa_lead_fx", values: [triggerStageVal] },
-      ], false),
-      type: "CONTACT_FLOW",
-      objectTypeId: "0-1",
-      timeWindows: [], blockedDates: [], customProperties: {},
-      suppressionListIds: [], canEnrollFromSalesforce: false,
-    },
-  });
-
-  // ── WF-D2: Value on Option (deal-based) ──
-  // Note: deal-based workflows use PLATFORM_FLOW + objectTypeId 0-3
-  // Trigger: deal stage = "Opcionó" — but we need the stage ID, which we get from pipeline creation
-  const opcionoStageId = context.opcionoStageId || "";
-  if (opcionoStageId) {
-    workflows.push({
-      id: "WF-D2",
-      category: "Ventas",
-      label: "Valor al Opcionar",
-      payload: {
-        isEnabled: false,
-        flowType: "WORKFLOW",
-        name: `Focux Valor al Opcionar — ${config.nombreConst || ""}`,
-        startActionId: "1",
-        nextAvailableActionId: "2",
-        actions: [{
-          type: "SINGLE_CONNECTION",
-          actionId: "1",
-          actionTypeVersion: 0,
-          actionTypeId: "0-5",
-          fields: {
-            property_name: "amount",
-            value: { type: "OBJECT_PROPERTY", propertyName: "valor_cotizacion_fx" },
-          },
-        }],
-        enrollmentCriteria: listEnrollment([
-          { property: "dealstage", values: [opcionoStageId] },
-          { property: "pipeline", values: [pipelineId] },
-        ], true),
-        type: "PLATFORM_FLOW",
-        objectTypeId: "0-3",
-        timeWindows: [], blockedDates: [], customProperties: {},
-        suppressionListIds: [], canEnrollFromSalesforce: false,
-      },
-    });
-  }
-
-  // ── WF-D3: Inactivity Alert ──
-  // Uses LIST_BASED enrollment with TIME_RANGED filter
-  // "notes_last_updated is between (today - N days) and (now)" inverted:
-  // We want leads where last activity is BEFORE (today - N days)
-  // Using IS_BETWEEN with a far-past lower bound and (today - N days) as upper bound
-  const diasInact = config.diasSinAct || 7;
-  workflows.push({
-    id: "WF-D3",
-    category: "Ventas",
-    label: `Alerta Inactividad ${diasInact}d`,
-    payload: {
-      isEnabled: false,
-      flowType: "WORKFLOW",
-      name: `Focux Alerta Inactividad ${diasInact}d — ${config.nombreConst || ""}`,
-      startActionId: "1",
-      nextAvailableActionId: "3",
-      actions: [
-        createTaskAction("1", `Lead sin actividad en ${diasInact} días — hacer seguimiento`, "2"),
-        notifyAction("2", `Alerta: lead sin actividad ${diasInact}d`, "Un lead no ha tenido actividad. Revisa y haz seguimiento."),
-      ],
-      enrollmentCriteria: listEnrollment([
-        {
-          property: "notes_last_updated",
-          operationType: "TIME_RANGED",
-          lowerBoundTimePoint: {
-            timeType: "INDEXED",
-            timezoneSource: "CUSTOM",
-            zoneId: "America/Bogota",
-            indexReference: { referenceType: "TODAY" },
-            offset: { days: -365 },
-          },
-          upperBoundTimePoint: {
-            timeType: "INDEXED",
-            timezoneSource: "CUSTOM",
-            zoneId: "America/Bogota",
-            indexReference: { referenceType: "TODAY" },
-            offset: { days: -diasInact },
-          },
-        },
-      ], true),
-      type: "CONTACT_FLOW",
-      objectTypeId: "0-1",
-      timeWindows: [], blockedDates: [], customProperties: {},
-      suppressionListIds: [], canEnrollFromSalesforce: false,
-    },
-  });
-
-  return workflows;
-}
-
-/* ═══ DEPLOYMENT PLAN BUILDER ═══ */
-function buildDeploymentPlan(config) {
-  const steps = [];
-  const contactProps = buildContactProperties(config);
-  const dealProps = buildDealProperties(config);
-
-  // Phase 1: Property Groups
-  steps.push({
-    id: "GRP-C", label: "Grupo propiedades Contactos → 'Focux'", category: "Propiedades",
-    execute: async (token) => await hubspotAPI(token, "POST", "/crm/v3/properties/contacts/groups", { name: "focux", label: "Focux" }),
-    rollback: async (token) => { try { await hubspotAPI(token, "DELETE", "/crm/v3/properties/contacts/groups/focux"); } catch(e) {} },
-  });
-  steps.push({
-    id: "GRP-D", label: "Grupo propiedades Negocios → 'Focux'", category: "Propiedades",
-    execute: async (token) => await hubspotAPI(token, "POST", "/crm/v3/properties/deals/groups", { name: "focux", label: "Focux" }),
-    rollback: async (token) => { try { await hubspotAPI(token, "DELETE", "/crm/v3/properties/deals/groups/focux"); } catch(e) {} },
-  });
-
-  // Phase 2: Contact Properties
-  contactProps.forEach((prop, i) => {
-    steps.push({
-      id: `CP-${String(i+1).padStart(2,"0")}`, label: `Contacto: ${prop.label} (${prop.name})`, category: "Propiedades",
-      execute: async (token) => await hubspotAPI(token, "POST", "/crm/v3/properties/contacts", buildPropertyPayload(prop)),
-      rollback: async (token) => { try { await hubspotAPI(token, "DELETE", `/crm/v3/properties/contacts/${prop.name}`); } catch(e) {} },
-    });
-  });
-
-  // Phase 3: Deal Properties
-  dealProps.forEach((prop, i) => {
-    steps.push({
-      id: `DP-${String(i+1).padStart(2,"0")}`, label: `Negocio: ${prop.label} (${prop.name})`, category: "Propiedades",
-      execute: async (token) => await hubspotAPI(token, "POST", "/crm/v3/properties/deals", buildPropertyPayload(prop)),
-      rollback: async (token) => { try { await hubspotAPI(token, "DELETE", `/crm/v3/properties/deals/${prop.name}`); } catch(e) {} },
-    });
-  });
-
-  // Phase 4: Pipeline
-  steps.push({
-    id: "PL-01", label: `Pipeline: ${config.nombrePipeline}`, category: "Pipeline",
-    resultKey: "pipeline",
-    execute: async (token) => {
-      try {
-        return await hubspotAPI(token, "POST", "/crm/v3/pipelines/deals", buildPipelinePayload(config));
-      } catch (err) {
-        // Pipeline already exists — fetch it and return data for downstream steps
-        const errMsg = String(err?.message || err?.category || JSON.stringify(err) || "");
-        if (errMsg.includes("already exists") || errMsg.includes("CONFLICT") || err?.status === 409) {
-          const pipelines = await hubspotAPI(token, "GET", "/crm/v3/pipelines/deals");
-          const existing = (pipelines.results || []).find(p => p.label === config.nombrePipeline);
-          if (existing) {
-            existing._skipped = true;
-            return existing;
-          }
-        }
-        throw err;
-      }
-    },
-    rollback: async (token, ctx) => { if (ctx.pipelineId) { try { await hubspotAPI(token, "DELETE", `/crm/v3/pipelines/deals/${ctx.pipelineId}`); } catch(e) {} } },
-  });
-
-  // Phase 5: Resolve User IDs (needed for round robin)
-  const allEmails = new Set();
-  (config.macros || []).forEach(m => (m.asesores || []).forEach(a => { if (a.email) allEmails.add(a.email.toLowerCase()); }));
-  if (allEmails.size > 0) {
-    steps.push({
-      id: "USR-01", label: `Resolver ${allEmails.size} usuarios → HubSpot IDs`, category: "Usuarios",
-      resultKey: "userIdMap",
-      execute: async (token) => {
-        const owners = await hubspotAPI(token, "GET", "/crm/v3/owners?limit=500");
-        const map = {};
-        (owners.results || []).forEach(o => {
-          if (o.email) map[o.email.toLowerCase()] = String(o.id || o.userId);
-        });
-        const resolved = {};
-        let found = 0, notFound = 0;
-        allEmails.forEach(email => {
-          if (map[email]) { resolved[email] = map[email]; found++; }
-          else notFound++;
-        });
-        return { userIdMap: resolved, found, notFound };
-      },
-      rollback: async () => {},
-    });
-  }
-
-  // Phase 6: Verification (properties + pipeline)
-  steps.push({
-    id: "VER-01", label: "Verificación: propiedades y pipeline", category: "Verificación",
-    execute: async (token) => {
-      const contacts = await hubspotAPI(token, "GET", "/crm/v3/properties/contacts?archived=false");
-      const deals = await hubspotAPI(token, "GET", "/crm/v3/properties/deals?archived=false");
-      const pipelines = await hubspotAPI(token, "GET", "/crm/v3/pipelines/deals");
-      const fxContacts = (contacts.results||[]).filter(p => p.name.endsWith("_fx")).length;
-      const fxDeals = (deals.results||[]).filter(p => p.name.endsWith("_fx")).length;
-      const fxPipeline = (pipelines.results||[]).find(p => p.label === config.nombrePipeline);
-      return {
-        contactProperties: fxContacts, dealProperties: fxDeals,
-        pipeline: fxPipeline ? { id: fxPipeline.pipelineId, stages: fxPipeline.stages.length, stageMap: Object.fromEntries(fxPipeline.stages.map(s => [s.label, s.stageId])) } : null,
-        verified: fxContacts >= 14 && fxDeals >= 20 && !!fxPipeline,
-      };
-    },
-    rollback: async () => {},
-  });
-
-  // Phase 7: Workflows (dynamic — added after verification resolves context)
-  // These are placeholder — actual workflow steps are injected during deployment
-  steps.push({
-    id: "WF-BUILD", label: "Construir y desplegar workflows", category: "Workflows",
-    execute: async (token, ctx) => {
-      const pipelineData = ctx.pipeline;
-      const userIdData = ctx.userIdMap || {};
-      const wfContext = {
-        pipelineId: pipelineData?.id || "",
-        firstStageId: pipelineData?.stageMap?.[config.pipeline?.[0]?.n] || "",
-        opcionoStageId: pipelineData?.stageMap?.["Opcionó"] || "",
-        userIdMap: userIdData?.userIdMap || userIdData || {},
-      };
-      const workflows = buildWorkflows(config, wfContext);
-      const results = { total: workflows.length, created: 0, errors: [], details: [] };
-
-      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-      for (let wi = 0; wi < workflows.length; wi++) {
-        const wf = workflows[wi];
-
-        // Delay between workflow creations to avoid rate limiting
-        if (wi > 0) await delay(1500);
-
-        let attempts = 0;
-        let success = false;
-        while (attempts < 3 && !success) {
-          attempts++;
-          try {
-            const result = await hubspotAPI(token, "POST", "/automation/v4/flows", wf.payload);
-            results.created++;
-            results.details.push({ id: wf.id, name: wf.payload.name, flowId: result.id, status: "created" });
-            success = true;
-          } catch (err) {
-            if (err.status === 409) {
-              results.details.push({ id: wf.id, name: wf.payload.name, status: "exists" });
-              success = true;
-            } else if ((err.message?.includes("rate limit") || err.message?.includes("internal error") || err.message?.includes("Burst")) && attempts < 3) {
-              // Wait longer and retry — exponential backoff
-              await delay(3000 * attempts);
-            } else {
-              results.errors.push({ id: wf.id, name: wf.payload.name, error: err.message });
-              results.details.push({ id: wf.id, name: wf.payload.name, status: "error", error: err.message });
-              success = true; // Don't retry other errors
-            }
-          }
-        }
-      }
-      return results;
-    },
-    rollback: async () => { /* Workflows created individually — manual cleanup if needed */ },
-  });
-
-  return steps;
-}
-
-/* ═══ STATUS INDICATOR ═══ */
-function StatusDot({ status }) {
-  const colors = { pending: tk.textTer, running: tk.cyan, done: tk.green, error: tk.red, skipped: tk.amber };
-  const c = colors[status] || tk.textTer;
-  return (
-    <div style={{ width:10, height:10, borderRadius:"50%", background:c, flexShrink:0,
-      boxShadow: status==="running" ? `0 0 8px ${c}` : "none",
-      animation: status==="running" ? "pulse 1.2s infinite" : "none" }} />
-  );
-}
-
-/* ═══ MAIN APP ═══ */
-export default function HubSpotAdapter() {
+/* ═══ MAIN COMPONENT ═══ */
+export default function FocuxAdapter() {
+  const [view, setView] = useState("home"); // home | config | preview | deploy
   const [token, setToken] = useState("");
+  const [jsonText, setJsonText] = useState("");
   const [config, setConfig] = useState(null);
-  const [configName, setConfigName] = useState("");
-  const [steps, setSteps] = useState([]);
-  const [stepStatus, setStepStatus] = useState({});
-  const [stepResults, setStepResults] = useState({});
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState(null);
-  const [log, setLog] = useState([]);
-  const abortRef = useRef(false);
-  const contextRef = useRef({});
+  const [parseError, setParseError] = useState("");
+  const [logs, setLogs] = useState([]);
+  const [deploying, setDeploying] = useState(false);
+  const [deployDone, setDeployDone] = useState(false);
+  const [deployStats, setDeployStats] = useState({ total: 0, ok: 0, skip: 0, err: 0 });
+  const logRef = useRef(null);
+  const cancelRef = useRef(false);
 
-  const addLog = useCallback((msg, type="info") => {
-    setLog(prev => [...prev, { time: new Date().toLocaleTimeString(), msg, type }]);
+  const addLog = useCallback((type, msg) => {
+    setLogs(prev => [...prev, { type, msg, ts: new Date().toLocaleTimeString() }]);
+    setTimeout(() => logRef.current?.scrollTo(0, logRef.current.scrollHeight), 50);
   }, []);
 
-  const loadConfig = (e) => {
-    const file = e.target.files[0];
+  const handleParseJson = () => {
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!parsed.nombreConst) throw new Error("JSON inválido: falta nombreConst");
+      setConfig(parsed);
+      setParseError("");
+      setView("preview");
+    } catch (e) {
+      setParseError(e.message);
+    }
+  };
+
+  const dynOpts = useMemo(() => config ? buildDynamicOptions(config) : null, [config]);
+
+  /* ═══ DEPLOY ENGINE ═══ */
+  const runDeploy = async () => {
+    if (!token || !config) return;
+    setDeploying(true);
+    setDeployDone(false);
+    setLogs([]);
+    cancelRef.current = false;
+    const stats = { total: 0, ok: 0, skip: 0, err: 0 };
+    const createdObjects = {};
+
+    const log = (type, msg) => { stats.total++; stats[type === "ok" ? "ok" : type === "skip" ? "skip" : type === "err" ? "err" : "ok"]++; addLog(type, msg); setDeployStats({ ...stats }); };
+
+    // Helper: create property group
+    const createGroup = async (objectType, groupName, groupLabel) => {
+      if (cancelRef.current) return;
+      const r = await hsCall(token, "POST", `/crm/v3/properties/${objectType}/groups`, { name: groupName, label: groupLabel });
+      if (r.ok) log("ok", `Grupo '${groupName}' creado en ${objectType}`);
+      else if (r.status === 409) log("skip", `Grupo '${groupName}' ya existe en ${objectType}`);
+      else log("err", `Error creando grupo '${groupName}' en ${objectType}: ${JSON.stringify(r.data)}`);
+    };
+
+    // Helper: create property
+    const createProp = async (objectType, prop) => {
+      if (cancelRef.current) return;
+      const body = {
+        name: prop.name, label: prop.label, type: prop.type, fieldType: prop.fieldType,
+        groupName: prop.group || "focux",
+      };
+      if (prop.options && prop.options.length > 0) {
+        body.options = prop.options.map((o, i) => ({ label: o.label, value: o.value, displayOrder: i }));
+      }
+      const r = await hsCall(token, "POST", `/crm/v3/properties/${objectType}`, body);
+      if (r.ok) log("ok", `Propiedad '${prop.name}' creada en ${objectType}`);
+      else if (r.status === 409) log("skip", `Propiedad '${prop.name}' ya existe en ${objectType}`);
+      else log("err", `Error propiedad '${prop.name}' en ${objectType}: ${r.data?.message || JSON.stringify(r.data)}`);
+    };
+
+    try {
+      addLog("info", `═══ FOCUXAI ADAPTER v2 — Deploying ${config.nombreConst} ═══`);
+
+      // PHASE 1: Property Groups
+      addLog("info", "── Fase 1: Crear grupos de propiedades ──");
+      await createGroup("contacts", "focux", "Focux Engine");
+      await createGroup("deals", "focux", "Focux Engine");
+      await createGroup("companies", "focux", "Focux Engine");
+
+      // PHASE 2: Contact Properties
+      addLog("info", "── Fase 2: Propiedades de Contacto ──");
+      const contactProps = CONTACT_PROPERTIES.map(p => {
+        const prop = { ...p };
+        if (p.name === "lista_proyectos_fx") prop.options = dynOpts.macroNames;
+        if (p.name === "etapa_lead_fx") prop.options = dynOpts.etapas;
+        if (p.name === "canal_atribucion_fx") prop.options = dynOpts.allChannels;
+        if (p.name === "canal_tracking_fx") prop.options = dynOpts.trackingChannels;
+        if (p.name === "rango_ingresos_fx") prop.options = dynOpts.rangos;
+        if (p.name === "nivel_calificacion_fx") prop.options = dynOpts.niveles;
+        if (p.name === "motivo_descarte_fx") prop.options = dynOpts.motD;
+        return prop;
+      });
+      for (const prop of contactProps) {
+        if (cancelRef.current) break;
+        await createProp("contacts", prop);
+      }
+
+      // PHASE 3: Deal Properties
+      addLog("info", "── Fase 3: Propiedades del Deal (Cotización) ──");
+      const dealProps = DEAL_PROPERTIES.map(p => {
+        const prop = { ...p };
+        if (p.name === "motivo_perdida_fx") prop.options = dynOpts.motP;
+        if (p.name === "lista_proyectos_fx") prop.options = dynOpts.macroNames;
+        return prop;
+      });
+      for (const prop of dealProps) {
+        if (cancelRef.current) break;
+        await createProp("deals", prop);
+      }
+
+      // PHASE 4: Pipeline
+      if (!cancelRef.current) {
+        addLog("info", "── Fase 4: Pipeline de Ventas Integrado ──");
+        const pipelineBody = {
+          label: config.nombrePipeline || `Ventas ${config.nombreConst}`,
+          displayOrder: 0,
+          stages: PIPELINE_STAGES.map((s, i) => ({
+            label: s.n,
+            displayOrder: i,
+            metadata: { probability: (s.p / 100).toFixed(2) },
+          })),
+        };
+        const r = await hsCall(token, "POST", "/crm/v3/pipelines/deals", pipelineBody);
+        if (r.ok) log("ok", `Pipeline '${pipelineBody.label}' creado con ${PIPELINE_STAGES.length} etapas`);
+        else if (r.status === 409) log("skip", "Pipeline ya existe");
+        else log("err", `Error pipeline: ${r.data?.message || JSON.stringify(r.data)}`);
+      }
+
+      // PHASE 5: Custom Objects
+      addLog("info", "── Fase 5: Custom Objects ──");
+      for (const [key, schema] of Object.entries(CUSTOM_OBJECT_SCHEMAS)) {
+        if (cancelRef.current) break;
+        const primaryProp = schema.properties.find(p => p.isPrimary);
+        const secondaryProps = schema.properties.filter(p => !p.isPrimary);
+
+        const schemaBody = {
+          name: schema.name,
+          labels: schema.labels,
+          primaryDisplayProperty: schema.primaryDisplayProperty,
+          requiredProperties: [schema.primaryDisplayProperty],
+          properties: schema.properties.map(p => {
+            const prop = { name: p.name, label: p.label, type: p.type, fieldType: p.fieldType };
+            if (p.options) prop.options = p.options.map((o, i) => ({ label: o.label, value: o.value, displayOrder: i }));
+            return prop;
+          }),
+          associatedObjects: ["CONTACT", "DEAL"],
+        };
+
+        const r = await hsCall(token, "POST", "/crm/v3/schemas", schemaBody);
+        if (r.ok) {
+          log("ok", `Custom Object '${schema.labels.singular}' creado (${schema.properties.length} propiedades)`);
+          createdObjects[key] = r.data;
+        } else if (r.status === 409) {
+          log("skip", `Custom Object '${schema.labels.singular}' ya existe`);
+        } else {
+          log("err", `Error Custom Object '${schema.labels.singular}': ${r.data?.message || JSON.stringify(r.data)}`);
+        }
+      }
+
+      // PHASE 6: Associations between Custom Objects
+      if (!cancelRef.current) {
+        addLog("info", "── Fase 6: Asociaciones entre objetos ──");
+        for (const assoc of ASSOCIATIONS) {
+          if (cancelRef.current) break;
+          // Note: associations between custom objects require objectTypeId which comes from schema creation
+          // For now we log what needs to be created - full implementation requires the objectTypeIds from Phase 5
+          const fromObj = createdObjects[assoc.from];
+          const toObj = createdObjects[assoc.to];
+          if (fromObj && toObj) {
+            const r = await hsCall(token, "POST", `/crm/v4/associations/${fromObj.objectTypeId}/${toObj.objectTypeId}/labels`, {
+              label: assoc.label, name: assoc.label.toLowerCase().replace(/\s+/g, "_"),
+            });
+            if (r.ok) log("ok", `Asociación '${assoc.label}' creada`);
+            else if (r.status === 409) log("skip", `Asociación '${assoc.label}' ya existe`);
+            else log("err", `Error asociación '${assoc.label}': ${r.data?.message || JSON.stringify(r.data)}`);
+          } else {
+            log("info", `Asociación '${assoc.label}' pendiente — requiere objectTypeIds de Custom Objects`);
+          }
+        }
+      }
+
+      addLog("info", `═══ DEPLOY COMPLETO — ${stats.ok} creados, ${stats.skip} existentes, ${stats.err} errores ═══`);
+    } catch (e) {
+      addLog("err", `Error fatal: ${e.message}`);
+    }
+
+    setDeploying(false);
+    setDeployDone(true);
+    setDeployStats({ ...stats });
+  };
+
+  /* ═══ DOWNLOAD PERMISSIONS GUIDE ═══ */
+  const downloadPermissions = () => {
+    const content = `# FocuxAI Engine™ — Permisos de Private App en HubSpot
+# ═══════════════════════════════════════════════════════════
+# Generado automáticamente por FocuxAI Adapter v2
+# Fecha: ${new Date().toLocaleDateString("es-CO")}
+#
+# REQUISITO: El portal debe tener al menos 1 Hub Enterprise
+# para poder crear Custom Objects por API.
+#
+# ═══════════════════════════════════════════════════════════
+# INSTRUCCIONES:
+# 1. Settings → Integrations → Private Apps → Create a private app
+# 2. Nombre: "FocuxAI Engine"
+# 3. Pestaña "Scopes" → Activar todos los siguientes:
+# ═══════════════════════════════════════════════════════════
+
+SCOPES REQUERIDOS:
+${"=".repeat(60)}
+
+${REQUIRED_SCOPES.map(s => `[${s.category.padEnd(16)}]  ${s.scope.padEnd(40)}  →  ${s.purpose}`).join("\n")}
+
+${"=".repeat(60)}
+Total: ${REQUIRED_SCOPES.length} scopes
+
+NOTAS IMPORTANTES:
+- Todos los scopes son necesarios para el deploy completo
+- Sin crm.schemas.custom.write no se pueden crear Custom Objects
+- Sin crm.objects.custom.write no se pueden crear registros
+- El token generado es de tipo Bearer y no expira
+- Se recomienda crear una Private App por constructora/cliente
+
+# FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
+# Focux Digital Group S.A.S.
+`;
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "FocuxAI_HubSpot_Permisos_PrivateApp.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /* ═══ VIEWS ═══ */
+
+  // HOME
+  const HomeView = () => (
+    <div>
+      <div style={ss.card}>
+        <h2 style={{ margin:"0 0 8px", fontSize:20, fontWeight:700 }}>FocuxAI Adapter v2</h2>
+        <p style={{ color:tk.textSec, fontSize:14, margin:"0 0 16px" }}>
+          Despliega el portal HubSpot completo desde el Config JSON de Ops.
+          Custom Objects + Propiedades + Pipeline + Asociaciones.
+        </p>
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+          <span style={ss.badge(tk.greenBg, tk.green)}>4 Custom Objects</span>
+          <span style={ss.badge(tk.accentLight, tk.accent)}>{CONTACT_PROPERTIES.length} Props Contacto</span>
+          <span style={ss.badge(tk.accentLight, tk.accent)}>{DEAL_PROPERTIES.length} Props Deal</span>
+          <span style={ss.badge(tk.amberBg, tk.amber)}>{PIPELINE_STAGES.length} Etapas Pipeline</span>
+          <span style={ss.badge(tk.greenBg, tk.green)}>Idempotente</span>
+        </div>
+      </div>
+
+      {/* Permissions Guide */}
+      <div style={{ ...ss.card, borderColor: tk.accent, borderWidth: 2 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+          <div>
+            <h3 style={{ margin:"0 0 6px", fontSize:16, fontWeight:700 }}>Permisos de Private App (HubSpot)</h3>
+            <p style={{ color:tk.textSec, fontSize:13, margin:"0 0 12px" }}>
+              Antes de empezar, crea una Private App en el portal del cliente con estos {REQUIRED_SCOPES.length} scopes.
+              El portal debe tener al menos 1 Hub Enterprise.
+            </p>
+          </div>
+          <button style={ss.btn(tk.accent, "#fff")} onClick={downloadPermissions}>
+            ↓ Descargar guía
+          </button>
+        </div>
+        <div style={{ background:tk.bg, borderRadius:8, padding:12, maxHeight:260, overflowY:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+            <thead>
+              <tr style={{ borderBottom:`2px solid ${tk.border}` }}>
+                <th style={{ textAlign:"left", padding:"6px 8px", color:tk.textSec, fontWeight:600 }}>Scope</th>
+                <th style={{ textAlign:"left", padding:"6px 8px", color:tk.textSec, fontWeight:600 }}>Categoría</th>
+                <th style={{ textAlign:"left", padding:"6px 8px", color:tk.textSec, fontWeight:600 }}>Para qué</th>
+              </tr>
+            </thead>
+            <tbody>
+              {REQUIRED_SCOPES.map((s, i) => (
+                <tr key={i} style={{ borderBottom:`1px solid ${tk.borderLight}` }}>
+                  <td style={{ padding:"5px 8px", fontFamily:"'JetBrains Mono', monospace", fontSize:11 }}>{s.scope}</td>
+                  <td style={{ padding:"5px 8px" }}><span style={ss.badge(tk.accentLight, tk.accent)}>{s.category}</span></td>
+                  <td style={{ padding:"5px 8px", color:tk.textSec }}>{s.purpose}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <button style={{ ...ss.btn("transparent", tk.accent), marginTop:10, border:`1px solid ${tk.border}`, fontSize:12 }}
+          onClick={() => { navigator.clipboard.writeText(REQUIRED_SCOPES.map(s => s.scope).join("\n")); }}>
+          Copiar scopes al portapapeles
+        </button>
+      </div>
+
+      {/* Start */}
+      <div style={ss.card}>
+        <h3 style={{ margin:"0 0 12px", fontSize:16, fontWeight:700 }}>Comenzar deploy</h3>
+        <div style={{ marginBottom:16 }}>
+          <label style={ss.label}>Private App Token *</label>
+          <input style={ss.input} type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="pat-na1-xxxx-xxxx-xxxx-xxxx" />
+        </div>
+        <button style={{ ...ss.btn(tk.accent, "#fff"), opacity: token ? 1 : 0.5 }} disabled={!token} onClick={() => setView("config")}>
+          Continuar → Cargar Config JSON
+        </button>
+      </div>
+    </div>
+  );
+
+  // CONFIG
+  const fileInputRef = useRef(null);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
+      const text = ev.target?.result;
+      setJsonText(text);
+      // Auto-parse
       try {
-        const data = JSON.parse(ev.target.result);
-        setConfig(data);
-        setConfigName(data.nombreConst || file.name);
-        const plan = buildDeploymentPlan(data);
-        setSteps(plan);
-        setStepStatus({});
-        setStepResults({});
-        setDone(false);
-        setError(null);
-        setLog([]);
-        // Count expected workflows
-        const wfCount = (data.macros||[]).reduce((acc, m) => {
-          const asesorGroups = {};
-          (m.asesores||[]).forEach(a => { const k = (a.niveles||[]).sort().join(",")||"ALL"; if(!asesorGroups[k]) asesorGroups[k]=[]; asesorGroups[k].push(a); });
-          const assignWf = Object.keys(asesorGroups).length;
-          const qualWf = m.rangoMinimo ? (data.reglas||[]).length : 0;
-          return acc + assignWf + qualWf;
-        }, 0) + 3; // +3 for WF-D1, D2, D3
-        addLog(`Config cargada: ${data.nombreConst} — ${data.macros?.length || 0} macros, ${plan.length} pasos, ~${wfCount} workflows esperados`);
-      } catch(err) {
-        setError("JSON inválido: " + err.message);
+        const parsed = JSON.parse(text);
+        if (!parsed.nombreConst) throw new Error("JSON inválido: falta nombreConst");
+        setConfig(parsed);
+        setParseError("");
+        setView("preview");
+      } catch (err) {
+        setParseError(err.message);
       }
     };
     reader.readAsText(file);
   };
 
-  const deploy = async () => {
-    if (!token.trim()) { setError("Ingresa el Private App Token"); return; }
-    if (!config) { setError("Carga un Config JSON"); return; }
+  const ConfigView = () => (
+    <div>
+      <div style={ss.card}>
+        <h3 style={{ margin:"0 0 8px", fontSize:16, fontWeight:700 }}>Cargar Config JSON</h3>
+        <p style={{ color:tk.textSec, fontSize:13, margin:"0 0 16px" }}>
+          Sube el archivo .json exportado desde Focux Ops, o pégalo directamente.
+        </p>
 
-    setRunning(true);
-    setDone(false);
-    setError(null);
-    abortRef.current = false;
-    contextRef.current = {};
-    addLog("═══ DEPLOYMENT v2 INICIADO ═══", "header");
-
-    const rollbackStack = [];
-
-    for (let i = 0; i < steps.length; i++) {
-      if (abortRef.current) { addLog("Deployment cancelado por usuario", "warn"); break; }
-
-      const step = steps[i];
-      setStepStatus(prev => ({ ...prev, [step.id]: "running" }));
-      addLog(`[${step.id}] ${step.label}...`);
-
-      try {
-        const result = await step.execute(token, contextRef.current);
-        setStepStatus(prev => ({ ...prev, [step.id]: "done" }));
-        setStepResults(prev => ({ ...prev, [step.id]: result }));
-        rollbackStack.push(step);
-
-        // Store context for later steps
-        if (step.resultKey) {
-          if (step.resultKey === "pipeline") {
-            contextRef.current.pipelineId = result?.pipelineId || result?.id;
-            // Also do a quick GET to retrieve stage IDs
-            try {
-              const plId = result?.pipelineId || result?.id;
-              if (plId) {
-                const plData = await hubspotAPI(token, "GET", `/crm/v3/pipelines/deals/${plId}`);
-                contextRef.current.pipeline = {
-                  id: plId,
-                  stageMap: Object.fromEntries((plData.stages||[]).map(s => [s.label, s.stageId])),
-                  stages: (plData.stages||[]).length,
-                };
-              }
-            } catch(e) { /* stage map will be resolved in VER-01 */ }
-          } else if (step.resultKey === "userIdMap") {
-            contextRef.current.userIdMap = result;
-          }
-        }
-
-        // Special handling for VER-01 — update pipeline context with stage map
-        if (step.id === "VER-01" && result?.pipeline) {
-          contextRef.current.pipeline = result.pipeline;
-        }
-
-        // Log details
-        if (step.id === "WF-BUILD" && result) {
-          addLog(`[WF-BUILD] ${result.created} creados, ${result.errors.length} errores de ${result.total} total`, result.errors.length ? "warn" : "success");
-          result.details.forEach(d => {
-            if (d.status === "created") addLog(`  ✓ ${d.id}: ${d.name} (flowId: ${d.flowId})`, "success");
-            else if (d.status === "exists") addLog(`  ⚠ ${d.id}: ya existe`, "warn");
-            else addLog(`  ✗ ${d.id}: ${d.error}`, "error");
-          });
-        } else {
-          const detail = (result?.found !== undefined)
-            ? `${result.found} encontrados, ${result.notFound} no encontrados`
-            : result?._skipped ? "⚠ Ya existe — reutilizado" 
-            : result?.verified ? "✓ Verificado"
-            : result?.label || result?.name || "";
-          addLog(`[${step.id}] ✓ OK${detail ? ` — ${detail}` : ""}`, "success");
-        }
-      } catch (err) {
-        if (err.category === "CONFLICT" || err.status === 409) {
-          setStepStatus(prev => ({ ...prev, [step.id]: "skipped" }));
-          addLog(`[${step.id}] ⚠ Ya existe — saltado`, "warn");
-          continue;
-        }
-
-        setStepStatus(prev => ({ ...prev, [step.id]: "error" }));
-        addLog(`[${step.id}] ✗ ERROR: ${err.message}`, "error");
-        setError(`Falló en ${step.id}: ${err.message}`);
-
-        addLog("═══ INICIANDO ROLLBACK ═══", "warn");
-        for (let j = rollbackStack.length - 1; j >= 0; j--) {
-          try {
-            await rollbackStack[j].rollback(token, contextRef.current);
-            addLog(`[ROLLBACK] ${rollbackStack[j].id} — revertido`, "warn");
-          } catch(rbErr) {
-            addLog(`[ROLLBACK] ${rollbackStack[j].id} — error: ${rbErr.message}`, "error");
-          }
-        }
-        addLog("═══ ROLLBACK COMPLETO ═══", "warn");
-        break;
-      }
-    }
-
-    if (!abortRef.current && !error) {
-      addLog("═══ DEPLOYMENT v2 COMPLETO ═══", "header");
-      setDone(true);
-    }
-    setRunning(false);
-  };
-
-  const abort = () => { abortRef.current = true; };
-
-  const counts = { pending:0, running:0, done:0, error:0, skipped:0 };
-  steps.forEach(s => { counts[stepStatus[s.id] || "pending"]++; });
-  const categories = [...new Set(steps.map(s => s.category))];
-
-  return (
-    <div style={{ fontFamily:font, background:tk.bg, minHeight:"100vh", color:tk.text }}>
-      <style>{`
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes slideIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
-        input::placeholder{color:${tk.textTer}}
-      `}</style>
-
-      <div style={{ background:`linear-gradient(135deg, ${tk.navy} 0%, #0A0D1A 100%)`, padding:"0 28px", height:56, display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:`1px solid ${tk.border}` }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${tk.teal},${tk.cyan})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:800, color:"#fff" }}>⚡</div>
-          <div>
-            <h1 style={{ margin:0, color:"#fff", fontSize:15, fontWeight:800, letterSpacing:"0.06em" }}>FOCUXAI ENGINE</h1>
-            <p style={{ margin:0, color:tk.textTer, fontSize:10, fontWeight:500, letterSpacing:"0.1em" }}>HUBSPOT ADAPTER v2 — PROPERTIES + PIPELINE + WORKFLOWS</p>
+        {/* File upload */}
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            border:`2px dashed ${tk.border}`, borderRadius:12, padding:"32px 20px", textAlign:"center",
+            cursor:"pointer", background:tk.bg, marginBottom:16, transition:"border-color 0.2s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = tk.accent}
+          onMouseLeave={e => e.currentTarget.style.borderColor = tk.border}
+          onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = tk.accent; }}
+          onDragLeave={e => { e.currentTarget.style.borderColor = tk.border; }}
+          onDrop={e => {
+            e.preventDefault();
+            e.currentTarget.style.borderColor = tk.border;
+            const file = e.dataTransfer.files?.[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const text = ev.target?.result;
+                setJsonText(text);
+                try {
+                  const parsed = JSON.parse(text);
+                  if (!parsed.nombreConst) throw new Error("JSON inválido: falta nombreConst");
+                  setConfig(parsed);
+                  setParseError("");
+                  setView("preview");
+                } catch (err) { setParseError(err.message); }
+              };
+              reader.readAsText(file);
+            }
+          }}
+        >
+          <div style={{ fontSize:32, marginBottom:8 }}>📂</div>
+          <div style={{ fontSize:14, fontWeight:600, color:tk.text, marginBottom:4 }}>
+            Arrastra el archivo .json aquí o haz click para seleccionar
+          </div>
+          <div style={{ fontSize:12, color:tk.textTer }}>
+            Archivo exportado desde Focux Ops (Ej: Constructora_Jimenez_focuxai.json)
           </div>
         </div>
-        {configName && <span style={{ color:tk.textSec, fontSize:12, fontWeight:600 }}>{configName}</span>}
-      </div>
+        <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileUpload} style={{ display:"none" }} />
 
-      <div style={{ maxWidth:960, margin:"0 auto", padding:"28px 24px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:24 }}>
-          <div style={{ background:tk.card, borderRadius:12, padding:20, border:`1px solid ${tk.border}` }}>
-            <label style={{ display:"block", fontSize:11, fontWeight:700, color:tk.textSec, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Private App Token</label>
-            <input type="password" value={token} onChange={e=>setToken(e.target.value)}
-              placeholder="pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              style={{ width:"100%", padding:"10px 14px", borderRadius:8, border:`1.5px solid ${tk.border}`, background:tk.bg, color:tk.text, fontSize:13, fontFamily:"monospace", outline:"none", boxSizing:"border-box" }} />
-            <p style={{ margin:"6px 0 0", fontSize:10, color:tk.textTer }}>
-              Scopes: crm.objects, crm.schemas, automation, crm.objects.owners.read
-            </p>
+        {/* Or paste */}
+        <div style={{ display:"flex", alignItems:"center", gap:12, margin:"16px 0" }}>
+          <div style={{ flex:1, height:1, background:tk.border }} />
+          <span style={{ fontSize:12, color:tk.textTer, fontWeight:600 }}>O PEGA EL JSON</span>
+          <div style={{ flex:1, height:1, background:tk.border }} />
+        </div>
+
+        <textarea style={ss.textarea} value={jsonText} onChange={e => setJsonText(e.target.value)} placeholder='{ "nombreConst": "...", "macros": [...], ... }' />
+        {parseError && <div style={{ color:tk.red, fontSize:12, marginTop:6 }}>{parseError}</div>}
+        {jsonText && config && (
+          <div style={{ ...ss.badge(tk.greenBg, tk.green), marginTop:8 }}>
+            ✓ JSON válido: {config.nombreConst} — {config.macros?.length || 0} macroproyectos
           </div>
-          <div style={{ background:tk.card, borderRadius:12, padding:20, border:`1px solid ${tk.border}` }}>
-            <label style={{ display:"block", fontSize:11, fontWeight:700, color:tk.textSec, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>Config JSON</label>
-            <label style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"10px 14px", borderRadius:8, border:`1.5px dashed ${tk.border}`, cursor:"pointer", fontSize:13, color:tk.textSec, fontWeight:600 }}>
-              <input type="file" accept=".json" onChange={loadConfig} style={{ display:"none" }} />
-              {config ? `✓ ${configName}` : "Seleccionar archivo JSON"}
-            </label>
-            {config && (
-              <p style={{ margin:"6px 0 0", fontSize:10, color:tk.green }}>
-                {config.macros?.length} macros · {steps.length} operaciones · {config.hubSales} Sales · {config.hubMarketing} Marketing
+        )}
+        <div style={{ display:"flex", gap:12, marginTop:12 }}>
+          <button style={{ ...ss.btn(tk.accent, "#fff"), opacity: jsonText ? 1 : 0.5 }} onClick={handleParseJson} disabled={!jsonText}>
+            Validar y previsualizar →
+          </button>
+          <button style={ss.btn("transparent", tk.textSec)} onClick={() => setView("home")}>← Atrás</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // PREVIEW
+  const PreviewView = () => {
+    if (!config || !dynOpts) return null;
+    const totalProps = CONTACT_PROPERTIES.length + DEAL_PROPERTIES.length;
+    const totalCOProps = Object.values(CUSTOM_OBJECT_SCHEMAS).reduce((s, co) => s + co.properties.length, 0);
+
+    return (
+      <div>
+        <div style={ss.card}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <h3 style={{ margin:0, fontSize:18, fontWeight:700 }}>{config.nombreConst}</h3>
+              <p style={{ margin:"4px 0 0", color:tk.textSec, fontSize:13 }}>
+                {config.macros?.length || 0} macroproyectos · {(config.macros || []).reduce((s, m) => s + (m.torres?.length || 0), 0)} torres · Preview del deploy
               </p>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button style={ss.btn("transparent", tk.textSec)} onClick={() => setView("config")}>← Editar JSON</button>
+              <button style={ss.btn(tk.green, "#fff")} onClick={() => setView("deploy")}>Desplegar →</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Pipeline */}
+        <div style={ss.card}>
+          <h4 style={{ margin:"0 0 12px", fontSize:14, fontWeight:700 }}>Pipeline: {config.nombrePipeline || `Ventas ${config.nombreConst}`} ({PIPELINE_STAGES.length} etapas)</h4>
+          <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+            {PIPELINE_STAGES.map((s, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ ...ss.badge(s.p === 0 ? tk.redBg : s.p === 100 ? tk.greenBg : tk.accentLight, s.p === 0 ? tk.red : s.p === 100 ? tk.green : tk.accent), fontSize:10 }}>
+                  {s.n} ({s.p}%)
+                </span>
+                {i < PIPELINE_STAGES.length - 1 && <span style={{ color:tk.textTer, fontSize:10 }}>→</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom Objects */}
+        <div style={ss.card}>
+          <h4 style={{ margin:"0 0 12px", fontSize:14, fontWeight:700 }}>4 Custom Objects ({totalCOProps} propiedades)</h4>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            {Object.values(CUSTOM_OBJECT_SCHEMAS).map(co => (
+              <div key={co.name} style={{ background:tk.bg, borderRadius:8, padding:12 }}>
+                <div style={{ fontWeight:700, fontSize:13, marginBottom:4 }}>{co.labels.singular}</div>
+                <div style={{ fontSize:11, color:tk.textSec }}>
+                  {co.properties.map(p => p.name).join(", ")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Standard Properties */}
+        <div style={ss.card}>
+          <h4 style={{ margin:"0 0 12px", fontSize:14, fontWeight:700 }}>Propiedades estándar ({totalProps})</h4>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div style={{ background:tk.bg, borderRadius:8, padding:12 }}>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:4 }}>Contacto ({CONTACT_PROPERTIES.length})</div>
+              <div style={{ fontSize:11, color:tk.textSec }}>{CONTACT_PROPERTIES.map(p => p.name).join(", ")}</div>
+            </div>
+            <div style={{ background:tk.bg, borderRadius:8, padding:12 }}>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:4 }}>Deal ({DEAL_PROPERTIES.length})</div>
+              <div style={{ fontSize:11, color:tk.textSec }}>{DEAL_PROPERTIES.map(p => p.name).join(", ")}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Macros from config */}
+        <div style={ss.card}>
+          <h4 style={{ margin:"0 0 12px", fontSize:14, fontWeight:700 }}>Macroproyectos del JSON ({config.macros?.length || 0})</h4>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+            {(config.macros || []).map((m, i) => (
+              <div key={i} style={{ background:tk.bg, borderRadius:8, padding:10, fontSize:12 }}>
+                <div style={{ fontWeight:700 }}>{m.nombre}</div>
+                <div style={{ color:tk.textSec, fontSize:11 }}>{m.ciudad} · {m.tipo} · {m.torres?.length || 0} torres</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // DEPLOY
+  const DeployView = () => (
+    <div>
+      <div style={ss.card}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div>
+            <h3 style={{ margin:0, fontSize:18, fontWeight:700 }}>
+              {deployDone ? "Deploy completado" : deploying ? "Desplegando..." : "Listo para desplegar"}
+            </h3>
+            <p style={{ margin:"4px 0 0", color:tk.textSec, fontSize:13 }}>{config?.nombreConst}</p>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            {!deploying && !deployDone && (
+              <>
+                <button style={ss.btn("transparent", tk.textSec)} onClick={() => setView("preview")}>← Preview</button>
+                <button style={ss.btn(tk.green, "#fff")} onClick={runDeploy}>▶ Ejecutar deploy</button>
+              </>
+            )}
+            {deploying && (
+              <button style={ss.btn(tk.red, "#fff")} onClick={() => { cancelRef.current = true; }}>✕ Cancelar</button>
+            )}
+            {deployDone && (
+              <>
+                <button style={ss.btn("transparent", tk.textSec)} onClick={() => { setView("home"); setDeployDone(false); setLogs([]); }}>← Inicio</button>
+                <button style={ss.btn(tk.accent, "#fff")} onClick={() => { setDeployDone(false); setLogs([]); runDeploy(); }}>↻ Re-ejecutar</button>
+              </>
             )}
           </div>
         </div>
 
-        <div style={{ display:"flex", gap:12, marginBottom:24, alignItems:"center" }}>
-          <button onClick={deploy} disabled={running || !config || !token.trim()}
-            style={{
-              padding:"12px 32px", borderRadius:10, border:"none", fontSize:14, fontWeight:700,
-              fontFamily:font, cursor: running||!config||!token.trim() ? "default" : "pointer",
-              background: running ? tk.border : `linear-gradient(135deg, ${tk.teal}, ${tk.cyan})`,
-              color:"#fff", letterSpacing:"0.03em",
-              boxShadow: running||!config ? "none" : `0 4px 20px ${tk.accentGlow}`,
-              opacity: running||!config||!token.trim() ? 0.5 : 1,
-            }}>
-            {running ? "Desplegando..." : done ? "Completado — Redesplegar" : "Desplegar en HubSpot"}
+        {/* Stats */}
+        {(deploying || deployDone) && (
+          <div style={{ display:"flex", gap:16, marginBottom:16 }}>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:24, fontWeight:800 }}>{deployStats.total}</div>
+              <div style={{ fontSize:11, color:tk.textSec }}>Total</div>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:24, fontWeight:800, color:tk.green }}>{deployStats.ok}</div>
+              <div style={{ fontSize:11, color:tk.textSec }}>Creados</div>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:24, fontWeight:800, color:tk.amber }}>{deployStats.skip}</div>
+              <div style={{ fontSize:11, color:tk.textSec }}>Existentes</div>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:24, fontWeight:800, color:tk.red }}>{deployStats.err}</div>
+              <div style={{ fontSize:11, color:tk.textSec }}>Errores</div>
+            </div>
+          </div>
+        )}
+
+        {/* Log */}
+        <div ref={logRef} style={{ background:tk.bg, borderRadius:8, padding:8, maxHeight:500, overflowY:"auto", minHeight:200 }}>
+          {logs.length === 0 && (
+            <div style={{ padding:40, textAlign:"center", color:tk.textTer, fontSize:13 }}>
+              Click "Ejecutar deploy" para comenzar. Todas las operaciones son idempotentes (409 = skip).
+            </div>
+          )}
+          {logs.map((l, i) => (
+            <div key={i} style={ss.logLine(l.type)}>
+              <span style={{ color:tk.textTer, marginRight:8 }}>{l.ts}</span>
+              {l.type === "ok" && <span style={{ color:tk.green, marginRight:6 }}>✓</span>}
+              {l.type === "err" && <span style={{ color:tk.red, marginRight:6 }}>✕</span>}
+              {l.type === "skip" && <span style={{ color:tk.amber, marginRight:6 }}>⊘</span>}
+              {l.type === "info" && <span style={{ color:tk.accent, marginRight:6 }}>▸</span>}
+              {l.msg}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ═══ RENDER ═══ */
+  return (
+    <div style={{ fontFamily:font, background:tk.bg, minHeight:"100vh", color:tk.text }}>
+      {/* Header */}
+      <div style={{ background:tk.card, borderBottom:`1px solid ${tk.border}`, padding:"14px 24px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg, ${tk.teal}, ${tk.navy})`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:14 }}>F</div>
+          <div>
+            <div style={{ fontSize:16, fontWeight:700 }}>Focux<span style={{ color:tk.accent }}>AI</span> <span style={{ fontWeight:400, color:tk.textSec }}>Adapter</span></div>
+            <div style={{ fontSize:10, color:tk.textTer, letterSpacing:"0.04em" }}>v2 — CUSTOM OBJECTS + PIPELINE + PROPERTIES</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {token && <span style={ss.badge(tk.greenBg, tk.green)}>Token ✓</span>}
+          {config && <span style={ss.badge(tk.accentLight, tk.accent)}>{config.nombreConst}</span>}
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{ padding:"8px 24px", borderBottom:`1px solid ${tk.borderLight}`, background:tk.card, display:"flex", gap:4 }}>
+        {["home", "config", "preview", "deploy"].map(v => (
+          <button key={v} onClick={() => { if (v === "preview" && !config) return; if (v === "deploy" && !config) return; setView(v); }}
+            style={{ padding:"6px 14px", borderRadius:6, border:"none", background: view === v ? tk.accent : "transparent", color: view === v ? "#fff" : tk.textSec, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:font, opacity: (v === "preview" || v === "deploy") && !config ? 0.4 : 1 }}>
+            {v === "home" ? "Inicio" : v === "config" ? "Config JSON" : v === "preview" ? "Preview" : "Deploy"}
           </button>
-          {running && (
-            <button onClick={abort} style={{ padding:"12px 24px", borderRadius:10, border:`1.5px solid ${tk.red}`, background:"transparent", color:tk.red, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:font }}>
-              Cancelar
-            </button>
-          )}
-          {done && !running && (
-            <span style={{ fontSize:13, color:tk.green, fontWeight:600 }}>
-              {counts.done} completados · {counts.skipped} existentes
-            </span>
-          )}
-        </div>
+        ))}
+      </div>
 
-        {error && (
-          <div style={{ padding:"12px 16px", background:tk.redBg, borderRadius:8, borderLeft:`3px solid ${tk.red}`, marginBottom:16 }}>
-            <p style={{ margin:0, fontSize:12, color:tk.red, fontWeight:600 }}>{error}</p>
-          </div>
-        )}
+      {/* Content */}
+      <div style={{ maxWidth:900, margin:"24px auto", padding:"0 24px" }}>
+        {view === "home" && <HomeView />}
+        {view === "config" && <ConfigView />}
+        {view === "preview" && <PreviewView />}
+        {view === "deploy" && <DeployView />}
+      </div>
 
-        {steps.length > 0 && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            <div style={{ background:tk.card, borderRadius:12, border:`1px solid ${tk.border}`, overflow:"hidden" }}>
-              <div style={{ padding:"14px 16px", borderBottom:`1px solid ${tk.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <span style={{ fontSize:12, fontWeight:700, color:tk.text, letterSpacing:"0.04em" }}>OPERACIONES</span>
-                <span style={{ fontSize:11, color:tk.textSec }}>
-                  <span style={{color:tk.green}}>{counts.done}</span> · <span style={{color:tk.amber}}>{counts.skipped}</span> · <span style={{color:tk.red}}>{counts.error}</span> · {counts.pending}
-                </span>
-              </div>
-              <div style={{ height:3, background:tk.border }}>
-                <div style={{ height:3, background:`linear-gradient(90deg,${tk.teal},${tk.green})`, width:`${((counts.done+counts.skipped+counts.error)/steps.length)*100}%`, transition:"width 0.4s ease" }} />
-              </div>
-              <div style={{ maxHeight:500, overflow:"auto", padding:"8px 0" }}>
-                {categories.map(cat => (
-                  <div key={cat}>
-                    <div style={{ padding:"8px 16px", fontSize:10, fontWeight:700, color:tk.textTer, textTransform:"uppercase", letterSpacing:"0.06em" }}>{cat}</div>
-                    {steps.filter(s=>s.category===cat).map(s => (
-                      <div key={s.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 16px" }}>
-                        <StatusDot status={stepStatus[s.id]||"pending"} />
-                        <span style={{ fontFamily:"monospace", fontSize:10, fontWeight:700, color:tk.textTer, minWidth:56 }}>{s.id}</span>
-                        <span style={{ fontSize:11, color: stepStatus[s.id]==="error" ? tk.red : stepStatus[s.id]==="done" ? tk.text : tk.textSec, flex:1, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                          {s.label}
-                        </span>
-                        {stepStatus[s.id]==="skipped" && <span style={{fontSize:9,color:tk.amber,fontWeight:600}}>EXISTE</span>}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ background:tk.card, borderRadius:12, border:`1px solid ${tk.border}`, overflow:"hidden" }}>
-              <div style={{ padding:"14px 16px", borderBottom:`1px solid ${tk.border}` }}>
-                <span style={{ fontSize:12, fontWeight:700, color:tk.text, letterSpacing:"0.04em" }}>LOG</span>
-              </div>
-              <div style={{ maxHeight:500, overflow:"auto", padding:"8px 12px", fontFamily:"'JetBrains Mono', monospace", fontSize:11 }}>
-                {log.map((l,i) => (
-                  <div key={i} style={{ padding:"3px 0", color: l.type==="error"?tk.red : l.type==="success"?tk.green : l.type==="warn"?tk.amber : l.type==="header"?tk.cyan : tk.textSec }}>
-                    <span style={{ color:tk.textTer, marginRight:8 }}>{l.time}</span>
-                    {l.msg}
-                  </div>
-                ))}
-                {log.length===0 && <p style={{color:tk.textTer, fontStyle:"italic", margin:8}}>Esperando deployment...</p>}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Workflow results */}
-        {done && stepResults["WF-BUILD"] && (
-          <div style={{ marginTop:20, background:tk.card, borderRadius:12, border:`1px solid ${tk.green}30`, padding:20 }}>
-            <h3 style={{ margin:"0 0 12px", color:tk.green, fontSize:14, fontWeight:700 }}>Workflows Desplegados</h3>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:16 }}>
-              {[
-                ["Creados", stepResults["WF-BUILD"].created, tk.green],
-                ["Errores", stepResults["WF-BUILD"].errors?.length || 0, tk.red],
-                ["Total", stepResults["WF-BUILD"].total, tk.cyan],
-              ].map(([label,val,color],i) => (
-                <div key={i} style={{ padding:14, background:tk.bg, borderRadius:8, textAlign:"center" }}>
-                  <p style={{ margin:0, fontSize:24, fontWeight:800, color }}>{val}</p>
-                  <p style={{ margin:"4px 0 0", fontSize:10, color:tk.textSec, fontWeight:600 }}>{label}</p>
-                </div>
-              ))}
-            </div>
-            <div style={{ maxHeight:200, overflow:"auto", fontSize:11 }}>
-              {(stepResults["WF-BUILD"].details||[]).map((d,i) => (
-                <div key={i} style={{ padding:"4px 0", color: d.status==="created"?tk.green : d.status==="exists"?tk.amber : tk.red }}>
-                  {d.status==="created" ? "✓" : d.status==="exists" ? "⚠" : "✗"} {d.id}: {d.name} {d.flowId ? `(${d.flowId})` : ""} {d.error || ""}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Verification results */}
-        {done && stepResults["VER-01"] && (
-          <div style={{ marginTop:20, background:tk.card, borderRadius:12, border:`1px solid ${tk.green}30`, padding:20 }}>
-            <h3 style={{ margin:"0 0 12px", color:tk.green, fontSize:14, fontWeight:700 }}>Verificación de Propiedades</h3>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
-              {[
-                ["Props Contacto _fx", stepResults["VER-01"].contactProperties],
-                ["Props Negocio _fx", stepResults["VER-01"].dealProperties],
-                ["Pipeline Etapas", stepResults["VER-01"].pipeline?.stages || 0],
-              ].map(([label,val],i) => (
-                <div key={i} style={{ padding:14, background:tk.bg, borderRadius:8, textAlign:"center" }}>
-                  <p style={{ margin:0, fontSize:24, fontWeight:800, color:tk.cyan }}>{val}</p>
-                  <p style={{ margin:"4px 0 0", fontSize:10, color:tk.textSec, fontWeight:600 }}>{label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ marginTop:32, textAlign:"center", padding:16 }}>
-          <p style={{ margin:0, fontSize:10, color:tk.textTer, letterSpacing:"0.1em" }}>
-            FOCUXAI ENGINE™ v2 — DETERMINISTIC. AUDITABLE. UNSTOPPABLE.
-          </p>
-        </div>
+      {/* Footer */}
+      <div style={{ textAlign:"center", padding:"24px", fontSize:11, color:tk.textTer }}>
+        FocuxAI Engine™ v2 · Deterministic. Auditable. Unstoppable. · Focux Digital Group S.A.S.
       </div>
     </div>
   );
