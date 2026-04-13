@@ -38,7 +38,6 @@ const PROJECT_STEPS = [
   { t: "Value Proposition", i: "💎", d: "VPC por buyer, diferenciadores" },
   { t: "Segmentación", i: "📊", d: "Nacional + internacional, matriz" },
   { t: "Plan Marketing", i: "📈", d: "Funnel, canales, KPIs" },
-  { t: "Análisis 7Gs", i: "🔍", d: "Propósito, brechas, palancas" },
   { t: "AutoQA Rúbricas", i: "✅", d: "R1-R8 auto-generadas" },
 ];
 
@@ -48,6 +47,15 @@ const DEF_MERCADOS = ["USA","España","Panamá","México","Ecuador","Chile","Cos
 const DEF_CIUDADES = ["Miami, FL","Orlando, FL","New York, NY","New Jersey","Houston, TX","Los Angeles, CA","Madrid","Barcelona","Ciudad de Panamá","Ciudad de México","Quito","Santiago de Chile","Toronto","Londres"];
 const DEF_FERIAS_INTL = ["Colombia Real Estate Show (Miami)","Gran Salón Inmobiliario (Bogotá)","FIABCI Americas (Variable)","Expo Real Estate (LATAM)"];
 const DEF_AMENIDADES = ["Piscina adultos","Piscina niños","Piscina climatizada","Jacuzzi","Turco","Gimnasio","Gimnasio dotado","Coworking","Salón social","Zona BBQ","Zona BBQ Teppanyaki","Juegos infantiles","Ludoteca","Zona mascotas","Zonas verdes","Senderos peatonales","Cancha múltiple","Cancha pádel","Cancha squash","Yogario","Terraza mirador","Mirador","Portería","Car lobby","Lobby","Enfermería","Salón de estudios","Meeting room","Fire garden","Aqua garden","Zona lectura","Zona caminar","Mall comercial","Locales comerciales","Plazoletas","Parqueadero visitantes","Parqueadero bicicletas","Ascensor","Rooftop","Cine"];
+const DEF_CLAIMS_PROHIBIDOS = [
+  { claim: "Rentabilidad garantizada / Inversión segura", razon: "Compliance legal — nunca prometer rentabilidad", severidad: "CRÍTICA" },
+  { claim: "Valorización asegurada", razon: "Compliance legal — valorización pasada no garantiza futuro", severidad: "CRÍTICA" },
+  { claim: "Últimas unidades / Se agotan", razon: "Solo si equipo comercial lo confirma en tiempo real", severidad: "ALTA" },
+  { claim: "El mejor proyecto de la ciudad", razon: "Superlativo no verificable", severidad: "ALTA" },
+  { claim: "Precio más bajo del mercado", razon: "Comparativo no verificable", severidad: "ALTA" },
+  { claim: "Entrega inmediata", razon: "Solo si el estado es 'Entrega inmediata'", severidad: "CRÍTICA" },
+  { claim: "Inversión sin riesgo", razon: "Compliance legal", severidad: "CRÍTICA" },
+];
 
 /* ═══ TEMPLATES ═══ */
 const NEW_PROJECT = () => ({
@@ -64,7 +72,7 @@ const NEW_PROJECT = () => ({
   tuteo: true, emojis: "no", emojisPermitidos: [], posicionamiento: "",
   whatsapp: "", telefono: "", horarioSala: "", disclaimer: "",
   // 1.4 Claims
-  claimsPermitidos: [], claimsProhibidos: [], claimsCondicionales: [],
+  claimsPermitidos: [], claimsProhibidos: DEF_CLAIMS_PROHIBIDOS.map(c => ({ ...c })), claimsCondicionales: [],
   disclaimerRenders: "Las imágenes y planos son representación artística del proyecto. Pueden representar diferencias en acabados, especificaciones, elementos, formas, medidas y texturas.",
   disclaimerAreas: "Las áreas presentadas son aproximadas y pueden variar por procesos constructivos.",
   disclaimerValorizacion: "La valorización pasada no garantiza resultados futuros.",
@@ -80,10 +88,7 @@ const NEW_PROJECT = () => ({
   pmGenStatus: "idle", pmObjetivo: "", pmEstrategia: "",
   pmCanalesDigitales: [], pmCanalesOffline: [], pmCanalesIntl: [],
   pmContenidoByBuyer: [], pmKpis: [], pmReglas: [],
-  // 1.9 Análisis 7Gs
-  a7gGenStatus: "idle",
-  a7g: { g1: "", g2: "", g3: "", g4: "", g5: "", g6: "", g7: "" },
-  // 1.10 AutoQA
+  // 1.9 AutoQA
   qaGenStatus: "idle", qaRubricas: [],
 });
 
@@ -519,6 +524,7 @@ function P14({ p, up }) {
 
   return (<div>
     <InfoBox type="warn">Este paso es CRÍTICO. Los claims prohibidos se verifican automáticamente en cada pieza de contenido generada. Un error aquí = contenido que no pasa QA.</InfoBox>
+    <InfoBox type="info">Los claims prohibidos universales ya están pre-cargados. Las amenidades NO incluidas (del paso Producto) se agregan automáticamente. {p.segmento === "VIS" ? 'Por ser VIS: "lujo", "premium", "exclusivo" están prohibidos.' : p.segmento === "NO_VIS" ? 'Por ser No VIS: "subsidio", "Mi Casa Ya", "VIS" están prohibidos.' : ""} Agrega solo los específicos de este proyecto.</InfoBox>
 
     <SectionHead sub="Datos verificados que el GPT puede usar libremente">Claims Permitidos ({cp.length})</SectionHead>
     {cp.length > 0 && <div style={{ overflowX: "auto", marginBottom: 4 }}>
@@ -866,52 +872,7 @@ function P18({ p, up }) {
   </div>);
 }
 
-/* ═══ STEP 1.9: ANÁLISIS 7Gs ═══ */
-function P19({ p, up }) {
-  const g = p.a7g || {};
-  const ug = (k, v) => up("a7g", { ...g, [k]: v });
-  const handleGen = () => {
-    up("a7gGenStatus", "generating");
-    setTimeout(() => {
-      ug("g1", `Posicionar ${p.nombre || "el proyecto"} como referente de ${p.posicionamiento || "calidad de vida"} en ${p.ciudad || "la ciudad"} mediante contenido digital estratégico que genere leads calificados y cierre de ventas.`);
-      ug("g2", `1. Generar mínimo [X] leads/mes por proyecto\n2. Alcanzar tasa de conversión lead→visita >15%\n3. Posicionar marca en top 3 de búsquedas del sector\n4. Reducir CPL en 20% vs benchmark del mercado`);
-      ug("g3", `1. Falta de contenido diferenciado por buyer persona\n2. ${(p.buyers || []).some(b => b.tipo === "Exterior") ? "Infraestructura comercial internacional limitada" : "Sin estrategia internacional activa"}\n3. Métricas de contenido no conectadas con métricas de ventas\n4. Procesos de aprobación lentos que retrasan publicación`);
-      ug("g4", `1. Content Machine con IA: producción 10× más rápida\n2. ${(p.buyers || []).some(b => b.tipo === "Exterior") ? "Diversificación internacional con pauta geolocalizada" : "Activar mercado internacional como nuevo canal"}\n3. Automatización WhatsApp para seguimiento de leads\n4. Performance loop: datos → ajuste → optimización continua`);
-      ug("g5", "Hereda de Fase 0 — Equipo y Gobernanza de la constructora");
-      ug("g6", "Hereda de Fase 0 — Herramientas y HubSpot de la constructora");
-      ug("g7", `1. Equipo Focux: estrategia, contenido, pauta, análisis\n2. Equipo cliente: aprobación, sala de ventas, datos comerciales\n3. HubSpot: CRM, marketing automation, reportes\n4. Stakeholders: Gerencia Comercial (decisiones), KAM (operación diaria)`);
-      up("a7gGenStatus", "done");
-    }, 2500);
-  };
-
-  const gs = [
-    { k: "g1", t: "G1 — Propósito Digital", d: "¿Para qué existe la presencia digital de este proyecto?" },
-    { k: "g2", t: "G2 — Metas", d: "Indicadores concretos y medibles" },
-    { k: "g3", t: "G3 — Brechas Identificadas", d: "Qué falta o qué está fallando" },
-    { k: "g4", t: "G4 — Palancas de Crecimiento", d: "Cómo cerrar las brechas" },
-    { k: "g5", t: "G5 — Gobernanza", d: "Estructura de decisión y aprobación" },
-    { k: "g6", t: "G6 — Recursos", d: "Herramientas, presupuesto, equipo" },
-    { k: "g7", t: "G7 — Colaboración", d: "Stakeholders y roles" },
-  ];
-
-  return (<div>
-    <InfoBox type="info">El framework 7Gs es propiedad intelectual de Focux Digital Group. Analiza 7 dimensiones de la estrategia digital de cada proyecto. G5 y G6 heredan datos de la Fase 0.</InfoBox>
-    <AIGenBtn status={p.a7gGenStatus} onGenerate={handleGen} label="Generar Análisis 7Gs con IA" />
-    {p.a7gGenStatus === "done" && <InfoBox type="success">Análisis 7Gs generado. Revisa cada dimensión y ajusta según el contexto real del proyecto.</InfoBox>}
-
-    {gs.map(({ k, t, d }) => (
-      <div key={k} style={{ marginBottom: 16 }}>
-        <label style={{ ...ss.label, fontSize: 13, color: tk.navy }}>{t}</label>
-        <p style={{ fontSize: 11, color: tk.textTer, margin: "0 0 6px" }}>{d}</p>
-        <textarea value={g[k] || ""} onChange={e => ug(k, e.target.value)} rows={4} placeholder={`Describe ${t}...`}
-          style={{ ...ss.input, resize: "vertical", minHeight: 80, lineHeight: 1.5 }}
-          onFocus={e => focusStyle(e, true)} onBlur={e => focusStyle(e, false)} />
-      </div>
-    ))}
-  </div>);
-}
-
-/* ═══ STEP 1.10: AUTOQA RÚBRICAS ═══ */
+/* ═══ STEP 1.9: AUTOQA RÚBRICAS ═══ */
 function P20({ p, up }) {
   const rubs = p.qaRubricas || [];
   const handleGen = () => {
@@ -1113,7 +1074,7 @@ export default function ContentWizard() {
   const deleteProject = pid => u("projects", (d.projects || []).filter(p => p.id !== pid));
   const ps = ap?.step || 0;
   const setPs = s => updateProject(d.activeProjectId, "step", s);
-  const pComps = [P11, P12, P13, P14, P15, P16, P17, P18, P19, P20];
+  const pComps = [P11, P12, P13, P14, P15, P16, P17, P18, P20];
 
   return (<div style={{ fontFamily: font, background: tk.bg, minHeight: "100vh", color: tk.text }}>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}} @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
