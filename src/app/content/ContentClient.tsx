@@ -982,6 +982,100 @@ function ProjectsHome({ projects, onSelect, onNew, onDelete, name }) {
   </div>);
 }
 
+/* ═══ JSON COMPILER — transforms wizard data into gold-standard files ═══ */
+function compileProjectFactuals(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "ProjectFactuals", version: "1.0", created: new Date().toISOString().slice(0, 10) },
+    proyecto: { nombre: p.nombre, constructora: dev.nombre, slogan: p.slogan, formula_slogan_pauta: p.formulaSlogan, estado: p.estado, segmento: p.segmento, fiducia: p.fiducia, certificaciones: dev.certificaciones, afiliaciones: dev.afiliaciones },
+    ubicacion: { direccion: p.direccion, sector: p.sector, ciudad: p.ciudad, departamento: p.departamento, estrato: p.estrato },
+    producto: { tipo: p.tipo, torres: p.torres, total_unidades: p.totalUnidades, fecha_entrega: p.fechaEntrega, constructora_aliada: p.constructoraAliada, tipologias: (p.tipologias || []).map(t => ({ tipo: t.tipo, alcobas: t.alcobas, area_total: t.areaTotal, area_privada: t.areaPrivada, cantidad: t.cantidad })), parqueaderos: p.parqueaderos, bodegas: p.bodegas, caracteristicas: p.caracteristicas || [] },
+    amenidades: { confirmadas: (p.amenidades || []).filter(a => a.a).map(a => a.n).concat(p.amenidadesCu || []), no_incluidas: p.amenidadesNo || [] },
+    precios: { desde: p.precioDesde, hasta: p.precioHasta, precio_m2: p.precioM2 },
+    contacto: { whatsapp: p.whatsapp, telefono: p.telefono, horario_sala: p.horarioSala },
+    legal: { disclaimer: p.disclaimer || p.disclaimerRenders } };
+}
+function compileClaimsRegistry(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "ClaimsRegistry", version: "1.0", created: new Date().toISOString().slice(0, 10) },
+    claims_permitidos: (p.claimsPermitidos || []).map(c => ({ claim: c.claim, fuente: c.fuente, condicion: c.condicion || null })),
+    claims_prohibidos: (p.claimsProhibidos || []).map(c => ({ claim: c.claim, razon: c.razon, severidad: c.severidad })),
+    claims_condicionales: (p.claimsCondicionales || []).map(c => ({ claim: c.claim, status: c.status, condicion: c.condicion })),
+    disclaimers_obligatorios: { renders: p.disclaimerRenders, areas: p.disclaimerAreas, valorizacion: p.disclaimerValorizacion },
+    anti_contaminacion: { regla: p.antiContaminacion?.regla, elementos_exclusivos: { slogan: p.slogan, paleta: (p.paleta || []).filter(Boolean).join(" + "), ubicacion: `${p.sector || ""}, ${p.ciudad || ""}`, tipografia: `${p.tipoHeadlines || ""} + ${p.tipoBody || ""}` } } };
+}
+function compileBuyerPersonas(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "BuyerPersonas", version: "1.0", created: new Date().toISOString().slice(0, 10) },
+    regla_separacion: "NUNCA mezclar buyers en una misma pieza. Residencial e inversión van SEPARADOS.",
+    buyers: (p.buyers || []).map(b => ({ id: b.id, nombre_persona: b.nombre, segmento: b.segmento, tipo: b.tipo, prioridad: b.prioridad, perfil: { edad: b.edad, profesion: b.profesion, ingresos: b.ingresos, ciudad: b.ciudad || p.ciudad, estrato: b.estrato || p.estrato, ...(b.tipo === "Exterior" ? { pais_residencia: b.paisResidencia, ciudades_residencia: b.ciudadesResidencia, moneda_referencia: b.monedaRef, vinculo_ciudad: b.vinculoCiudad } : {}) }, motivaciones_compra: b.motivaciones || [], objeciones: b.tipo === "Exterior" ? b.objecionesDistancia || [] : b.objeciones || [], canales: b.tipo === "Exterior" ? b.canalesIntl || [] : b.canales || [], mensaje_clave: b.mensajeClave, hooks_efectivos: b.hooks || [], tono: b.tono })) };
+}
+function compileValueProposition(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "ValueProposition", version: "1.0", created: new Date().toISOString().slice(0, 10) },
+    proposito_proyecto: p.vpProposito, posicionamiento: p.vpPosicionamiento || p.posicionamiento,
+    value_proposition_canvas: (p.vpCanvasByBuyer || []).map(v => ({ buyer: v.buyerNombre, customer_profile: { jobs: v.jobs, pains: v.pains, gains: v.gains }, value_map: { products: v.products, pain_relievers: v.painRelievers, gain_creators: v.gainCreators }, fit_type: v.fitType, fit_resumen: v.fitResumen })),
+    diferenciadores_vs_competencia: p.vpDiferenciadores || [], mensaje_unificado_proyecto: p.vpMensajeUnificado };
+}
+function compileSegmentacion(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "Segmentacion", version: "1.0", created: new Date().toISOString().slice(0, 10) },
+    estrategia_dual: p.segEstrategia,
+    segmentos: (p.segSegmentos || []).map(s => ({ id: s.id, nombre: s.nombre, buyer_asociado: s.buyerAsociado, prioridad: s.prioridad, volumen: s.volumen, ticket_promedio: s.ticketPromedio, ciclo_venta: s.cicloVenta, motivacion_principal: s.motivacionPrincipal, contenido_por_etapa: { TOFU: s.contenidoTOFU, MOFU: s.contenidoMOFU, BOFU: s.contenidoBOFU } })),
+    matriz_prioridad: p.segMatrizPrioridad };
+}
+function compilePlanMarketing(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "PlanMarketing", version: "1.0", created: new Date().toISOString().slice(0, 10) },
+    objetivo_principal: p.pmObjetivo, estrategia: p.pmEstrategia,
+    canales: { digitales: p.pmCanalesDigitales || [], offline: p.pmCanalesOffline || [], internacionales: p.pmCanalesIntl || [] },
+    kpis_principales: (p.pmKpis || []).map(k => ({ kpi: k.kpi, meta: k.meta, frecuencia: k.frecuencia })),
+    reglas_contenido_gpt: (p.pmReglas || []).reduce((acc, r, i) => { acc[`regla_${i + 1}`] = r; return acc; }, {}) };
+}
+function compileAutoQA(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "AutoQA_Rubricas", version: "1.0", created: new Date().toISOString().slice(0, 10) },
+    instruccion_gpt: "ANTES de entregar cualquier pieza, ejecutar TODAS las rúbricas aplicables. Si algún check CRÍTICO falla, CORREGIR antes de entregar.",
+    rubricas: (p.qaRubricas || []).reduce((acc, r) => { acc[r.id] = { nombre: r.nombre, severidad: r.severidad, checks: (r.checks || []).map(c => ({ check: c, fail_action: r.failAction })) }; return acc; }, {}) };
+}
+function compileTasteProfile(p, dev) {
+  return { meta: { project: p.nombre, client: dev.nombre, file: "TasteProfile", version: "1.0", created: new Date().toISOString().slice(0, 10), note: "v1 generada desde wizard. Madura con contenido aprobado." },
+    identidad_visual: { paleta: (p.paleta || []).filter(Boolean), tipografia_headlines: p.tipoHeadlines, tipografia_body: p.tipoBody },
+    tono: { warmth: p.tono?.warmth, formality: p.tono?.formality, urgency: p.tono?.urgency, tuteo: p.tuteo, emojis: p.emojis, emojis_permitidos: p.emojisPermitidos || [] },
+    posicionamiento: p.posicionamiento,
+    regla_75_25: "75% emoción/storytelling + 25% datos/amenidades. NUNCA al revés.",
+    hooks_efectivos: (p.buyers || []).flatMap(b => b.hooks || []),
+    anti_patterns: [] };
+}
+function compilePromptMaster(dev) {
+  return { meta: { file: "PromptMaster_System", version: "1.0", created: new Date().toISOString().slice(0, 10), purpose: "Sistema maestro de prompts para generación de imágenes y video IA.", herramientas: ["Freepik (pago)", "NanoBanana (Google Gemini)", "Veo 3", "ElevenLabs Studio", "CapCut"], client: dev.nombre },
+    REGLA_1_PROMPT_MAESTRO: { instruccion: "TODO prompt de imagen o video DEBE incluir las 10 capas en este orden.", estructura_10_capas: ["1_TIPO_PIEZA: reel / estático feed / story / cover / transición / b-roll / CTA fondo", "2_TIPO_PROYECTO: VIS familiar / NO VIS urbano / campestre premium / inversionista", "3_UBICACION_CONTEXTO: ciudad, clima, entorno, estilo de vida local", "4_BUYER_PERSONA: edad, estilo vida, momento vital, género", "5_MOOD_EMOCIONAL: calma / progreso / pertenencia / confianza / familia / conexión / libertad", "6_ESTILO_VISUAL: minimal contemporáneo / cálido moderno / campestre sofisticado / urbano práctico", "7_HORA_DIA: golden hour / daylight soft / morning light / dusk / overcast natural", "8_CAMARA: drone / handheld stabilized / 35mm lens / shallow DoF / close-up / wide shot", "9_COMPOSICION: negative space for text / center-weighted / vertical 9:16 / horizontal 4:5", "10_RESTRICCIONES: no text / no logos / no distorted hands / no fake architecture / realistic Colombian context"] },
+    REGLA_2_FORMATO_HIBRIDO: { instruccion: "SIEMPRE entregar prompts en formato híbrido: contexto en español + prompt visual en inglés.", estructura: { bloque_1_contexto_espanol: "Qué proyecto, qué buyer, qué emoción, qué SÍ mostrar, qué NO mostrar", bloque_2_prompt_ingles: "Framing, lens, lighting, depth of field, realism, motion, color grading, negative space, restricciones" } },
+    REGLA_3_RENDER_VS_IA: { instruccion: "SIEMPRE especificar en el brief qué es render oficial y qué es IA.", USAR_RENDER: ["Fachada", "Interiores", "Amenidades", "Planos", "Zonas comunes", "Vista aérea"], GENERAR_CON_IA: ["Personas / lifestyle", "Transiciones", "Ambientaciones", "Fondos CTA", "B-roll", "Emociones / momentos"] },
+    REGLA_4_AUDIO: { instruccion: "Todo reel tiene specs de audio.", estructura: { voz: "ElevenLabs — voz asignada por proyecto", musica: "CapCut / Epidemic — sin copyright", sfx: "Opcionales, sutiles, complementarios" } },
+    REGLA_7_STORYTELLING: { ratio: "75% emoción + 25% datos", hook: "SIEMPRE emocional primero. NUNCA arrancar con dato, ubicación, precio o amenidad.", amenidades: "Max 2-3 por pieza, VIVIDAS en contexto. NUNCA listar como catálogo." },
+    REGLA_8_ANTI_ABREVIACION: { instruccion: "Si KAM pide +5 piezas: producir en BLOQUES de 3-4. CADA pieza debe tener TODAS las secciones COMPLETAS. NUNCA abreviar." } };
+}
+function compileGPTInstructions(p, dev) {
+  const buyers = (p.buyers || []).map(b => b.nombre || b.tipo).join(", ");
+  const amenidades = (p.amenidades || []).filter(a => a.a).map(a => a.n).join(", ");
+  const amenidadesNo = (p.amenidadesNo || []).join(", ");
+  const prohibidos = (p.claimsProhibidos || []).map(c => `"${c.claim}"`).join(", ");
+  return `Eres Focux AI, agente de producción de contenido de Focux Digital para ${p.nombre || "[PROYECTO]"} de ${dev.nombre || "[CONSTRUCTORA]"} (${p.sector || p.ciudad || "[UBICACIÓN]"}). Tu usuario es el KAM interno de Focux, NUNCA el cliente final.\n\nCONTEXTO: ${p.nombre || "[PROYECTO]"} es ${p.segmento === "VIS" ? "VIS" : "NO VIS"} estrato ${p.estrato || "[X]"}. ${p.posicionamiento || "[POSICIONAMIENTO]"}. NUNCA confundir con otros proyectos de ${dev.nombre || "la constructora"}.\n\nLEYES INQUEBRANTABLES:\n1. Sin dato verificado en archivos → [DATO_PENDIENTE]. Nunca inventar.\n2. TasteProfile manda. Lo aprobado en práctica > brandbook teórico.\n3. Norte = contenido que ${dev.nombre || "el cliente"} apruebe + inspire (residencial) o convenza (inversión) + resultados.\n4. JAMÁS mezclar buyers en una pieza de pauta.\n5. JAMÁS contaminar con otros proyectos de ${dev.nombre || "la constructora"}.\n\nARCHIVOS KNOWLEDGE — CONSULTAR SIEMPRE:\n• TasteProfile → ADN creativo. SIEMPRE PRIMERO.\n• ClaimsRegistry → Claims permitidos/prohibidos/condicionales + disclaimers.\n• ProjectFactuals → Tipologías, precios, áreas, amenidades, ubicación.\n• BuyerPersonas → ${buyers || "[PENDIENTE]"}.\n• ValueProposition → VPC por buyer. Diferenciadores.\n• Segmentacion → Segmentos, canales, TOFU/MOFU/BOFU.\n• PlanMarketing → Estrategia, funnel, contenido por buyer/etapa.\n• AutoQA_Rubricas → R1-R8 por tipo de pieza.\n• PromptMaster_System → Reglas de prompts visuales.\n\nCLAIMS Y COMPLIANCE:\n• Prohibidos: ${prohibidos || "[PENDIENTE]"}.\n• Disclaimers: renders → "${p.disclaimerRenders || "[PENDIENTE]"}". Áreas → aproximadas. Valorización → pasada no garantiza futuro.\n• Amenidades confirmadas: ${amenidades || "[PENDIENTE]"}. NO: ${amenidadesNo || "[NINGUNA DEFINIDA]"}.\n\nSTORYTELLING Y COPY:\n• Ratio: 75% emoción/storytelling + 25% datos. NUNCA al revés.\n• Hook: SIEMPRE emocional primero. NUNCA arrancar con dato.\n• Amenidades: max 2-3 por pieza, VIVIDAS en contexto. NUNCA listar.\n• Tratamiento: ${p.tuteo ? "Tuteo (tú)" : "Usted"}. Emojis: ${p.emojis === "no" ? "NO usar" : p.emojis === "minimo" ? "Mínimo" : "Sí"}.\n\nCOMPORTAMIENTO: Profesional, directo. Máx 1 pregunta antes de generar. Nunca autoidentificarse como IA. Consultar PromptMaster_System.json ANTES de generar prompts visuales.`;
+}
+function downloadProjectFiles(p, dev) {
+  const prefix = (p.nombre || "proyecto").replace(/\s+/g, "_");
+  const files = [
+    { name: `${prefix}_ProjectFactuals.json`, data: compileProjectFactuals(p, dev) },
+    { name: `${prefix}_ClaimsRegistry.json`, data: compileClaimsRegistry(p, dev) },
+    { name: `${prefix}_BuyerPersonas.json`, data: compileBuyerPersonas(p, dev) },
+    { name: `${prefix}_ValueProposition.json`, data: compileValueProposition(p, dev) },
+    { name: `${prefix}_Segmentacion.json`, data: compileSegmentacion(p, dev) },
+    { name: `${prefix}_PlanMarketing.json`, data: compilePlanMarketing(p, dev) },
+    { name: `${prefix}_AutoQA_Rubricas.json`, data: compileAutoQA(p, dev) },
+    { name: `${prefix}_TasteProfile.json`, data: compileTasteProfile(p, dev) },
+    { name: `PromptMaster_System.json`, data: compilePromptMaster(dev) },
+    { name: `${prefix}_GPT_Instructions.txt`, data: null, text: compileGPTInstructions(p, dev) },
+  ];
+  files.forEach(f => {
+    const content = f.text || JSON.stringify(f.data, null, 2);
+    const blob = new Blob([content], { type: f.text ? "text/plain" : "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = f.name; a.click();
+  });
+}
+
 /* ═══ CLIENT HOME ═══ */
 function ClientHome({ clients, onSelect, onNew, onImport, onDelete, onExport }) {
   const handleFile = e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { try { onImport(JSON.parse(ev.target.result)); } catch { alert("JSON inválido"); } }; r.readAsText(f); e.target.value = ""; };
@@ -1244,7 +1338,7 @@ COMPORTAMIENTO: Profesional, directo. Máx 1 pregunta antes de generar. Nunca au
             <p style={{ margin: 0, color: tk.textTer, fontSize: 13 }}>Descarga todos los archivos listos para crear GPTs</p>
           </div>
 
-          <InfoBox type="info">Cada proyecto genera 8 archivos JSON + 1 system prompt. Para {(d.projects||[]).length} proyectos = {(d.projects||[]).length * 9} archivos totales.</InfoBox>
+          <InfoBox type="info">Cada proyecto genera 8 archivos JSON + PromptMaster + GPT Instructions = 10 archivos. Para {(d.projects||[]).length} proyectos = {(d.projects||[]).length * 10} archivos totales.</InfoBox>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
             <button onClick={() => {
@@ -1257,15 +1351,9 @@ COMPORTAMIENTO: Profesional, directo. Máx 1 pregunta antes de generar. Nunca au
               📦 Descargar Todo (JSON Completo)
             </button>
             <button onClick={() => {
-              (d.projects || []).forEach(p => {
-                const projectData = { meta: { project: p.nombre, client: d.nombre, exported: new Date().toISOString() }, ...p };
-                const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: "application/json" });
-                const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-                a.download = `${(p.nombre || "proyecto").replace(/\s+/g, "_")}_knowledge.json`;
-                a.click();
-              });
+              (d.projects || []).forEach(p => downloadProjectFiles(p, d));
             }} style={{ padding: "16px 24px", borderRadius: 12, border: `1.5px solid ${tk.border}`, background: tk.card, color: tk.text, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: font, textAlign: "center" }}>
-              📁 Descargar por Proyecto
+              📁 Descargar por Proyecto (10 archivos c/u)
             </button>
           </div>
 
@@ -1277,7 +1365,10 @@ COMPORTAMIENTO: Profesional, directo. Máx 1 pregunta antes de generar. Nunca au
                 <span style={{ fontWeight: 600, color: tk.navy, fontSize: 13 }}>{p.nombre || "Sin nombre"}</span>
                 <span style={{ marginLeft: 8, fontSize: 11, color: tk.textTer }}>{p.ciudad || "—"} · {p.segmento}</span>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: ok ? tk.green : tk.amber }}>{ok ? "✅ Listo" : "⚠️ Incompleto"}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => downloadProjectFiles(p, d)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${tk.border}`, background: tk.bg, fontSize: 11, color: tk.accent, cursor: "pointer", fontFamily: font, fontWeight: 600 }}>📥 10 archivos</button>
+                <span style={{ fontSize: 12, fontWeight: 600, color: ok ? tk.green : tk.amber }}>{ok ? "✅ Listo" : "⚠️ Incompleto"}</span>
+              </div>
             </div>);
           })}
 
