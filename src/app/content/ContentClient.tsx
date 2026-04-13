@@ -63,6 +63,14 @@ const NEW_PROJECT = () => ({
   tono: { warmth: 5, formality: 5, urgency: 3 },
   tuteo: true, emojis: "no", emojisPermitidos: [], posicionamiento: "",
   whatsapp: "", telefono: "", horarioSala: "", disclaimer: "",
+  // 1.4 Claims
+  claimsPermitidos: [], claimsProhibidos: [], claimsCondicionales: [],
+  disclaimerRenders: "Las imágenes y planos son representación artística del proyecto. Pueden representar diferencias en acabados, especificaciones, elementos, formas, medidas y texturas.",
+  disclaimerAreas: "Las áreas presentadas son aproximadas y pueden variar por procesos constructivos.",
+  disclaimerValorizacion: "La valorización pasada no garantiza resultados futuros.",
+  antiContaminacion: { regla: "NUNCA usar datos, slogans, paleta, ubicación o amenidades de otros proyectos de la constructora.", elementosExclusivos: "" },
+  // 1.5 Buyers
+  buyers: [], buyersGenStatus: "idle",
 });
 
 const INIT = {
@@ -465,6 +473,194 @@ function P13({ p, up }) {
   </div>);
 }
 
+/* ═══ STEP 1.4: CLAIMS & COMPLIANCE ═══ */
+function P14({ p, up }) {
+  const cp = p.claimsPermitidos || [];
+  const addCp = () => up("claimsPermitidos", [...cp, { claim: "", fuente: "", condicion: "" }]);
+  const upCp = (i, f, v) => { const n = [...cp]; n[i] = { ...n[i], [f]: v }; up("claimsPermitidos", n); };
+  const rmCp = i => { const n = [...cp]; n.splice(i, 1); up("claimsPermitidos", n); };
+
+  const pr = p.claimsProhibidos || [];
+  const addPr = () => up("claimsProhibidos", [...pr, { claim: "", razon: "", severidad: "ALTA" }]);
+  const upPr = (i, f, v) => { const n = [...pr]; n[i] = { ...n[i], [f]: v }; up("claimsProhibidos", n); };
+  const rmPr = i => { const n = [...pr]; n.splice(i, 1); up("claimsProhibidos", n); };
+
+  const co = p.claimsCondicionales || [];
+  const addCo = () => up("claimsCondicionales", [...co, { claim: "", status: "VERIFICAR", condicion: "" }]);
+  const upCo = (i, f, v) => { const n = [...co]; n[i] = { ...n[i], [f]: v }; up("claimsCondicionales", n); };
+  const rmCo = i => { const n = [...co]; n.splice(i, 1); up("claimsCondicionales", n); };
+
+  const TableRow = ({ items, cols, onUp, onRm }) => items.map((item, i) => (
+    <tr key={i} style={{ borderBottom: `1px solid ${tk.borderLight}` }}>
+      {cols.map(c => <td key={c.k} style={{ padding: 4 }}>
+        {c.type === "select" ? <select value={item[c.k]} onChange={e => onUp(i, c.k, e.target.value)} style={{ ...ss.input, padding: "6px 8px", fontSize: 12 }}>
+          {c.opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select> : <input value={item[c.k] || ""} onChange={e => onUp(i, c.k, e.target.value)} placeholder={c.ph} style={{ ...ss.input, padding: "6px 8px", fontSize: 12, minWidth: c.w || 120 }} />}
+      </td>)}
+      <td style={{ padding: 4 }}><button onClick={() => onRm(i)} style={{ background: "none", border: "none", color: tk.textTer, cursor: "pointer", fontSize: 16 }} onMouseOver={e => e.target.style.color = tk.red} onMouseOut={e => e.target.style.color = tk.textTer}>×</button></td>
+    </tr>
+  ));
+
+  const AddRow = ({ onClick, label }) => <button onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "10px", background: tk.bg, border: `1.5px dashed ${tk.border}`, borderRadius: 10, color: tk.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: font, marginBottom: 16, marginTop: 8 }}>+ {label}</button>;
+
+  return (<div>
+    <InfoBox type="warn">Este paso es CRÍTICO. Los claims prohibidos se verifican automáticamente en cada pieza de contenido generada. Un error aquí = contenido que no pasa QA.</InfoBox>
+
+    <SectionHead sub="Datos verificados que el GPT puede usar libremente">Claims Permitidos ({cp.length})</SectionHead>
+    {cp.length > 0 && <div style={{ overflowX: "auto", marginBottom: 4 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead><tr style={{ background: tk.bg }}>
+          {["Claim", "Fuente", "Condición", ""].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 600, color: tk.navy, borderBottom: `2px solid ${tk.border}`, fontSize: 11 }}>{h}</th>)}
+        </tr></thead>
+        <tbody><TableRow items={cp} cols={[
+          { k: "claim", ph: "Apartamentos desde $393M", w: 200 },
+          { k: "fuente", ph: "Landing + Presentación", w: 140 },
+          { k: "condicion", ph: "Verificar vigencia (vacío = sin condición)", w: 180 },
+        ]} onUp={upCp} onRm={rmCp} /></tbody>
+      </table>
+    </div>}
+    <AddRow onClick={addCp} label="Agregar claim permitido" />
+
+    <SectionHead sub="Cosas que el GPT NUNCA debe decir">Claims Prohibidos ({pr.length})</SectionHead>
+    {pr.length > 0 && <div style={{ overflowX: "auto", marginBottom: 4 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead><tr style={{ background: tk.redBg }}>
+          {["Claim PROHIBIDO", "Razón", "Severidad", ""].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 600, color: tk.red, borderBottom: `2px solid ${tk.red}30`, fontSize: 11 }}>{h}</th>)}
+        </tr></thead>
+        <tbody><TableRow items={pr} cols={[
+          { k: "claim", ph: "Rentabilidad garantizada", w: 200 },
+          { k: "razon", ph: "Compliance legal", w: 160 },
+          { k: "severidad", type: "select", opts: ["CRÍTICA", "ALTA"] },
+        ]} onUp={upPr} onRm={rmPr} /></tbody>
+      </table>
+    </div>}
+    <AddRow onClick={addPr} label="Agregar claim prohibido" />
+
+    <SectionHead sub="Claims que requieren verificación antes de usar">Claims Condicionales ({co.length})</SectionHead>
+    {co.length > 0 && <div style={{ overflowX: "auto", marginBottom: 4 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead><tr style={{ background: tk.amberBg }}>
+          {["Claim", "Status", "Condición de uso", ""].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 600, color: tk.amber, borderBottom: `2px solid ${tk.amber}30`, fontSize: 11 }}>{h}</th>)}
+        </tr></thead>
+        <tbody><TableRow items={co} cols={[
+          { k: "claim", ph: "Precio desde $360M", w: 200 },
+          { k: "status", type: "select", opts: ["VERIFICAR", "APROBADO", "RECHAZADO"] },
+          { k: "condicion", ph: "Verificar vigencia con equipo comercial", w: 200 },
+        ]} onUp={upCo} onRm={rmCo} /></tbody>
+      </table>
+    </div>}
+    <AddRow onClick={addCo} label="Agregar claim condicional" />
+
+    <SectionHead sub="Se incluyen automáticamente cuando aplica">Disclaimers Obligatorios</SectionHead>
+    <Inp label="Disclaimer renders" value={p.disclaimerRenders} onChange={v => up("disclaimerRenders", v)} note="Se agrega cuando la pieza usa renders o imágenes del proyecto" />
+    <Inp label="Disclaimer áreas" value={p.disclaimerAreas} onChange={v => up("disclaimerAreas", v)} note="Se agrega cuando se mencionan áreas o m²" />
+    <Inp label="Disclaimer valorización" value={p.disclaimerValorizacion} onChange={v => up("disclaimerValorizacion", v)} note="Se agrega cuando se menciona valorización" />
+
+    <SectionHead sub="Elementos que son EXCLUSIVOS de este proyecto y no se pueden mezclar con otros">Anti-Contaminación</SectionHead>
+    <Inp label="Regla general" value={p.antiContaminacion?.regla} onChange={v => up("antiContaminacion", { ...p.antiContaminacion, regla: v })} />
+    <Inp label="Elementos exclusivos" value={p.antiContaminacion?.elementosExclusivos} onChange={v => up("antiContaminacion", { ...p.antiContaminacion, elementosExclusivos: v })} placeholder="Slogan: 'Conéctate con el buen vivir' / Paleta: #D4B276 + #4A5349 / Ubicación: Sector Milán" note="Slogan, paleta, ubicación, tipografía — todo lo que NO se puede usar en otro proyecto" />
+  </div>);
+}
+
+/* ═══ STEP 1.5: BUYER PERSONAS ═══ */
+function P15({ p, up }) {
+  const buyers = p.buyers || [];
+  const addBuyer = (type) => {
+    const templates = {
+      residencial: { id: genId(), tipo: "Residencial", nombre: "", segmento: "Residencial", prioridad: 1, edad: "", profesion: "", ingresos: "", ciudad: "", estrato: "", motivaciones: [], objeciones: [], canales: [], mensajeClave: "", hooks: [], tono: "" },
+      inversionista: { id: genId(), tipo: "Inversionista", nombre: "", segmento: "Inversionista Patrimonial", prioridad: 2, edad: "", profesion: "", ingresos: "", ciudad: "", estrato: "", motivaciones: [], objeciones: [], canales: [], mensajeClave: "", hooks: [], tono: "" },
+      exterior: { id: genId(), tipo: "Exterior", nombre: "", segmento: "Colombiano en el Exterior", prioridad: 3, edad: "", paisResidencia: "", ciudadesResidencia: "", monedaRef: "USD", vinculoCiudad: "", motivaciones: [], objecionesDistancia: [], canalesIntl: [], mensajeClave: "", hooks: [], tono: "" },
+    };
+    up("buyers", [...buyers, templates[type]]);
+  };
+  const upBuyer = (i, f, v) => { const n = [...buyers]; n[i] = { ...n[i], [f]: v }; up("buyers", n); };
+  const rmBuyer = i => { const n = [...buyers]; n.splice(i, 1); up("buyers", n); };
+
+  const handleGenerate = () => {
+    up("buyersGenStatus", "generating");
+    // TODO: Claude API call to generate buyers from project data
+    setTimeout(() => {
+      const generated = [
+        { id: genId(), tipo: "Residencial", nombre: `${p.nombre || "Proyecto"} — Residencial`, segmento: "Residencial", prioridad: 1, edad: "30-50", profesion: "Profesional / Ejecutivo", ingresos: "$8-20M", ciudad: p.ciudad || "", estrato: p.estrato || "", motivaciones: ["Ubicación", "Calidad de vida", "Zonas comunes", "Valorización"], objeciones: ["Precio vs competencia", "Tiempos de entrega", "Acabados"], canales: ["Pauta digital", "Referidos", "Sala de ventas"], mensajeClave: `Vive en ${p.sector || p.ciudad || "la mejor ubicación"} con todo lo que necesitas.`, hooks: [`Vivir bien es [beneficio]`, `Tu nuevo hogar en ${p.sector || p.ciudad || "..."}`], tono: "Cálido, cercano, aspiracional" },
+        { id: genId(), tipo: "Inversionista", nombre: `${p.nombre || "Proyecto"} — Inversionista`, segmento: "Inversionista Patrimonial", prioridad: 2, edad: "35-60", profesion: "Empresario / Inversionista", ingresos: "$20M+", ciudad: p.ciudad || "", estrato: p.estrato || "", motivaciones: ["Valorización del sector", "Demanda de arriendo", "Respaldo constructora", "Diversificación"], objeciones: ["Rentabilidad esperada", "Vacancia", "Comparación con otros activos"], canales: ["Brokers", "LinkedIn", "Ferias inmobiliarias"], mensajeClave: `Invierte en ${p.sector || p.ciudad || "zona consolidada"} con respaldo de trayectoria.`, hooks: ["Invertir bien no es suerte: es criterio", "Un activo que se valoriza solo"], tono: "Directo, racional, con datos" },
+        { id: genId(), tipo: "Exterior", nombre: `${p.nombre || "Proyecto"} — Colombiano Exterior`, segmento: "Colombiano en el Exterior", prioridad: 3, edad: "35-60", paisResidencia: "USA, España", ciudadesResidencia: "Miami, Madrid, New York", monedaRef: "USD", vinculoCiudad: p.ciudad || "", motivaciones: ["Inversión segura en Colombia", "Valor patrimonial", "Uso futuro o arriendo"], objecionesDistancia: ["Distancia física", "Necesidad de acompañamiento remoto", "Desconfianza por no poder visitar"], canalesIntl: ["Pauta geolocalizada", "Portales internacionales", "Brokers"], mensajeClave: `Tu inversión en Colombia, desde donde estés.`, hooks: ["Invierte desde donde estés", "Colombia te espera con valorización real"], tono: "Confiable, datos de respaldo, reduce fricción de distancia" },
+      ];
+      up("buyers", generated);
+      up("buyersGenStatus", "done");
+    }, 2500);
+  };
+
+  const buyerColors = { Residencial: tk.accent, Inversionista: tk.cyan, Exterior: tk.green };
+
+  return (<div>
+    <InfoBox type="info">Regla estructural: cada proyecto genera MÍNIMO 3 buyer personas — Residencial, Inversionista y Colombiano en el Exterior. NUNCA mezclar buyers en una misma pieza de contenido.</InfoBox>
+
+    {/* Generate button */}
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+      <button onClick={handleGenerate} disabled={p.buyersGenStatus === "generating"} style={{
+        padding: "12px 24px", borderRadius: 8, border: "none",
+        background: p.buyersGenStatus === "done" ? tk.green : `linear-gradient(135deg, ${tk.purple}, ${tk.cyan})`,
+        color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 700, fontFamily: font,
+        boxShadow: "0 2px 12px rgba(100,16,247,0.3)", display: "flex", alignItems: "center", gap: 10,
+      }}>
+        {p.buyersGenStatus === "generating" ? <><span style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite", display: "inline-block" }} /> Claude está generando buyers...</>
+          : p.buyersGenStatus === "done" ? <>✅ Buyers generados — Edita y valida</>
+          : <>🤖 Generar Buyer Personas con IA</>}
+      </button>
+      {buyers.length === 0 && p.buyersGenStatus === "idle" && <span style={{ fontSize: 12, color: tk.textTer }}>Claude analiza los datos del proyecto y genera 3 buyers automáticamente</span>}
+    </div>
+    {p.buyersGenStatus === "done" && <InfoBox type="success">Buyers generados por IA. Revisa, edita y ajusta según tu conocimiento del mercado. Los datos se usan en las instrucciones del GPT.</InfoBox>}
+
+    {/* Manual add */}
+    {buyers.length > 0 && <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <button onClick={() => addBuyer("residencial")} style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${tk.border}`, background: tk.bg, fontSize: 11, color: tk.textSec, cursor: "pointer", fontFamily: font }}>+ Residencial</button>
+      <button onClick={() => addBuyer("inversionista")} style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${tk.border}`, background: tk.bg, fontSize: 11, color: tk.textSec, cursor: "pointer", fontFamily: font }}>+ Inversionista</button>
+      <button onClick={() => addBuyer("exterior")} style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${tk.border}`, background: tk.bg, fontSize: 11, color: tk.textSec, cursor: "pointer", fontFamily: font }}>+ Exterior</button>
+    </div>}
+
+    {/* Buyer cards */}
+    {buyers.map((b, i) => {
+      const bc = buyerColors[b.tipo] || tk.accent;
+      return (
+        <div key={b.id} style={{ border: `1px solid ${tk.border}`, borderRadius: 12, padding: 20, marginBottom: 16, borderLeft: `4px solid ${bc}`, background: tk.card }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <div>
+              <span style={{ padding: "2px 10px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: bc + "18", color: bc, marginBottom: 4, display: "inline-block" }}>{b.tipo}</span>
+              <h4 style={{ margin: "4px 0 0", color: tk.navy, fontSize: 14, fontWeight: 700 }}>{b.nombre || `Buyer ${i + 1}`}</h4>
+            </div>
+            <button onClick={() => rmBuyer(i)} style={{ background: "none", border: "none", color: tk.textTer, cursor: "pointer", fontSize: 18 }} onMouseOver={e => e.target.style.color = tk.red} onMouseOut={e => e.target.style.color = tk.textTer}>×</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+            <Inp label="Nombre del buyer" value={b.nombre} onChange={v => upBuyer(i, "nombre", v)} placeholder="Sebastián — Milán Residencial" />
+            <Inp label="Segmento" value={b.segmento} onChange={v => upBuyer(i, "segmento", v)} placeholder="Residencial Consolidado" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 16px" }}>
+            <Inp label="Edad" value={b.edad} onChange={v => upBuyer(i, "edad", v)} placeholder="30-50 años" />
+            <Inp label={b.tipo === "Exterior" ? "País residencia" : "Profesión"} value={b.tipo === "Exterior" ? b.paisResidencia : b.profesion} onChange={v => upBuyer(i, b.tipo === "Exterior" ? "paisResidencia" : "profesion", v)} placeholder={b.tipo === "Exterior" ? "USA, España" : "Profesional / Ejecutivo"} />
+            <Inp label={b.tipo === "Exterior" ? "Ciudades residencia" : "Ingresos"} value={b.tipo === "Exterior" ? b.ciudadesResidencia : b.ingresos} onChange={v => upBuyer(i, b.tipo === "Exterior" ? "ciudadesResidencia" : "ingresos", v)} placeholder={b.tipo === "Exterior" ? "Miami, Madrid" : "$8-20M"} />
+          </div>
+
+          <ChipEditor label="Motivaciones de compra" items={b.motivaciones || []} onChange={v => upBuyer(i, "motivaciones", v)} placeholder="Ubicación, Valorización, Calidad de vida..." />
+          <ChipEditor label={b.tipo === "Exterior" ? "Objeciones de distancia" : "Objeciones"} items={b.tipo === "Exterior" ? (b.objecionesDistancia || []) : (b.objeciones || [])} onChange={v => upBuyer(i, b.tipo === "Exterior" ? "objecionesDistancia" : "objeciones", v)} placeholder="Precio vs competencia, Tiempos de entrega..." />
+          <ChipEditor label={b.tipo === "Exterior" ? "Canales internacionales" : "Canales"} items={b.tipo === "Exterior" ? (b.canalesIntl || []) : (b.canales || [])} onChange={v => upBuyer(i, b.tipo === "Exterior" ? "canalesIntl" : "canales", v)} placeholder="Pauta digital, Referidos, Sala de ventas..." />
+
+          <Inp label="Mensaje clave" value={b.mensajeClave} onChange={v => upBuyer(i, "mensajeClave", v)} placeholder="Vive en el corazón de Milán con comodidad y calidad de vida" />
+          <ChipEditor label="Hooks efectivos" items={b.hooks || []} onChange={v => upBuyer(i, "hooks", v)} placeholder="Vivir bien es [beneficio]..." />
+          <Inp label="Tono" value={b.tono} onChange={v => upBuyer(i, "tono", v)} placeholder="Cálido, cercano, aspiracional" />
+
+          {b.tipo === "Exterior" && <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+              <Inp label="Moneda referencia" value={b.monedaRef} onChange={v => upBuyer(i, "monedaRef", v)} placeholder="USD" />
+              <Inp label="Vínculo con la ciudad" value={b.vinculoCiudad} onChange={v => upBuyer(i, "vinculoCiudad", v)} placeholder="Familia en Bogotá, nacido en Manizales" />
+            </div>
+          </>}
+        </div>
+      );
+    })}
+  </div>);
+}
+
 /* ═══ STEP PLACEHOLDER ═══ */
 function StepPlaceholder({ step }) {
   return (<div style={{ textAlign: "center", padding: "60px 20px" }}>
@@ -616,7 +812,7 @@ export default function ContentWizard() {
   const deleteProject = pid => u("projects", (d.projects || []).filter(p => p.id !== pid));
   const ps = ap?.step || 0;
   const setPs = s => updateProject(d.activeProjectId, "step", s);
-  const pComps = [P11, P12, P13];
+  const pComps = [P11, P12, P13, P14, P15];
 
   return (<div style={{ fontFamily: font, background: tk.bg, minHeight: "100vh", color: tk.text }}>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}} @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
