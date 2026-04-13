@@ -1105,6 +1105,14 @@ export default function ContentWizard() {
             <span style={{ fontSize: 14, width: 22, textAlign: "center" }}>🏠</span>
             <p style={{ margin: 0, fontSize: 11, fontWeight: d.view === "projects" ? 700 : 500, color: d.view === "projects" ? tk.navy : tk.textSec }}>Proyectos ({(d.projects || []).length})</p>
           </button>
+          {/* Phase 2 */}
+          <div style={{ padding: "12px 16px 4px", fontSize: 10, fontWeight: 700, color: tk.green, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 8, borderTop: `1px solid ${tk.borderLight}` }}>Fase 2 — Generación</div>
+          {[{ v: "review", i: "👁️", t: "Revisión" }, { v: "gpt", i: "🤖", t: "Instrucciones GPT" }, { v: "export", i: "🚀", t: "Export / Deploy" }].map(s => (
+            <button key={s.v} onClick={() => u("view", s.v)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 16px", background: d.view === s.v ? tk.accentLight : "transparent", border: "none", cursor: "pointer", textAlign: "left", borderRight: d.view === s.v ? `3px solid ${tk.accent}` : "3px solid transparent" }}>
+              <span style={{ fontSize: 14, width: 22, textAlign: "center" }}>{s.i}</span>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: d.view === s.v ? 700 : 500, color: d.view === s.v ? tk.navy : tk.textSec }}>{s.t}</p>
+            </button>
+          ))}
         </>)}
       </div>
 
@@ -1123,7 +1131,167 @@ export default function ContentWizard() {
           </div>
         </>) : d.view === "projects" ? (
           <ProjectsHome projects={d.projects || []} onSelect={enterProject} onNew={addProject} onDelete={deleteProject} name={d.nombre || "Constructora"} />
-        ) : (<>
+
+        ) : d.view === "review" ? (<>
+          {/* ═══ FASE 2.1: REVIEW & PREVIEW ═══ */}
+          <div style={{ marginBottom: 24 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: tk.green, textTransform: "uppercase", letterSpacing: "0.06em" }}>Fase 2 — Generación</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, marginBottom: 4 }}><span style={{ fontSize: 22 }}>👁️</span><h2 style={{ margin: 0, color: tk.navy, fontSize: 22, fontWeight: 800 }}>Revisión y Preview</h2></div>
+            <p style={{ margin: 0, color: tk.textTer, fontSize: 13 }}>Dashboard de completitud por proyecto y archivos generados</p>
+          </div>
+          {(d.projects || []).length === 0 ? (
+            <InfoBox type="warn">No hay proyectos configurados. Agrega al menos un proyecto en la Fase 1 antes de revisar.</InfoBox>
+          ) : (
+            <div>
+              {(d.projects || []).map(p => {
+                const jsonFiles = ["ProjectFactuals", "ClaimsRegistry", "BuyerPersonas", "ValueProposition", "Segmentacion", "PlanMarketing", "AutoQA_Rubricas", "TasteProfile"];
+                const filled = [p.nombre, p.ciudad, p.precioDesde, (p.buyers||[]).length > 0, (p.claimsProhibidos||[]).length > 0, (p.vpCanvasByBuyer||[]).length > 0, (p.segSegmentos||[]).length > 0, p.pmObjetivo, (p.qaRubricas||[]).length > 0].filter(Boolean).length;
+                const pct = Math.round((filled / 9) * 100);
+                return (
+                  <div key={p.id} style={{ border: `1px solid ${tk.border}`, borderRadius: 12, padding: 20, marginBottom: 16, background: tk.card }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <div>
+                        <h3 style={{ margin: 0, color: tk.navy, fontSize: 16, fontWeight: 700 }}>{p.nombre || "Sin nombre"}</h3>
+                        <p style={{ margin: "2px 0 0", fontSize: 12, color: tk.textTer }}>{p.ciudad || "—"} · {p.segmento}</p>
+                      </div>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: pct === 100 ? tk.green : pct > 50 ? tk.amber : tk.red }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 3, background: tk.borderLight, marginBottom: 12 }}>
+                      <div style={{ height: 6, borderRadius: 3, background: pct === 100 ? tk.green : pct > 50 ? tk.amber : tk.accent, width: `${pct}%`, transition: "width 0.3s" }} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                      {jsonFiles.map(f => {
+                        const ok = f === "ProjectFactuals" ? !!p.nombre : f === "ClaimsRegistry" ? (p.claimsProhibidos||[]).length > 0 : f === "BuyerPersonas" ? (p.buyers||[]).length > 0 : f === "ValueProposition" ? (p.vpCanvasByBuyer||[]).length > 0 : f === "Segmentacion" ? (p.segSegmentos||[]).length > 0 : f === "PlanMarketing" ? !!p.pmObjetivo : f === "AutoQA_Rubricas" ? (p.qaRubricas||[]).length > 0 : f === "TasteProfile" ? !!p.posicionamiento : false;
+                        return (<div key={f} style={{ padding: "8px 10px", borderRadius: 8, background: ok ? tk.greenBg : tk.bg, border: `1px solid ${ok ? tk.green + "30" : tk.border}`, fontSize: 11, color: ok ? tk.green : tk.textTer }}>
+                          <span style={{ marginRight: 4 }}>{ok ? "✅" : "⬜"}</span>{f.replace("_", " ")}
+                        </div>);
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </>) : d.view === "gpt" ? (<>
+          {/* ═══ FASE 2.2: GPT INSTRUCTIONS ═══ */}
+          <div style={{ marginBottom: 24 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: tk.green, textTransform: "uppercase", letterSpacing: "0.06em" }}>Fase 2 — Generación</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, marginBottom: 4 }}><span style={{ fontSize: 22 }}>🤖</span><h2 style={{ margin: 0, color: tk.navy, fontSize: 22, fontWeight: 800 }}>Instrucciones GPT</h2></div>
+            <p style={{ margin: 0, color: tk.textTer, fontSize: 13 }}>System prompt compilado automáticamente desde los datos del wizard</p>
+          </div>
+          {(d.projects || []).length === 0 ? (
+            <InfoBox type="warn">No hay proyectos. Agrega al menos uno.</InfoBox>
+          ) : (
+            <div>
+              {(d.projects || []).map(p => {
+                const buyers = (p.buyers || []).map(b => `${b.nombre || b.tipo}`).join(", ");
+                const amenidades = (p.amenidades || []).filter(a => a.a).map(a => a.n).join(", ");
+                const amenidadesNo = (p.amenidadesNo || []).join(", ");
+                const prohibidos = (p.claimsProhibidos || []).map(c => `"${c.claim}"`).join(", ");
+                const instructions = `Eres Focux AI, agente de producción de contenido de Focux Digital para ${p.nombre || "[PROYECTO]"} de ${d.nombre || "[CONSTRUCTORA]"} (${p.sector || p.ciudad || "[UBICACIÓN]"}). Tu usuario es el KAM interno de Focux, NUNCA el cliente final.
+
+CONTEXTO: ${p.nombre || "[PROYECTO]"} es ${p.segmento === "VIS" ? "VIS" : "NO VIS"} estrato ${p.estrato || "[X]"}. ${p.posicionamiento || "[POSICIONAMIENTO]"}. NUNCA confundir con otros proyectos de ${d.nombre || "la constructora"}.
+
+LEYES INQUEBRANTABLES:
+1. Sin dato verificado en archivos → [DATO_PENDIENTE]. Nunca inventar.
+2. TasteProfile manda. Lo aprobado en práctica > brandbook teórico.
+3. Norte = contenido que ${d.nombre || "el cliente"} apruebe + inspire (residencial) o convenza (inversión) + resultados.
+4. JAMÁS mezclar buyers en una pieza de pauta.
+5. JAMÁS contaminar con otros proyectos de ${d.nombre || "la constructora"}.
+
+ARCHIVOS KNOWLEDGE — CONSULTAR SIEMPRE:
+• TasteProfile → ADN creativo. SIEMPRE PRIMERO.
+• ClaimsRegistry → Claims permitidos/prohibidos/condicionales + disclaimers.
+• ProjectFactuals → Tipologías, precios, áreas, amenidades, ubicación.
+• BuyerPersonas → ${buyers || "[PENDIENTE]"}.
+• ValueProposition → VPC por buyer. Diferenciadores.
+• Segmentacion → Segmentos, canales, TOFU/MOFU/BOFU.
+• PlanMarketing → Estrategia, funnel, contenido por buyer/etapa.
+• AutoQA_Rubricas → R1-R8 por tipo de pieza.
+
+CLAIMS Y COMPLIANCE:
+• Prohibidos: ${prohibidos || "[PENDIENTE]"}.
+• Disclaimers: renders → "${p.disclaimerRenders || "[PENDIENTE]"}". Áreas → aproximadas. Valorización → pasada no garantiza futuro.
+• Amenidades confirmadas: ${amenidades || "[PENDIENTE]"}. NO: ${amenidadesNo || "[NINGUNA DEFINIDA]"}.
+
+STORYTELLING Y COPY:
+• Ratio: 75% emoción/storytelling + 25% datos/amenidades. NUNCA al revés.
+• Hook: SIEMPRE emocional primero. NUNCA arrancar con dato.
+• Amenidades: max 2-3 por pieza, VIVIDAS en contexto. NUNCA listar como catálogo.
+• Tratamiento: ${p.tuteo ? "Tuteo (tú)" : "Usted"}. Emojis: ${p.emojis === "no" ? "NO usar" : p.emojis === "minimo" ? "Mínimo (1-2)" : "Sí, usar"}.
+
+COMPORTAMIENTO: Profesional, directo. Máx 1 pregunta antes de generar. Nunca autoidentificarse como IA. Entregables visuales ejecutados por diseñadora senior.`;
+
+                return (
+                  <div key={p.id} style={{ marginBottom: 24 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <h3 style={{ margin: 0, color: tk.navy, fontSize: 15, fontWeight: 700 }}>{p.nombre || "Sin nombre"}</h3>
+                      <button onClick={() => { navigator.clipboard.writeText(instructions); }} style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${tk.border}`, background: tk.bg, fontSize: 11, color: tk.textSec, cursor: "pointer", fontFamily: font, fontWeight: 600 }}>📋 Copiar</button>
+                    </div>
+                    <pre style={{ padding: 16, background: tk.bg, borderRadius: 10, border: `1px solid ${tk.border}`, fontSize: 11, lineHeight: 1.6, color: tk.text, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 400, overflow: "auto", fontFamily: "monospace" }}>{instructions}</pre>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </>) : d.view === "export" ? (<>
+          {/* ═══ FASE 2.3: EXPORT / DEPLOY ═══ */}
+          <div style={{ marginBottom: 24 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: tk.green, textTransform: "uppercase", letterSpacing: "0.06em" }}>Fase 2 — Generación</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, marginBottom: 4 }}><span style={{ fontSize: 22 }}>🚀</span><h2 style={{ margin: 0, color: tk.navy, fontSize: 22, fontWeight: 800 }}>Export / Deploy</h2></div>
+            <p style={{ margin: 0, color: tk.textTer, fontSize: 13 }}>Descarga todos los archivos listos para crear GPTs</p>
+          </div>
+
+          <InfoBox type="info">Cada proyecto genera 8 archivos JSON + 1 system prompt. Para {(d.projects||[]).length} proyectos = {(d.projects||[]).length * 9} archivos totales.</InfoBox>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+            <button onClick={() => {
+              const allData = { constructora: { nombre: d.nombre, sede: d.sede, website: d.website, slogan: d.slogan }, projects: (d.projects || []).map(p => ({ nombre: p.nombre, ciudad: p.ciudad, segmento: p.segmento })), exportDate: new Date().toISOString() };
+              const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+              const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+              a.download = `FocuxAI_Content_${(d.nombre || "export").replace(/\s+/g, "_")}_COMPLETE_${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+            }} style={{ padding: "16px 24px", borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${tk.purple}, ${tk.cyan})`, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: font, boxShadow: "0 4px 16px rgba(100,16,247,0.3)", textAlign: "center" }}>
+              📦 Descargar Todo (JSON Completo)
+            </button>
+            <button onClick={() => {
+              (d.projects || []).forEach(p => {
+                const projectData = { meta: { project: p.nombre, client: d.nombre, exported: new Date().toISOString() }, ...p };
+                const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: "application/json" });
+                const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+                a.download = `${(p.nombre || "proyecto").replace(/\s+/g, "_")}_knowledge.json`;
+                a.click();
+              });
+            }} style={{ padding: "16px 24px", borderRadius: 12, border: `1.5px solid ${tk.border}`, background: tk.card, color: tk.text, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: font, textAlign: "center" }}>
+              📁 Descargar por Proyecto
+            </button>
+          </div>
+
+          <SectionHead>Proyectos incluidos</SectionHead>
+          {(d.projects || []).map(p => {
+            const ok = !!(p.nombre && p.ciudad && (p.buyers||[]).length > 0);
+            return (<div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", border: `1px solid ${tk.border}`, borderRadius: 8, marginBottom: 8, background: tk.card }}>
+              <div>
+                <span style={{ fontWeight: 600, color: tk.navy, fontSize: 13 }}>{p.nombre || "Sin nombre"}</span>
+                <span style={{ marginLeft: 8, fontSize: 11, color: tk.textTer }}>{p.ciudad || "—"} · {p.segmento}</span>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: ok ? tk.green : tk.amber }}>{ok ? "✅ Listo" : "⚠️ Incompleto"}</span>
+            </div>);
+          })}
+
+          <div style={{ marginTop: 24, padding: 20, background: tk.bg, borderRadius: 12, border: `1px solid ${tk.border}` }}>
+            <h4 style={{ margin: "0 0 8px", color: tk.navy, fontSize: 14, fontWeight: 700 }}>Próximos pasos</h4>
+            <div style={{ fontSize: 13, color: tk.textSec, lineHeight: 1.8 }}>
+              <p style={{ margin: "0 0 4px" }}>1. Descarga los archivos JSON</p>
+              <p style={{ margin: "0 0 4px" }}>2. Crea un Custom GPT en ChatGPT por proyecto</p>
+              <p style={{ margin: "0 0 4px" }}>3. Copia las instrucciones GPT (paso anterior) como System Prompt</p>
+              <p style={{ margin: "0 0 4px" }}>4. Sube los JSONs como Knowledge files del GPT</p>
+              <p style={{ margin: 0 }}>5. Prueba con un brief real y valida la calidad del output</p>
+            </div>
+          </div>
+        </>) : (<>
           <div style={{ marginBottom: 24 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: tk.purple, textTransform: "uppercase", letterSpacing: "0.06em" }}>Fase 0 — Constructora</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, marginBottom: 4 }}><span style={{ fontSize: 22 }}>{PHASE0_STEPS[d.step]?.i}</span><h2 style={{ margin: 0, color: tk.navy, fontSize: 22, fontWeight: 800 }}>{PHASE0_STEPS[d.step]?.t}</h2></div>
