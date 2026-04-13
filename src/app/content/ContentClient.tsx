@@ -71,6 +71,20 @@ const NEW_PROJECT = () => ({
   antiContaminacion: { regla: "NUNCA usar datos, slogans, paleta, ubicación o amenidades de otros proyectos de la constructora.", elementosExclusivos: "" },
   // 1.5 Buyers
   buyers: [], buyersGenStatus: "idle",
+  // 1.6 Value Proposition
+  vpGenStatus: "idle", vpProposito: "", vpPosicionamiento: "",
+  vpCanvasByBuyer: [], vpDiferenciadores: [], vpMensajeUnificado: "",
+  // 1.7 Segmentación
+  segGenStatus: "idle", segEstrategia: "", segSegmentos: [], segMatrizPrioridad: "",
+  // 1.8 Plan Marketing
+  pmGenStatus: "idle", pmObjetivo: "", pmEstrategia: "",
+  pmCanalesDigitales: [], pmCanalesOffline: [], pmCanalesIntl: [],
+  pmContenidoByBuyer: [], pmKpis: [], pmReglas: [],
+  // 1.9 Análisis 7Gs
+  a7gGenStatus: "idle",
+  a7g: { g1: "", g2: "", g3: "", g4: "", g5: "", g6: "", g7: "" },
+  // 1.10 AutoQA
+  qaGenStatus: "idle", qaRubricas: [],
 });
 
 const INIT = {
@@ -661,6 +675,293 @@ function P15({ p, up }) {
   </div>);
 }
 
+/* ═══ AI GENERATE BUTTON (reusable) ═══ */
+function AIGenBtn({ status, onGenerate, label = "Generar con IA", doneLabel = "Generado — Edita y valida", loadingLabel = "Claude está generando..." }) {
+  return (<button onClick={onGenerate} disabled={status === "generating"} style={{
+    padding: "12px 24px", borderRadius: 8, border: "none",
+    background: status === "done" ? tk.green : `linear-gradient(135deg, ${tk.purple}, ${tk.cyan})`,
+    color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 700, fontFamily: font,
+    boxShadow: "0 2px 12px rgba(100,16,247,0.3)", display: "flex", alignItems: "center", gap: 10, marginBottom: 16,
+  }}>
+    {status === "generating" ? <><span style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite", display: "inline-block" }} /> {loadingLabel}</>
+      : status === "done" ? <>✅ {doneLabel}</>
+      : <>🤖 {label}</>}
+  </button>);
+}
+
+/* ═══ STEP 1.6: VALUE PROPOSITION ═══ */
+function P16({ p, up }) {
+  const vpc = p.vpCanvasByBuyer || [];
+  const handleGen = () => {
+    up("vpGenStatus", "generating");
+    setTimeout(() => {
+      const buyers = p.buyers || [];
+      const generated = buyers.map(b => ({
+        buyerId: b.id, buyerNombre: b.nombre || b.tipo,
+        jobs: ["Encontrar vivienda ideal", "Mejorar calidad de vida", "Inversión segura"],
+        pains: ["Precios altos", "Desconfianza en constructoras", "Procesos complejos"],
+        gains: ["Ubicación premium", "Zonas comunes completas", "Valorización del sector"],
+        products: [`${p.tipo || "Apartamentos"} desde ${p.precioDesde ? "$" + parseInt(p.precioDesde).toLocaleString("es-CO") : "[precio]"}`],
+        painRelievers: ["Fiducia reconocida", "Trayectoria constructora", "Acompañamiento personalizado"],
+        gainCreators: ["Amenidades completas", "Ubicación estratégica", "Diseño moderno"],
+        fitType: b.tipo === "Inversionista" ? "Racional-Financiero" : b.tipo === "Exterior" ? "Racional + Nostálgico" : "Emocional-Aspiracional",
+        fitResumen: `Para ${b.nombre || b.tipo}, ${p.nombre || "este proyecto"} representa ${b.tipo === "Inversionista" ? "una decisión basada en datos y respaldo" : "calidad de vida y bienestar cotidiano"}.`,
+      }));
+      up("vpCanvasByBuyer", generated);
+      up("vpDiferenciadores", ["Ubicación en zona consolidada", "Trayectoria de la constructora", "Amenidades completas", "Producto diverso (tipologías variadas)"]);
+      up("vpMensajeUnificado", `${p.nombre || "Proyecto"}: ${p.posicionamiento || "calidad de vida en ubicación estratégica"}.`);
+      up("vpGenStatus", "done");
+    }, 2500);
+  };
+
+  return (<div>
+    <InfoBox type="info">El Value Proposition Canvas se genera por buyer. Cada buyer tiene su propio Customer Profile (Jobs, Pains, Gains) y Value Map (Productos, Pain Relievers, Gain Creators).</InfoBox>
+    <AIGenBtn status={p.vpGenStatus} onGenerate={handleGen} label="Generar VPC con IA" />
+    {p.vpGenStatus === "done" && <InfoBox type="success">VPC generado para {vpc.length} buyers. Revisa y ajusta cada canvas.</InfoBox>}
+
+    <Inp label="Propósito del proyecto" value={p.vpProposito} onChange={v => up("vpProposito", v)} placeholder="Ofrecer calidad de vida en zona consolidada con respaldo de trayectoria" />
+    <Inp label="Posicionamiento" value={p.vpPosicionamiento} onChange={v => up("vpPosicionamiento", v)} placeholder={p.posicionamiento || "Buen vivir moderno, NO lujo ostentoso"} />
+
+    {vpc.map((v, i) => (
+      <div key={i} style={{ border: `1px solid ${tk.border}`, borderRadius: 12, padding: 20, marginBottom: 16, borderLeft: `4px solid ${tk.accent}`, background: tk.card }}>
+        <h4 style={{ margin: "0 0 12px", color: tk.navy, fontSize: 14, fontWeight: 700 }}>VPC — {v.buyerNombre}</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+          <div>
+            <SectionHead>Customer Profile</SectionHead>
+            <ChipEditor label="Jobs to do" items={v.jobs} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], jobs: val }; up("vpCanvasByBuyer", n); }} />
+            <ChipEditor label="Pains" items={v.pains} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], pains: val }; up("vpCanvasByBuyer", n); }} />
+            <ChipEditor label="Gains" items={v.gains} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], gains: val }; up("vpCanvasByBuyer", n); }} />
+          </div>
+          <div>
+            <SectionHead>Value Map</SectionHead>
+            <ChipEditor label="Productos/Servicios" items={v.products} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], products: val }; up("vpCanvasByBuyer", n); }} />
+            <ChipEditor label="Pain Relievers" items={v.painRelievers} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], painRelievers: val }; up("vpCanvasByBuyer", n); }} />
+            <ChipEditor label="Gain Creators" items={v.gainCreators} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], gainCreators: val }; up("vpCanvasByBuyer", n); }} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px", marginTop: 8 }}>
+          <Inp label="Tipo de fit" value={v.fitType} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], fitType: val }; up("vpCanvasByBuyer", n); }} />
+          <Inp label="Resumen del fit" value={v.fitResumen} onChange={val => { const n = [...vpc]; n[i] = { ...n[i], fitResumen: val }; up("vpCanvasByBuyer", n); }} />
+        </div>
+      </div>
+    ))}
+
+    <SectionHead>Diferenciadores vs Competencia</SectionHead>
+    <ChipEditor items={p.vpDiferenciadores || []} onChange={v => up("vpDiferenciadores", v)} placeholder="Ubicación, trayectoria, amenidades..." />
+    <Inp label="Mensaje unificado del proyecto" value={p.vpMensajeUnificado} onChange={v => up("vpMensajeUnificado", v)} placeholder="El mensaje que engloba todo el proyecto para todos los buyers" note="Una frase que unifica la comunicación del proyecto" />
+  </div>);
+}
+
+/* ═══ STEP 1.7: SEGMENTACIÓN ═══ */
+function P17({ p, up }) {
+  const segs = p.segSegmentos || [];
+  const handleGen = () => {
+    up("segGenStatus", "generating");
+    setTimeout(() => {
+      const buyers = p.buyers || [];
+      const generated = buyers.map((b, i) => ({
+        id: b.id, nombre: b.segmento || b.tipo, buyerAsociado: b.nombre || b.tipo,
+        prioridad: b.prioridad || (i + 1), volumen: b.tipo === "Residencial" ? "Alto" : b.tipo === "Inversionista" ? "Medio" : "Bajo",
+        ticketPromedio: p.precioDesde ? "$" + parseInt(p.precioDesde).toLocaleString("es-CO") : "[pendiente]",
+        cicloVenta: b.tipo === "Exterior" ? "6-12 meses" : b.tipo === "Inversionista" ? "2-4 meses" : "3-6 meses",
+        motivacionPrincipal: b.motivaciones?.[0] || "Calidad de vida",
+        canalesTOFU: ["Pauta Meta", "Google Ads", "Contenido orgánico"],
+        canalesMOFU: ["Email marketing", "WhatsApp", "Retargeting"],
+        canalesBOFU: ["Sala de ventas", "Llamada directa", "Cotización personalizada"],
+        contenidoTOFU: "Awareness: hooks aspiracionales, renders, ubicación",
+        contenidoMOFU: "Consideración: tipologías, amenidades, comparativos",
+        contenidoBOFU: "Conversión: cotización, simulador, visita sala",
+      }));
+      up("segSegmentos", generated);
+      up("segEstrategia", buyers.length > 1 ? "Estrategia dual: residencial + inversión + internacional" : "Segmento único");
+      up("segGenStatus", "done");
+    }, 2500);
+  };
+
+  return (<div>
+    <AIGenBtn status={p.segGenStatus} onGenerate={handleGen} label="Generar Segmentación con IA" />
+    {p.segGenStatus === "done" && <InfoBox type="success">Segmentación generada para {segs.length} segmentos.</InfoBox>}
+
+    <Inp label="Estrategia de segmentación" value={p.segEstrategia} onChange={v => up("segEstrategia", v)} placeholder="Estrategia dual: residencial + inversión + internacional" />
+
+    {segs.map((s, i) => (
+      <div key={i} style={{ border: `1px solid ${tk.border}`, borderRadius: 12, padding: 20, marginBottom: 16, borderLeft: `4px solid ${tk.cyan}`, background: tk.card }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h4 style={{ margin: 0, color: tk.navy, fontSize: 14, fontWeight: 700 }}>{s.nombre}</h4>
+          <span style={{ padding: "2px 10px", borderRadius: 10, fontSize: 10, fontWeight: 600, background: tk.accentLight, color: tk.accent }}>Prioridad {s.prioridad}</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 16px" }}>
+          <Inp label="Volumen" value={s.volumen} onChange={v => { const n = [...segs]; n[i] = { ...n[i], volumen: v }; up("segSegmentos", n); }} />
+          <Inp label="Ticket promedio" value={s.ticketPromedio} onChange={v => { const n = [...segs]; n[i] = { ...n[i], ticketPromedio: v }; up("segSegmentos", n); }} />
+          <Inp label="Ciclo de venta" value={s.cicloVenta} onChange={v => { const n = [...segs]; n[i] = { ...n[i], cicloVenta: v }; up("segSegmentos", n); }} />
+        </div>
+        <Inp label="Motivación principal" value={s.motivacionPrincipal} onChange={v => { const n = [...segs]; n[i] = { ...n[i], motivacionPrincipal: v }; up("segSegmentos", n); }} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 16px" }}>
+          <Inp label="Contenido TOFU" value={s.contenidoTOFU} onChange={v => { const n = [...segs]; n[i] = { ...n[i], contenidoTOFU: v }; up("segSegmentos", n); }} note="Awareness" />
+          <Inp label="Contenido MOFU" value={s.contenidoMOFU} onChange={v => { const n = [...segs]; n[i] = { ...n[i], contenidoMOFU: v }; up("segSegmentos", n); }} note="Consideración" />
+          <Inp label="Contenido BOFU" value={s.contenidoBOFU} onChange={v => { const n = [...segs]; n[i] = { ...n[i], contenidoBOFU: v }; up("segSegmentos", n); }} note="Conversión" />
+        </div>
+      </div>
+    ))}
+  </div>);
+}
+
+/* ═══ STEP 1.8: PLAN MARKETING ═══ */
+function P18({ p, up }) {
+  const handleGen = () => {
+    up("pmGenStatus", "generating");
+    setTimeout(() => {
+      up("pmObjetivo", `Posicionar ${p.nombre || "el proyecto"} como la opción #1 en ${p.sector || p.ciudad || "la zona"} y generar leads calificados para los ${(p.buyers || []).length} segmentos.`);
+      up("pmEstrategia", "Funnel completo con contenido diferenciado por buyer y etapa. Pauta segmentada + orgánico + WhatsApp.");
+      up("pmCanalesDigitales", ["Meta Ads (Facebook + Instagram)", "Google Ads (Search + Display)", "TikTok Ads", "Email Marketing (HubSpot)", "WhatsApp Business / Atria", "SEO + Blog AEO", "Landing pages por proyecto"]);
+      up("pmCanalesOffline", ["Sala de ventas", "Eventos inmobiliarios", "Brokers / Referidos", "Material POP"]);
+      up("pmCanalesIntl", ["Pauta geolocalizada (Meta + Google)", "Portales internacionales", "Brokers internacionales", "Ferias inmobiliarias"]);
+      up("pmKpis", [
+        { kpi: "CPL (Costo por Lead)", meta: "[pendiente]", frecuencia: "Semanal" },
+        { kpi: "Leads mensuales", meta: "[pendiente]", frecuencia: "Mensual" },
+        { kpi: "Tasa Lead→Visita", meta: ">15%", frecuencia: "Mensual" },
+        { kpi: "Tasa Visita→Cierre", meta: ">10%", frecuencia: "Mensual" },
+        { kpi: "Engagement Rate", meta: ">3%", frecuencia: "Semanal" },
+        { kpi: "Response Time WhatsApp", meta: "<5 min", frecuencia: "Diario" },
+      ]);
+      up("pmReglas", ["Toda pieza apunta a UN SOLO buyer", "Ratio 75% emocional / 25% datos", "Verificar claims antes de publicar", "Hooks NO repetidos", "Disclaimer obligatorio con renders", "Paleta exclusiva del proyecto"]);
+      up("pmGenStatus", "done");
+    }, 2500);
+  };
+  const kpis = p.pmKpis || [];
+  const upKpi = (i, f, v) => { const n = [...kpis]; n[i] = { ...n[i], [f]: v }; up("pmKpis", n); };
+
+  return (<div>
+    <AIGenBtn status={p.pmGenStatus} onGenerate={handleGen} label="Generar Plan Marketing con IA" />
+    {p.pmGenStatus === "done" && <InfoBox type="success">Plan de marketing generado. Ajusta objetivos y KPIs según las metas del cliente.</InfoBox>}
+
+    <Inp label="Objetivo principal" value={p.pmObjetivo} onChange={v => up("pmObjetivo", v)} placeholder="Posicionar el proyecto y generar leads calificados..." />
+    <Inp label="Estrategia general" value={p.pmEstrategia} onChange={v => up("pmEstrategia", v)} placeholder="Funnel completo con contenido diferenciado..." />
+
+    <SectionHead>Canales</SectionHead>
+    <ChipEditor label="Canales digitales" items={p.pmCanalesDigitales || []} onChange={v => up("pmCanalesDigitales", v)} placeholder="Meta Ads, Google Ads..." />
+    <ChipEditor label="Canales offline" items={p.pmCanalesOffline || []} onChange={v => up("pmCanalesOffline", v)} placeholder="Sala de ventas, Eventos..." />
+    <ChipEditor label="Canales internacionales" items={p.pmCanalesIntl || []} onChange={v => up("pmCanalesIntl", v)} placeholder="Pauta geolocalizada, Portales intl..." />
+
+    <SectionHead sub="Métricas clave con metas">KPIs</SectionHead>
+    {kpis.length > 0 && <div style={{ overflowX: "auto", marginBottom: 8 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead><tr style={{ background: tk.bg }}>
+          {["KPI", "Meta", "Frecuencia", ""].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 600, color: tk.navy, borderBottom: `2px solid ${tk.border}`, fontSize: 11 }}>{h}</th>)}
+        </tr></thead>
+        <tbody>{kpis.map((k, i) => <tr key={i} style={{ borderBottom: `1px solid ${tk.borderLight}` }}>
+          <td style={{ padding: 4 }}><input value={k.kpi} onChange={e => upKpi(i, "kpi", e.target.value)} style={{ ...ss.input, padding: "6px 8px", fontSize: 12 }} /></td>
+          <td style={{ padding: 4 }}><input value={k.meta} onChange={e => upKpi(i, "meta", e.target.value)} style={{ ...ss.input, padding: "6px 8px", fontSize: 12, width: 100 }} /></td>
+          <td style={{ padding: 4 }}><select value={k.frecuencia} onChange={e => upKpi(i, "frecuencia", e.target.value)} style={{ ...ss.input, padding: "6px 8px", fontSize: 12 }}>
+            {["Diario", "Semanal", "Mensual", "Trimestral"].map(o => <option key={o}>{o}</option>)}
+          </select></td>
+          <td style={{ padding: 4 }}><button onClick={() => { const n = [...kpis]; n.splice(i, 1); up("pmKpis", n); }} style={{ background: "none", border: "none", color: tk.textTer, cursor: "pointer", fontSize: 16 }}>×</button></td>
+        </tr>)}</tbody>
+      </table>
+    </div>}
+    <button onClick={() => up("pmKpis", [...kpis, { kpi: "", meta: "", frecuencia: "Mensual" }])} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "10px", background: tk.bg, border: `1.5px dashed ${tk.border}`, borderRadius: 10, color: tk.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: font, marginBottom: 16 }}>+ Agregar KPI</button>
+
+    <SectionHead>Reglas de Contenido para el GPT</SectionHead>
+    <ChipEditor items={p.pmReglas || []} onChange={v => up("pmReglas", v)} placeholder="Toda pieza apunta a UN SOLO buyer..." note="Estas reglas se inyectan directamente en las instrucciones del GPT" />
+  </div>);
+}
+
+/* ═══ STEP 1.9: ANÁLISIS 7Gs ═══ */
+function P19({ p, up }) {
+  const g = p.a7g || {};
+  const ug = (k, v) => up("a7g", { ...g, [k]: v });
+  const handleGen = () => {
+    up("a7gGenStatus", "generating");
+    setTimeout(() => {
+      ug("g1", `Posicionar ${p.nombre || "el proyecto"} como referente de ${p.posicionamiento || "calidad de vida"} en ${p.ciudad || "la ciudad"} mediante contenido digital estratégico que genere leads calificados y cierre de ventas.`);
+      ug("g2", `1. Generar mínimo [X] leads/mes por proyecto\n2. Alcanzar tasa de conversión lead→visita >15%\n3. Posicionar marca en top 3 de búsquedas del sector\n4. Reducir CPL en 20% vs benchmark del mercado`);
+      ug("g3", `1. Falta de contenido diferenciado por buyer persona\n2. ${(p.buyers || []).some(b => b.tipo === "Exterior") ? "Infraestructura comercial internacional limitada" : "Sin estrategia internacional activa"}\n3. Métricas de contenido no conectadas con métricas de ventas\n4. Procesos de aprobación lentos que retrasan publicación`);
+      ug("g4", `1. Content Machine con IA: producción 10× más rápida\n2. ${(p.buyers || []).some(b => b.tipo === "Exterior") ? "Diversificación internacional con pauta geolocalizada" : "Activar mercado internacional como nuevo canal"}\n3. Automatización WhatsApp para seguimiento de leads\n4. Performance loop: datos → ajuste → optimización continua`);
+      ug("g5", "Hereda de Fase 0 — Equipo y Gobernanza de la constructora");
+      ug("g6", "Hereda de Fase 0 — Herramientas y HubSpot de la constructora");
+      ug("g7", `1. Equipo Focux: estrategia, contenido, pauta, análisis\n2. Equipo cliente: aprobación, sala de ventas, datos comerciales\n3. HubSpot: CRM, marketing automation, reportes\n4. Stakeholders: Gerencia Comercial (decisiones), KAM (operación diaria)`);
+      up("a7gGenStatus", "done");
+    }, 2500);
+  };
+
+  const gs = [
+    { k: "g1", t: "G1 — Propósito Digital", d: "¿Para qué existe la presencia digital de este proyecto?" },
+    { k: "g2", t: "G2 — Metas", d: "Indicadores concretos y medibles" },
+    { k: "g3", t: "G3 — Brechas Identificadas", d: "Qué falta o qué está fallando" },
+    { k: "g4", t: "G4 — Palancas de Crecimiento", d: "Cómo cerrar las brechas" },
+    { k: "g5", t: "G5 — Gobernanza", d: "Estructura de decisión y aprobación" },
+    { k: "g6", t: "G6 — Recursos", d: "Herramientas, presupuesto, equipo" },
+    { k: "g7", t: "G7 — Colaboración", d: "Stakeholders y roles" },
+  ];
+
+  return (<div>
+    <InfoBox type="info">El framework 7Gs es propiedad intelectual de Focux Digital Group. Analiza 7 dimensiones de la estrategia digital de cada proyecto. G5 y G6 heredan datos de la Fase 0.</InfoBox>
+    <AIGenBtn status={p.a7gGenStatus} onGenerate={handleGen} label="Generar Análisis 7Gs con IA" />
+    {p.a7gGenStatus === "done" && <InfoBox type="success">Análisis 7Gs generado. Revisa cada dimensión y ajusta según el contexto real del proyecto.</InfoBox>}
+
+    {gs.map(({ k, t, d }) => (
+      <div key={k} style={{ marginBottom: 16 }}>
+        <label style={{ ...ss.label, fontSize: 13, color: tk.navy }}>{t}</label>
+        <p style={{ fontSize: 11, color: tk.textTer, margin: "0 0 6px" }}>{d}</p>
+        <textarea value={g[k] || ""} onChange={e => ug(k, e.target.value)} rows={4} placeholder={`Describe ${t}...`}
+          style={{ ...ss.input, resize: "vertical", minHeight: 80, lineHeight: 1.5 }}
+          onFocus={e => focusStyle(e, true)} onBlur={e => focusStyle(e, false)} />
+      </div>
+    ))}
+  </div>);
+}
+
+/* ═══ STEP 1.10: AUTOQA RÚBRICAS ═══ */
+function P20({ p, up }) {
+  const rubs = p.qaRubricas || [];
+  const handleGen = () => {
+    up("qaGenStatus", "generating");
+    setTimeout(() => {
+      up("qaRubricas", [
+        { id: "R1", nombre: "Verificación de Claims", severidad: "CRÍTICA", checks: ["¿Todo dato aparece en ClaimsRegistry como PERMITIDO?", "¿Hay algún claim PROHIBIDO incluido?", "¿Disclaimer incluido si hay renders?"], failAction: "NO publicar. Corregir o marcar [DATO_PENDIENTE]." },
+        { id: "R2", nombre: "Separación de Buyers", severidad: "CRÍTICA", checks: ["¿La pieza apunta a UN SOLO buyer?", "¿El tono es coherente con el buyer target?", "¿El hook usa fórmula apropiada para ese buyer?"], failAction: "Separar en piezas independientes." },
+        { id: "R3", nombre: "Anti-Repetición de Hooks", severidad: "ALTA", checks: ["¿El hook NO está en la lista de hooks usados?", "¿Usa fórmula diferente a las últimas 3 piezas?"], failAction: "Generar hook alternativo." },
+        { id: "R4", nombre: "Anti-Contaminación", severidad: "CRÍTICA", checks: ["¿NO menciona otros proyectos de la constructora?", "¿La paleta es exclusiva de este proyecto?", "¿El slogan es correcto?", "¿Las amenidades son SOLO las confirmadas?"], failAction: "ELIMINAR referencia contaminante." },
+        { id: "R5", nombre: "Consistencia de Marca", severidad: "ALTA", checks: [`¿Se usa ${p.tuteo ? "tuteo" : "usted"}?`, `¿Emojis ${p.emojis === "no" ? "ausentes" : "solo los permitidos"}?`, "¿Tipografía y paleta correctas?"], failAction: "Corregir según TasteProfile." },
+        { id: "R6", nombre: "Especificaciones de Formato", severidad: "MEDIA", checks: ["¿Cumple con formato solicitado (reel/carrusel/blog)?", "¿Longitud dentro de límites?", "¿CTAs presentes?"], failAction: "Ajustar formato." },
+        { id: "R7", nombre: "Calidad de Reel", severidad: "ALTA", checks: ["¿Hook en primeros 2 segundos?", "¿Duración 15-30s?", "¿Texto legible?", "¿Audio de calidad?"], failAction: "Rehacer guión de reel." },
+        { id: "R8", nombre: "Reel Avance de Obra", severidad: "ALTA", checks: ["¿Solo datos aprobados por la constructora?", "¿Sin promesas de fecha no confirmadas?", "¿Tono general (no buyer-specific)?"], failAction: "Verificar datos con equipo de obra." },
+      ]);
+      up("qaGenStatus", "done");
+    }, 2000);
+  };
+  const upRub = (i, f, v) => { const n = [...rubs]; n[i] = { ...n[i], [f]: v }; up("qaRubricas", n); };
+  const sevColors = { "CRÍTICA": tk.red, "ALTA": tk.amber, "MEDIA": tk.cyan };
+
+  return (<div>
+    <InfoBox type="info">Las rúbricas AutoQA se generan 100% automáticamente a partir de los datos de los pasos anteriores (Claims, Buyers, Identidad, Amenidades). El GPT ejecuta TODAS las rúbricas antes de entregar cualquier pieza.</InfoBox>
+    <AIGenBtn status={p.qaGenStatus} onGenerate={handleGen} label="Auto-generar Rúbricas QA" doneLabel="Rúbricas generadas — Ajusta severidades" />
+    {p.qaGenStatus === "done" && <InfoBox type="success">{rubs.length} rúbricas generadas (R1-R8). Puedes ajustar severidades y agregar checks adicionales.</InfoBox>}
+
+    {rubs.map((r, i) => {
+      const sc = sevColors[r.severidad] || tk.textSec;
+      return (
+        <div key={r.id} style={{ border: `1px solid ${tk.border}`, borderRadius: 12, padding: 16, marginBottom: 12, borderLeft: `4px solid ${sc}`, background: tk.card }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <h4 style={{ margin: 0, color: tk.navy, fontSize: 13, fontWeight: 700 }}>{r.id}: {r.nombre}</h4>
+            <select value={r.severidad} onChange={e => upRub(i, "severidad", e.target.value)} style={{ padding: "3px 8px", borderRadius: 6, border: `1.5px solid ${sc}40`, background: sc + "12", color: sc, fontSize: 11, fontWeight: 700 }}>
+              {["CRÍTICA", "ALTA", "MEDIA"].map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            {(r.checks || []).map((c, ci) => (
+              <div key={ci} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, fontSize: 12, color: tk.textSec }}>
+                <span style={{ color: sc, fontSize: 14 }}>•</span> {c}
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: tk.textTer, margin: 0 }}>Si falla → {r.failAction}</p>
+        </div>
+      );
+    })}
+  </div>);
+}
+
 /* ═══ STEP PLACEHOLDER ═══ */
 function StepPlaceholder({ step }) {
   return (<div style={{ textAlign: "center", padding: "60px 20px" }}>
@@ -812,7 +1113,7 @@ export default function ContentWizard() {
   const deleteProject = pid => u("projects", (d.projects || []).filter(p => p.id !== pid));
   const ps = ap?.step || 0;
   const setPs = s => updateProject(d.activeProjectId, "step", s);
-  const pComps = [P11, P12, P13, P14, P15];
+  const pComps = [P11, P12, P13, P14, P15, P16, P17, P18, P19, P20];
 
   return (<div style={{ fontFamily: font, background: tk.bg, minHeight: "100vh", color: tk.text }}>
     <style>{`@keyframes spin{to{transform:rotate(360deg)}} @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
