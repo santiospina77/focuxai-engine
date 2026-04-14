@@ -4,7 +4,7 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, BarC
 
 // ─── Excel Export (SheetJS) ───────────────────────────────────────────────────
 async function exportExcel(rows) {
-  const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs");
+  const XLSX = await import("xlsx");
   const headers = ["Nombre","Apellido","Cargo","Empresa","Email","Teléfono","# Proyectos","% VIS","Clasificación CX","Score Global","CRM Actual","Sitio Web","Agendó Reunión","Brecha 1","Brecha 2","Brecha 3","Dim Atracción","Dim Conversión","Dim Experiencia","Dim Datos","Dim Posventa","Dim IA","Fecha Diagnóstico"];
   const data = rows.map(p => [
     p.firstname||"", p.lastname||"", p.jobtitle||"", p.company||"",
