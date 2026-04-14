@@ -266,7 +266,7 @@ function Dashboard({ token }) {
   const crmData = useMemo(() => {
     const counts = {};
     props.forEach(p => { const v = p.focux_cx_crm_actual || "Sin CRM"; counts[v] = (counts[v]||0)+1; });
-    return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([name,value])=>({ name: name.length > 20 ? name.slice(0,18)+"…" : name, value }));
+    return Object.entries(counts).sort((a,b)=>(b[1] as number)-(a[1] as number)).slice(0,8).map(([name,value])=>({ name: name.length > 20 ? name.slice(0,18)+"…" : name, value: value as number }));
   }, [props]);
 
   const gapData = useMemo(() => {
@@ -274,7 +274,7 @@ function Dashboard({ token }) {
     props.forEach(p => {
       [p.focux_cx_top_gap_1, p.focux_cx_top_gap_2, p.focux_cx_top_gap_3].forEach(g => { if (g) counts[g] = (counts[g]||0)+1; });
     });
-    return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([name,value])=>({ name, value }));
+    return Object.entries(counts).sort((a,b)=>(b[1] as number)-(a[1] as number)).map(([name,value])=>({ name, value: value as number }));
   }, [props]);
 
   // Priority score: lower CX score + no meeting = higher priority
