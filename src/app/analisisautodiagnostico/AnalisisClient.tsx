@@ -144,8 +144,8 @@ function TokenScreen({ onConnect }) {
     if (!token.trim()) return;
     setLoading(true); setError("");
     try {
-      const r = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts?limit=1&properties=firstname`, {
-        headers: { Authorization: `Bearer ${token.trim()}` }
+      const r = await fetch(`/api/hubspot?url=${encodeURIComponent('https://api.hubapi.com/crm/v3/objects/contacts?limit=1&properties=firstname')}`, {
+        headers: { "x-hubspot-token": token.trim() }
       });
       if (!r.ok) throw new Error("Token inválido");
       onConnect(token.trim());
@@ -223,8 +223,8 @@ function Dashboard({ token }) {
       let all = [], after = null;
       try {
         while (true) {
-          const url = `https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=${PROPERTIES}${after ? `&after=${after}` : ""}`;
-          const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+          const url = `/api/hubspot?url=${encodeURIComponent(`https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=${PROPERTIES}${after ? `&after=${after}` : ''}`)}`;
+          const r = await fetch(url, { headers: { "x-hubspot-token": token } });
           const data = await r.json();
           const filtered = (data.results || []).filter(c => c.properties.focux_cx_score);
           all = [...all, ...filtered];
