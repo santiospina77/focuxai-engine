@@ -267,9 +267,9 @@ export default function CotizadorV2() {
     if(filterHabs!=="all"&&u.habs!==+filterHabs) return false;
     return true;
   }),[units,filterPiso,filterTipo,filterHabs]);
-  const pisos = useMemo(()=>[...new Set(units.map(u=>u.piso))].sort((a,b)=>a-b),[units]);
-  const tipos = useMemo(()=>[...new Set(units.map(u=>u.tipologia))].sort(),[units]);
-  const habsOpts = useMemo(()=>[...new Set(units.map(u=>u.habs))].sort((a,b)=>a-b),[units]);
+  const pisos = useMemo(()=>Array.from(new Set(units.map(u=>u.piso))).sort((a,b)=>a-b),[units]);
+  const tipos = useMemo(()=>Array.from(new Set(units.map(u=>u.tipologia))).sort(),[units]);
+  const habsOpts = useMemo(()=>Array.from(new Set(units.map(u=>u.habs))).sort((a,b)=>a-b),[units]);
 
   // Calculations
   const subtotal = useMemo(()=>{
