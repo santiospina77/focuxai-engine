@@ -191,7 +191,7 @@ const S = {
   td: { padding:"10px 12px", borderBottom:`1px solid ${C.borderLight}`, color:C.text, fontSize:13, fontFamily:"'Montserrat',sans-serif" },
   tag: (bg, color, border) => ({ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:20, fontSize:11, fontFamily:"'Montserrat',sans-serif", background:bg, color, border:`1px solid ${border}`, fontWeight:500 }),
   dot: color => ({ display:"inline-block", width:8, height:8, borderRadius:"50%", background:color, marginRight:6 }),
-  sectionTitle: { fontSize:26, fontWeight:300, lineHeight:1.3, color:C.navy, fontFamily:"'Cormorant Garamond',Georgia,serif" },
+  sectionTitle: { fontSize:26, fontWeight:600, lineHeight:1.3, color:C.navy, fontFamily:"'Montserrat',system-ui,sans-serif" },
   sectionSub: { fontSize:13, color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:400 },
   goldBar: { height:3, background:`linear-gradient(90deg, ${C.gold}, ${C.goldLight}, ${C.gold})`, borderRadius:2 },
 };
@@ -333,8 +333,8 @@ export default function CotizadorV2() {
   );
 
   return (
-    <div style={{ fontFamily:"'Cormorant Garamond','Georgia',serif", background:C.bg, minHeight:"100vh", color:C.text }}>
-      <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <div style={{ fontFamily:"'Montserrat',system-ui,sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
+      <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
       <style>{`
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:${C.gold};cursor:pointer;border:3px solid ${C.white};box-shadow:0 1px 4px rgba(0,0,0,.2)}
         input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:${C.gold};cursor:pointer;border:3px solid ${C.white};box-shadow:0 1px 4px rgba(0,0,0,.2)}
