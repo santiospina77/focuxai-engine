@@ -452,7 +452,7 @@ function Dashboard({ token }) {
                   <XAxis type="number" tick={{ fill:"rgba(255,255,255,0.4)", fontSize:11 }} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fill:"rgba(255,255,255,0.6)", fontSize:11 }} axisLine={false} tickLine={false} width={160} />
                   <Tooltip contentStyle={{ background:"#1a1a2e", border:`1px solid ${FOCUX_COLORS.border}`, borderRadius:8, color:"#fff" }} />
-                  <Bar dataKey="value" radius={[0,6,6,0]}>
+                  <Bar dataKey="value" radius={[0,6,6,0]} label={{ position: "right", fill: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 600 }}>
                     {crmData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                   </Bar>
                 </BarChart>
@@ -548,7 +548,7 @@ function Dashboard({ token }) {
                   <XAxis dataKey="name" tick={{ fill:"rgba(255,255,255,0.5)", fontSize:11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill:"rgba(255,255,255,0.4)", fontSize:11 }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background:"#1a1a2e", border:`1px solid ${FOCUX_COLORS.border}`, borderRadius:8, color:"#fff" }} />
-                  <Bar dataKey="value" radius={[6,6,0,0]}>
+                  <Bar dataKey="value" radius={[6,6,0,0]} label={{ position: "top", fill: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 600 }}>
                     {gapData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                   </Bar>
                 </BarChart>
