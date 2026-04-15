@@ -1282,7 +1282,7 @@ export default function QuoterClient() {
                     {l:`Separación (${separacionPct}%)`,v:fmt(separacion)},
                     {l:`${numCuotas} cuotas de`,v:fmt(valorCuota)},
                     {l:`Saldo (${100-ciPct}%)`,v:fmt(saldoFinal)},
-                    {l:"Abonos CI",v:fmt(totalAbonos),c:C.green,hide:totalAbonos===0},
+                    {l:"Abonos",v:fmt(totalAbonos),c:C.green,hide:totalAbonos===0},
                   ].filter((m:any)=>!m.hide).map((m:any,i:number)=>(
                     <div key={i} style={{ textAlign:"center" }}>
                       <div style={{ ...S.label, fontSize:9, marginBottom:2 }}>{m.l}</div>
