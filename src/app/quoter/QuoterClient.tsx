@@ -1214,7 +1214,7 @@ export default function QuoterClient() {
         {/* ══════ STEP 6: COTIZACIÓN FINAL ══════ */}
         {step===6 && (
           <div className="fu">
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
+            <div className="no-print" style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
               <h1 style={{ ...S.sectionTitle, fontSize:22 }}>Cotización Generada</h1>
               <button style={S.btn("outline")} onClick={()=>setStep(5)}>← Editar plan</button>
             </div>
@@ -1246,8 +1246,8 @@ export default function QuoterClient() {
                   <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{macro?.nombre} — {torre?.nombre}</div>
                   <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Apto {selectedUnit?.numero} · Tipo {selectedUnit?.tipologia} · Piso {selectedUnit?.piso}</div>
                   <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{selectedUnit?.area} m² · {selectedUnit?.habs} hab · {selectedUnit?.banos} baños</div>
-                  {selectedParking.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Parq: {selectedParking.map(p=>p.numero).join(", ")}</div>}
-                  {selectedStorage.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Dep: {selectedStorage.map(d=>d.numero).join(", ")}</div>}
+                  {selectedParking.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Parq: {selectedParking.map((p:any)=>p.numero).join(", ")}</div>}
+                  {selectedStorage.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Dep: {selectedStorage.map((d:any)=>d.numero).join(", ")}</div>}
                   {selectedParking.length===0&&incluyeParq&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Parqueadero incluido *</div>}
                   {selectedStorage.length===0&&incluyeDep&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Depósito incluido *</div>}
                 </div>
@@ -1269,7 +1269,7 @@ export default function QuoterClient() {
                     {l:`${numCuotas} cuotas de`,v:fmt(valorCuota)},
                     {l:`Saldo (${100-ciPct}%)`,v:fmt(saldoFinal)},
                     {l:"Abonos CI",v:fmt(totalAbonos),c:C.green,hide:totalAbonos===0},
-                  ].filter(m=>!m.hide).map((m,i)=>(
+                  ].filter((m:any)=>!m.hide).map((m:any,i:number)=>(
                     <div key={i} style={{ textAlign:"center" }}>
                       <div style={{ ...S.label, fontSize:9, marginBottom:2 }}>{m.l}</div>
                       <div style={{ fontSize:15, fontWeight:m.bold?700:600, color:m.c||C.navy, fontFamily:"'Montserrat',sans-serif" }}>{m.v}</div>
@@ -1277,22 +1277,65 @@ export default function QuoterClient() {
                   ))}
                 </div>
               </div>
+
+              {/* ── PLAN DE PAGOS DETALLADO (inside print area) ── */}
+              <div style={{ marginBottom:18 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <div style={{ ...S.label, color:C.gold, margin:0 }}>Plan de Pagos</div>
+                  <span style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{planRows.length} conceptos</span>
+                </div>
+                <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                  <thead>
+                    <tr>
+                      {["#","Concepto","Mes","Valor","Saldo"].map((h,i)=>(
+                        <th key={i} style={{ padding:"8px 10px", textAlign:i>=3?"right":"left", fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase" as const, color:C.textSec, borderBottom:`2px solid ${C.goldBorder}`, fontWeight:700, fontFamily:"'Montserrat',sans-serif", background:C.goldBg }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planRows.map((r:any,i:number)=>{
+                      const isSep = r.concepto==="Separación";
+                      const isSaldo = r.concepto.includes("Saldo");
+                      const isAbono = r.tipo==="abono";
+                      return (
+                        <tr key={i} style={{ background: isSep||isSaldo ? C.goldBg : isAbono ? C.greenBg : i%2===0 ? C.white : "#FAFAF7" }}>
+                          <td style={{ padding:"6px 10px", fontSize:11, color:C.textTer, fontFamily:"'Montserrat',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{i+1}</td>
+                          <td style={{ padding:"6px 10px", fontSize:12, fontWeight:isSep||isSaldo?700:400, color:isSep?C.gold:isAbono?C.green:isSaldo?C.navy:C.text, fontFamily:"'Montserrat',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{r.concepto}</td>
+                          <td style={{ padding:"6px 10px", fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{r.mes===0?"Hoy":`Mes ${r.mes}`}</td>
+                          <td style={{ padding:"6px 10px", fontSize:12, fontWeight:isSep||isSaldo?700:500, color:isSep?C.gold:isAbono?C.green:C.navy, fontFamily:"'Montserrat',sans-serif", textAlign:"right", borderBottom:`1px solid ${C.borderLight}` }}>{fmt(r.pago)}</td>
+                          <td style={{ padding:"6px 10px", fontSize:11, color:r.saldo===0?C.green:C.textSec, fontFamily:"'Montserrat',sans-serif", textAlign:"right", borderBottom:`1px solid ${C.borderLight}` }}>{fmt(r.saldo)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
               {/* Legal note */}
               <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", lineHeight:1.6, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
                 * El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta. Vigencia: {CONFIG.vigencia_cotizacion} días calendario.
               </div>
-              {/* Actions */}
+              {/* Footer branding — visible in print */}
+              <div style={{ marginTop:18, paddingTop:12, borderTop:`1px solid ${C.borderLight}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ fontSize:9, color:C.textTer, fontFamily:"'Montserrat',sans-serif", letterSpacing:"1px" }}>
+                  Generado por FocuxAI Engine™ · {new Date().toLocaleString("es-CO")}
+                </div>
+                <div style={{ fontSize:9, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>
+                  {cotNum} · Página 1 de 1
+                </div>
+              </div>
+              {/* Actions — hidden in print */}
               <div className="no-print" style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:18 }}>
                 <button style={S.btn("outline")} onClick={handlePrint}>Imprimir / PDF</button>
                 <button style={S.btn("primary")} onClick={()=>setShowSuccess(true)}>Enviar y crear Deal →</button>
               </div>
             </div>
 
-            {/* Pipeline */}
+            {/* Pipeline — hidden in print */}
             <div className="no-print" style={{ ...S.card, marginTop:16, padding:"16px 20px" }}>
               <div style={{ ...S.label, marginBottom:12, color:C.gold }}>Pipeline — Deal se creará en:</div>
               <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-                {[{n:"Cotización enviada",p:"20%",a:true,amt:"$0"},{n:"Unidad bloqueada",p:"40%",amt:"$0"},{n:"Unidad separada",p:"70%",amt:"→ amount"},{n:"Negocio legalizado",p:"100%"},{n:"En cartera",p:"100%"}].map((s,i)=>(
+                {[{n:"Cotización enviada",p:"20%",a:true,amt:"$0"},{n:"Unidad bloqueada",p:"40%",amt:"$0"},{n:"Unidad separada",p:"70%",amt:"→ amount"},{n:"Negocio legalizado",p:"100%"},{n:"En cartera",p:"100%"}].map((s:any,i:number)=>(
                   <Fragment key={i}>
                     {i>0&&<span style={{color:C.textTer}}>→</span>}
                     <div style={{ padding:"6px 12px", borderRadius:6, background:s.a?C.goldBg:C.borderLight, border:`1px solid ${s.a?C.goldBorder:C.border}`, fontSize:11, fontFamily:"'Montserrat',sans-serif", color:s.a?C.gold:C.textSec }}>
