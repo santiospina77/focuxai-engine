@@ -49,7 +49,7 @@ const ASESORES = [
 // ── REAL SINCO PRODUCTION DATA — Porto Sabbia Residence T2, idProyecto 361 ──
 // Source: GET /Agrupaciones/IdProyecto/361 (producción abril 2026)
 // [sincoId, name, subtotal, descuento, neto, areaConstruida, estado]
-const SINCO_RAW = [
+const SINCO_RAW: any[][] = [
   [16794,"APT-501",396573000,10000000,381573000,34.21,"V"],[16795,"APT-502",466963000,0,466963000,35.11,"D"],
   [16796,"APT-503",544936000,0,544936000,40.92,"D"],[16797,"APT-504",552349000,0,552349000,41.53,"D"],
   [16798,"APT-505",552349000,0,552349000,41.53,"D"],[16799,"APT-506",466464000,5000000,461464000,41.28,"V"],
@@ -131,14 +131,14 @@ const SINCO_RAW = [
 ];
 
 // Parse Sinco raw → unit objects (same shape as the old mock genUnits output)
-const AREA_TIPOLOGIA = { 34.21:"A1", 35.11:"A2", 39.34:"A3", 40.92:"B1", 41.53:"B2", 41.28:"B3", 42.53:"B4", 43.46:"C1", 43.5:"C2", 43.49:"C3", 43.12:"C4", 45.04:"D1", 46.38:"D2", 46.01:"D3", 46.33:"D4", 46.76:"D5", 54.19:"E1" };
-const AREA_HABS = { 34.21:1, 35.11:1, 39.34:1, 40.92:1, 41.53:1, 41.28:1, 42.53:1, 43.46:1, 43.5:1, 43.49:1, 43.12:1, 45.04:2, 46.38:2, 46.01:2, 46.33:2, 46.76:2, 54.19:2 };
-const AREA_BANOS = { 34.21:1, 35.11:1, 39.34:1, 40.92:1, 41.53:1, 41.28:1, 42.53:1, 43.46:1, 43.5:1, 43.49:1, 43.12:1, 45.04:1, 46.38:2, 46.01:2, 46.33:2, 46.76:2, 54.19:2 };
+const AREA_TIPOLOGIA: Record<number,string> = { 34.21:"A1", 35.11:"A2", 39.34:"A3", 40.92:"B1", 41.53:"B2", 41.28:"B3", 42.53:"B4", 43.46:"C1", 43.5:"C2", 43.49:"C3", 43.12:"C4", 45.04:"D1", 46.38:"D2", 46.01:"D3", 46.33:"D4", 46.76:"D5", 54.19:"E1" };
+const AREA_HABS: Record<number,number> = { 34.21:1, 35.11:1, 39.34:1, 40.92:1, 41.53:1, 41.28:1, 42.53:1, 43.46:1, 43.5:1, 43.49:1, 43.12:1, 45.04:2, 46.38:2, 46.01:2, 46.33:2, 46.76:2, 54.19:2 };
+const AREA_BANOS: Record<number,number> = { 34.21:1, 35.11:1, 39.34:1, 40.92:1, 41.53:1, 41.28:1, 42.53:1, 43.46:1, 43.5:1, 43.49:1, 43.12:1, 45.04:1, 46.38:2, 46.01:2, 46.33:2, 46.76:2, 54.19:2 };
 
 const ESTADOS = { D: "disponible", B: "bloqueada", V: "vendida", C: "cotizada" };
 
 const parseSincoUnits = () => SINCO_RAW.map(r => {
-  const num = r[1].replace("APT-","");
+  const num = String(r[1]).replace("APT-","");
   const piso = num.length === 3 ? parseInt(num[0]) : parseInt(num.substring(0,2));
   const pos = num.substring(num.length - 2);
   return {
@@ -158,7 +158,7 @@ const DEMO_TIPS = [
   { tipo:"D1", area:86.3, habs:3, banos:3 }, { tipo:"D2", area:103.5, habs:3, banos:3 },
   { tipo:"E1", area:107.7, habs:3, banos:3 }, { tipo:"E2", area:133.4, habs:3, banos:4 },
 ];
-function genDemoUnits(torreId, tips, pisos, basePrice, pctVendido) {
+function genDemoUnits(torreId: number, tips: any[], pisos: number, basePrice: number, pctVendido: number) {
   const u = []; let id = torreId * 10000;
   const aptsPerFloor = Math.min(tips.length, 8);
   for (let p = 1; p <= pisos; p++) {
@@ -180,7 +180,7 @@ function genDemoUnits(torreId, tips, pisos, basePrice, pctVendido) {
 }
 
 // ── ALL UNITS BY TORRE ID ──
-const UNITS_BY_TORRE = {
+const UNITS_BY_TORRE: Record<number, any[]> = {
   // Porto Sabbia
   1: parseSincoUnits(), // Suites T1 — REAL SINCO DATA
   2: genDemoUnits(2, DEMO_TIPS.slice(4), 16, 9500000, 0.35), // Residences T2
@@ -195,7 +195,7 @@ const UNITS_BY_TORRE = {
 };
 
 // Parking + Storage (demo — same for all torres)
-function genComps(tid, n, tipo) {
+function genComps(tid: number, n: number, tipo: string) {
   const items = []; const bp = tipo === "PARQ" ? 45e6 : 18e6;
   for (let i = 1; i <= n; i++) {
     const id = tid * 10000 + (tipo === "PARQ" ? 5000 : 8000) + i;
@@ -233,8 +233,8 @@ const TORRES = {
 // Example: COT-PSS-2604-0031
 // In production: Engine queries HubSpot for max sequencial of the month per project
 // In demo: derives from timestamp to guarantee uniqueness
-const _cotCounters = {};
-function generateCotNumber(torre) {
+const _cotCounters: Record<string,number> = {};
+function generateCotNumber(torre: any) {
   const codigo = torre?.codigo || "XXX";
   const now = new Date();
   const aamm = `${String(now.getFullYear()).slice(2)}${String(now.getMonth()+1).padStart(2,"0")}`;
@@ -255,9 +255,9 @@ Object.values(TORRES).flat().forEach(t => {
 });
 
 // Helper to get units for a torre
-const getUnits = (torreId) => UNITS_BY_TORRE[torreId] || [];
-const getParking = (torreId) => genComps(torreId, 25, "PARQ");
-const getStorage = (torreId) => genComps(torreId, 12, "DEP");
+const getUnits = (torreId: number) => UNITS_BY_TORRE[torreId] || [];
+const getParking = (torreId: number) => genComps(torreId, 25, "PARQ");
+const getStorage = (torreId: number) => genComps(torreId, 12, "DEP");
 
 const CONFIG = {
   separacion_pct: 5, cuota_inicial_pct: 30, cuotas_default: 24,
@@ -270,11 +270,11 @@ const fmt = n => new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",
 const fmtS = n => { if(n>=1e9) return `$${(n/1e9).toFixed(1)}B`; if(n>=1e6) return `$${Math.round(n/1e6)}M`; return fmt(n); };
 const eColor = e => e===ESTADOS.D?"#16A34A":e===ESTADOS.B?"#D97706":e===ESTADOS.C?"#2563EB":"#DC2626";
 const eLabel = e => e===ESTADOS.D?"Disponible":e===ESTADOS.B?"Bloqueada":e===ESTADOS.C?"Cotizada":"Vendida";
-const validatePhone = (num, country) => { const digits = num.replace(/\D/g,""); return digits.length === country.len; };
-const validateEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+const validatePhone = (num: string, country: any) => { const digits = num.replace(/\D/g,""); return digits.length === country.len; };
+const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
 // ── EDITABLE SLIDER+INPUT COMPONENT ──
-function SliderInput({ label, value, onChange, min, max, step=1, suffix="", prefix="", formatDisplay }) {
+function SliderInput({ label, value, onChange, min, max, step=1, suffix="", prefix="", formatDisplay }: { label:string, value:number, onChange:(v:number)=>void, min:number, max:number, step?:number, suffix?:string, prefix?:string, formatDisplay?:(v:number)=>string }) {
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState(String(value));
   const commit = () => {
@@ -487,7 +487,7 @@ export default function QuoterClient() {
 
   const steps = ["Macroproyecto","Proyecto","Inventario","Agrupación","Comprador","Plan de Pagos","Cotización"];
 
-  const MoneyInput = ({ label, value, onChange, placeholder }) => (
+  const MoneyInput = ({ label, value, onChange, placeholder }: { label:string, value:number, onChange:(v:number)=>void, placeholder?:string }) => (
     <div>
       <span style={S.label}>{label}</span>
       <div style={{ display:"flex", alignItems:"center", marginTop:4 }}>
