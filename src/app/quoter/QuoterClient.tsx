@@ -316,7 +316,7 @@ function SliderInput({ label, value, onChange, min, max, step=1, suffix="", pref
 }
 
 // ── STYLES ──
-const S = {
+const S: any = {
   label: { fontSize:11, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:600 },
   input: { width:"100%", padding:"11px 14px", background:C.white, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:14, fontFamily:"'Montserrat',sans-serif", outline:"none", boxSizing:"border-box", transition:"border 0.2s" },
   select: { width:"100%", padding:"11px 14px", background:C.white, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:13, fontFamily:"'Montserrat',sans-serif", outline:"none", appearance:"none", cursor:"pointer", boxSizing:"border-box", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7280'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 12px center" },
@@ -332,8 +332,8 @@ const S = {
   card: { background:C.card, border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden" },
   th: { padding:"10px 12px", textAlign:"left", fontSize:10, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textSec, borderBottom:`1px solid ${C.border}`, fontWeight:600, background:C.goldBg, fontFamily:"'Montserrat',sans-serif" },
   td: { padding:"10px 12px", borderBottom:`1px solid ${C.borderLight}`, color:C.text, fontSize:13, fontFamily:"'Montserrat',sans-serif" },
-  tag: (bg, color, border) => ({ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:20, fontSize:11, fontFamily:"'Montserrat',sans-serif", background:bg, color, border:`1px solid ${border}`, fontWeight:500 }),
-  dot: color => ({ display:"inline-block", width:8, height:8, borderRadius:"50%", background:color, marginRight:6 }),
+  tag: (bg:string, color:string, border:string) => ({ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:20, fontSize:11, fontFamily:"'Montserrat',sans-serif", background:bg, color, border:`1px solid ${border}`, fontWeight:500 }),
+  dot: (color:string) => ({ display:"inline-block", width:8, height:8, borderRadius:"50%", background:color, marginRight:6 }),
   sectionTitle: { fontSize:26, fontWeight:300, lineHeight:1.3, color:C.navy, fontFamily:"'Cormorant Garamond',Georgia,serif" },
   sectionSub: { fontSize:13, color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:400 },
   goldBar: { height:3, background:`linear-gradient(90deg, ${C.gold}, ${C.goldLight}, ${C.gold})`, borderRadius:2 },
