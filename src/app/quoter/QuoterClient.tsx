@@ -432,7 +432,10 @@ export default function QuoterClient() {
 
   // PDF / Print
   const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = cotNum || "Cotizacion";
     window.print();
+    setTimeout(() => { document.title = originalTitle; }, 1000);
   };
 
   // Calculations
@@ -1223,7 +1226,7 @@ export default function QuoterClient() {
               <div style={{ display:"flex", justifyContent:"space-between", paddingBottom:18, borderBottom:`2px solid ${C.goldBorder}`, marginBottom:20 }}>
                 <div>
                   <div style={{ fontSize:18, fontWeight:700, letterSpacing:"2px", color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>CONSTRUCTORA JIMÉNEZ S.A.</div>
-                  <div style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>NIT: 800.000.000-0 · Santa Marta, Colombia</div>
+                  <div style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>NIT: 802.021.085-1 · Santa Marta, Colombia</div>
                 </div>
                 <div style={{ textAlign:"right" }}>
                   <div style={{ ...S.label, color:C.gold }}>Cotización</div>
@@ -1321,7 +1324,7 @@ export default function QuoterClient() {
                   Generado por FocuxAI Engine™ · {new Date().toLocaleString("es-CO")}
                 </div>
                 <div style={{ fontSize:9, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>
-                  {cotNum} · Página 1 de 1
+                  {cotNum}
                 </div>
               </div>
               {/* Actions — hidden in print */}
