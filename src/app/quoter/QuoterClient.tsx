@@ -464,8 +464,13 @@ export default function QuoterClient() {
     abonos.filter(a=>a.valor>0).forEach(a=>{
       rows.push({ concepto:`${a.label} (cuota ${a.cuota})`, sincoId:a.sincoId, mes:a.fixedMes?0:a.cuota, pago:a.valor, tipo:"abono" });
     });
-    // Monthly installments
-    for(let i=1; i<=numCuotas; i++) rows.push({ concepto:`Cuota ${i}`, sincoId:1, mes:i, pago:valorCuota, tipo:"cuota" });
+    // Monthly installments — last cuota absorbs rounding residual
+    const totalCuotasRedondeadas = valorCuota * (numCuotas - 1);
+    const ultimaCuota = Math.max(0, cuotaInicialNeta) - totalCuotasRedondeadas;
+    for(let i=1; i<=numCuotas; i++) {
+      const pago = i < numCuotas ? valorCuota : Math.max(0, ultimaCuota);
+      rows.push({ concepto:`Cuota ${i}`, sincoId:1, mes:i, pago, tipo:"cuota" });
+    }
     // Final balance
     rows.push({ concepto:"Saldo final (crédito)", sincoId:3, mes:numCuotas+1, pago:saldoFinal, tipo:"fixed" });
     // Sort by month, then abonos first within same month
