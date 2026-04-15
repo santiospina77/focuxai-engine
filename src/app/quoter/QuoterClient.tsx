@@ -211,20 +211,20 @@ const MACROS = [
   { id: 31, nombre: "Coralina del Sol", ciudad: "Santa Marta", zona: "Sector Coralina", estado: "En construcción", tipo: "No VIS" },
 ];
 
-const TORRES = {
+const TORRES: Record<number, {id:number,nombre:string,tipo:string,areaDesde:number,areaHasta:number,codigo:string,precioDesde:number}[]> = {
   58: [
-    { id: 1, nombre: "Suites Torre 1", tipo: "Apartasuite", areaDesde: 34.21, areaHasta: 54.19, codigo: "PSS" },
-    { id: 2, nombre: "Residences Torre 2", tipo: "Apartamento", areaDesde: 68.5, areaHasta: 133.4, codigo: "PSR" },
+    { id: 1, nombre: "Suites Torre 1", tipo: "Apartasuite", areaDesde: 34.21, areaHasta: 54.19, codigo: "PSS", precioDesde: 0 },
+    { id: 2, nombre: "Residences Torre 2", tipo: "Apartamento", areaDesde: 68.5, areaHasta: 133.4, codigo: "PSR", precioDesde: 0 },
   ],
   42: [
-    { id: 3, nombre: "Marena Torre 1", tipo: "Apartasuite", areaDesde: 34.21, areaHasta: 54.19, codigo: "MAR1" },
-    { id: 4, nombre: "Marena Torre 2", tipo: "Apartasuite", areaDesde: 34.21, areaHasta: 54.19, codigo: "MAR2" },
-    { id: 5, nombre: "Marena Torre 3", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 74.6, codigo: "MAR3" },
+    { id: 3, nombre: "Marena Torre 1", tipo: "Apartasuite", areaDesde: 34.21, areaHasta: 54.19, codigo: "MAR1", precioDesde: 0 },
+    { id: 4, nombre: "Marena Torre 2", tipo: "Apartasuite", areaDesde: 34.21, areaHasta: 54.19, codigo: "MAR2", precioDesde: 0 },
+    { id: 5, nombre: "Marena Torre 3", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 74.6, codigo: "MAR3", precioDesde: 0 },
   ],
   31: [
-    { id: 6, nombre: "Coralina T1", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 54.19, codigo: "CDS1" },
-    { id: 7, nombre: "Coralina T2", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 54.19, codigo: "CDS2" },
-    { id: 8, nombre: "Coralina T3", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 74.6, codigo: "CDS3" },
+    { id: 6, nombre: "Coralina T1", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 54.19, codigo: "CDS1", precioDesde: 0 },
+    { id: 7, nombre: "Coralina T2", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 54.19, codigo: "CDS2", precioDesde: 0 },
+    { id: 8, nombre: "Coralina T3", tipo: "Apartamento", areaDesde: 34.21, areaHasta: 74.6, codigo: "CDS3", precioDesde: 0 },
   ],
 };
 
