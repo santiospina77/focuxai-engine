@@ -942,7 +942,7 @@ export default function QuoterClient() {
                     </div>
                     <div>
                       <label style={{...S.label,display:"block",marginBottom:4}}>Número de Documento (cédula)</label>
-                      <input style={S.input} placeholder="Se pide al cotizar, no en pauta" value={cedula} onChange={e=>setCedula(e.target.value)} />
+                      <input style={S.input} placeholder="" value={cedula} onChange={e=>setCedula(e.target.value)} />
                     </div>
                   </div>
                   <div>
