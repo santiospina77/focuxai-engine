@@ -414,14 +414,14 @@ export default function QuoterClient() {
     if(filterHabs!=="all"&&u.habs!==+filterHabs) return false;
     return true;
   }),[units,filterPiso,filterTipo,filterHabs]);
-  const pisos = useMemo(()=>[...new Set(units.map(u=>u.piso))].sort((a,b)=>a-b),[units]);
-  const tipos = useMemo(()=>[...new Set(units.map(u=>u.tipologia))].sort(),[units]);
-  const habsOpts = useMemo(()=>[...new Set(units.map(u=>u.habs))].sort((a,b)=>a-b),[units]);
+  const pisos = useMemo(()=>Array.from(new Set(units.map((u:any)=>u.piso))).sort((a:any,b:any)=>a-b),[units]);
+  const tipos = useMemo(()=>Array.from(new Set(units.map((u:any)=>u.tipologia))).sort(),[units]);
+  const habsOpts = useMemo(()=>Array.from(new Set(units.map((u:any)=>u.habs))).sort((a:any,b:any)=>a-b),[units]);
 
   // Tower grid: build a map of floor-pos → unit
   const TOWER_FLOORS = useMemo(()=>pisos.slice().sort((a,b)=>b-a),[pisos]); // descending
   const TOWER_POSITIONS = useMemo(()=>{
-    const positions = [...new Set(units.map(u=>u.pos).filter(Boolean))].sort();
+    const positions = Array.from(new Set(units.map((u:any)=>u.pos).filter(Boolean))).sort();
     return positions.length > 0 ? positions : ["01","02","03","04"];
   },[units]);
   const unitMap = useMemo(()=>{
