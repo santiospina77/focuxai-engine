@@ -523,12 +523,18 @@ export default function QuoterClient() {
         input:focus,select:focus{border-color:${C.gold}!important;box-shadow:0 0 0 3px ${C.gold}22}
         ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}
         @media print{
-          body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+          body{-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0}
           header,.no-print,.step-bar-wrap{display:none!important}
-          .print-area{padding:0!important;max-width:100%!important}
-          .print-area *{font-size:11px!important}
-          .print-area h1,.print-area h2{font-size:16px!important}
-          @page{size:letter;margin:1cm}
+          .print-area{padding:20px!important;max-width:100%!important;border:none!important;box-shadow:none!important}
+          .print-area *{font-size:10px!important;line-height:1.4!important}
+          .print-area h1,.print-area h2{font-size:14px!important}
+          .print-area table{font-size:9px!important}
+          .print-area table td,.print-area table th{padding:4px 6px!important}
+          .fin-summary{grid-template-columns:repeat(3,1fr)!important;gap:8px!important}
+          .fin-summary>div{margin-bottom:4px!important}
+          .print-area div[style*="grid-template-columns: 1fr 1fr 1fr"]{grid-template-columns:1fr 1fr 1fr!important;gap:12px!important}
+          .print-area div[style*="grid-template-columns"]{gap:8px!important}
+          @page{size:letter;margin:1.5cm}
         }
       `}</style>
 
@@ -1268,7 +1274,7 @@ export default function QuoterClient() {
               </div>
               {/* Financial summary */}
               <div style={{ background:C.goldBg, borderRadius:8, padding:18, marginBottom:18, border:`1px solid ${C.goldBorder}` }}>
-                <div style={{ display:"grid", gridTemplateColumns:`repeat(${[true, totalDescuentos>0, true, true, true, true, totalAbonos>0].filter(Boolean).length},1fr)`, gap:12 }}>
+                <div className="fin-summary" style={{ display:"grid", gridTemplateColumns:`repeat(${[true, totalDescuentos>0, true, true, true, true, totalAbonos>0].filter(Boolean).length},1fr)`, gap:12 }}>
                   {[
                     {l:"Subtotal",v:fmt(subtotal),hide:totalDescuentos===0},
                     {l:"Descuentos",v:`-${fmt(totalDescuentos)}`,c:C.red,hide:totalDescuentos===0},
