@@ -374,8 +374,9 @@ export class SincoConnector implements IErpConnector {
 
       const parsed = schema.safeParse(response.value.body);
       if (!parsed.success) {
+        const issues = (parsed as { success: false; error: { issues: unknown } }).error.issues;
         return err(
-          ErpError.schemaMismatch(operation, parsed.error.issues, {
+          ErpError.schemaMismatch(operation, issues, {
             operation,
             path: fullPath,
           })
