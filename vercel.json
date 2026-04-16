@@ -1,5 +1,20 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "next build",
-  "outputDirectory": ".next"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/engine/sync/inventory?clientId=jimenez_demo&mode=prices",
+      "schedule": "0 */2 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/engine/sync/inventory/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/engine/sale/separar/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/engine/sale/legalizar/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }
