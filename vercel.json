@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/engine/sync/inventory?clientId=jimenez_demo&mode=prices",
-      "schedule": "0 */2 * * *"
+      "schedule": "0 6 * * *"
     }
   ],
   "functions": {
