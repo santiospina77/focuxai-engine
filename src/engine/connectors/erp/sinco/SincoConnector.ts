@@ -96,7 +96,7 @@ export class SincoConnector implements IErpConnector {
   // =========================================================================
 
   async getMacroproyectos(): Promise<Result<readonly Macroproyecto[], EngineError>> {
-    return this.authenticatedGet<unknown[]>(
+    return this.authenticatedGet<any[]>(
       '/Macroproyectos/Basica',
       SincoMacroproyectosResponseSchema,
       'erp.getMacroproyectos'
@@ -107,7 +107,7 @@ export class SincoConnector implements IErpConnector {
     macroproyectoExternalId: number
   ): Promise<Result<readonly Proyecto[], EngineError>> {
     const path = `/Proyectos/${macroproyectoExternalId}`;
-    return this.authenticatedGet<unknown[]>(
+    return this.authenticatedGet<any[]>(
       path,
       SincoProyectosResponseSchema,
       'erp.getProyectosByMacroproyecto'
@@ -128,7 +128,7 @@ export class SincoConnector implements IErpConnector {
     proyectoExternalId: number
   ): Promise<Result<readonly Unidad[], EngineError>> {
     const path = `/Unidades/PorProyecto/${proyectoExternalId}`;
-    return this.authenticatedGet<unknown[]>(
+    return this.authenticatedGet<any[]>(
       path,
       SincoUnidadesResponseSchema,
       'erp.getUnidadesByProyecto'
@@ -139,7 +139,7 @@ export class SincoConnector implements IErpConnector {
     proyectoExternalId: number
   ): Promise<Result<readonly Agrupacion[], EngineError>> {
     const path = `/Agrupaciones/IdProyecto/${proyectoExternalId}`;
-    return this.authenticatedGet<unknown[]>(
+    return this.authenticatedGet<any[]>(
       path,
       SincoAgrupacionesResponseSchema,
       'erp.getAgrupacionesByProyecto'
@@ -191,7 +191,7 @@ export class SincoConnector implements IErpConnector {
   // =========================================================================
 
   async getVendedores(): Promise<Result<readonly Vendedor[], EngineError>> {
-    return this.authenticatedGet<unknown[]>(
+    return this.authenticatedGet<any[]>(
       '/Vendedores',
       SincoVendedoresResponseSchema,
       'erp.getVendedores'
@@ -199,7 +199,7 @@ export class SincoConnector implements IErpConnector {
   }
 
   async getConceptosPlanPago(): Promise<Result<readonly ConceptoPlanPago[], EngineError>> {
-    return this.authenticatedGet<unknown[]>(
+    return this.authenticatedGet<any[]>(
       '/Ventas/ConceptoPlanDePagos',
       SincoConceptosPlanPagoResponseSchema,
       'erp.getConceptosPlanPago'
