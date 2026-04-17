@@ -1,577 +1,665 @@
 /**
- * src/engine/core/sync/InventorySync.ts
+ * InventorySync — Orquestador del sync de inventario ERP → CRM.
  *
- * Reads inventory (Macroproyectos, Proyectos, Unidades, Agrupaciones) from the ERP
- * and upserts them as CRM Custom Objects using the 76 internal property names
- * defined in the Adapter v3 blueprint (JSON v16).
+ * Esta clase es la pieza central del Engine. Sabe cómo:
+ *   1. Leer macroproyectos/proyectos/agrupaciones del ERP (Sinco hoy).
+ *   2. Mapear cada uno a CrmRecordInput con propiedades _fx.
+ *   3. Upsert masivo en el CRM (HubSpot hoy) usando external IDs.
+ *   4. Crear las associations (macro→proyecto, proyecto→agrupación, etc.).
  *
- * Architecture:
- *   - Uses ICrmAdapter.upsertRecordsByExternalId for batch performance (up to 100/call).
- *   - ERP/CRM-agnostic: no knowledge of Sinco or HubSpot at this level.
- *   - Merges data from 3 sources: ERP (Sinco), ClientConfig (Ops), computed aggregates.
- *   - All methods return Result<T, EngineError> — follows Engine's error-handling convention.
+ * Crítico: NO conoce Sinco ni HubSpot directamente. Solo usa IErpConnector
+ * e ICrmAdapter. Cuando agregues SAP o Salesforce, esta clase NO cambia.
  *
- * Flow:
- *   1. Fetch all macros -> collect in memory
- *   2. Per macro: fetch proyectos -> collect
- *   3. Per proyecto: fetch unidades + agrupaciones -> collect
- *   4. Compute aggregates (project and macro level)
- *   5. Batch upsert in dependency order: macros -> proyectos -> unidades -> agrupaciones
+ * Modos de sync:
+ *   - 'full': descarga todo el inventario (sync inicial o on-demand).
+ *   - 'prices': solo actualiza precio_lista_fx (cron periódico, ligero).
  *
- * Ghost filtering: agrupaciones with empty names or null unidades arrays are dropped.
+ * Idempotencia: usa upsertRecordsByExternalId con id_sinco_fx como clave.
+ * Si una unidad ya existe en HubSpot con ese external ID, se actualiza.
+ * Si no existe, se crea. Sin duplicados.
  */
 
-import type {
-  IErpConnector,
-  Macroproyecto,
-  Proyecto,
-  Unidad,
-  Agrupacion,
-} from '../../interfaces/IErpConnector';
-import type {
-  ICrmAdapter,
-  CrmObjectType,
-  CrmRecordInput,
-  BatchResult,
-  CrmRecord,
-} from '../../interfaces/ICrmAdapter';
-import type { Result } from '../types/Result';
+import type { IErpConnector, Macroproyecto, Proyecto, Agrupacion, Unidad } from '@/engine/interfaces/IErpConnector';
+import type { ICrmAdapter, CrmAssociation, CrmRecordInput } from '@/engine/interfaces/ICrmAdapter';
+import type { Logger } from '../logging/Logger';
 import type { EngineError } from '../errors/EngineError';
-import type { ClientConfig } from '../../types/ClientConfig';
+import type { IEventLog } from '../eventlog/EventLog';
+import { type Result, ok, err } from '../types/Result';
 
-// ============================================================================
-// PROPERTY NAMES — must match JSON v16 exactly (76 total: 11+16+23+26)
-// ============================================================================
+export type SyncMode = 'full' | 'prices';
 
+export interface SyncOptions {
+  readonly clientId: string;
+  readonly mode: SyncMode;
+  /** Si se especifica, solo sincroniza este macroproyecto. Sino, todos. */
+  readonly macroproyectoExternalId?: number;
+  /** Si se especifica, solo sincroniza este proyecto. */
+  readonly proyectoExternalId?: number;
+  /** transactionId para idempotencia. Si ya existe success, no se ejecuta. */
+  readonly transactionId?: string;
+}
+
+export interface SyncReport {
+  readonly mode: SyncMode;
+  readonly clientId: string;
+  readonly startedAt: Date;
+  readonly endedAt: Date;
+  readonly durationMs: number;
+  readonly counts: {
+    readonly macroproyectos: { read: number; written: number; failed: number };
+    readonly proyectos: { read: number; written: number; failed: number };
+    readonly agrupaciones: { read: number; written: number; failed: number };
+    readonly unidades: { read: number; written: number; failed: number };
+    readonly associations: { created: number; failed: number };
+  };
+  readonly errors: ReadonlyArray<{
+    readonly stage: string;
+    readonly errorCode: string;
+    readonly message: string;
+  }>;
+}
+
+/**
+ * Property internal names usados para mapear ERP → CRM.
+ * El Adapter v2 debe haberlas creado en HubSpot con esos mismos nombres.
+ */
 const PROPS = {
-  macro: {
-    nombre: 'nombre_fx',
-    idSinco: 'id_sinco_fx',
-    direccion: 'direccion_fx',
-    ciudad: 'ciudad_fx',
-    numeroPisos: 'numero_pisos_fx',
-    aptosPorPiso: 'aptos_por_piso_fx',
-    idOrigenSinco: 'id_origen_sinco_fx',
-    tipo: 'tipo_fx',                   // enum: VIS | NO_VIS
-    precioDesde: 'precio_desde_fx',
-    precioHasta: 'precio_hasta_fx',
-    estado: 'estado_fx',               // enum: ACTIVO | INACTIVO
-  },
-
-  proyecto: {
-    nombre: 'nombre_fx',
-    idSinco: 'id_sinco_fx',
-    idMacroSinco: 'id_macro_sinco_fx',
-    estrato: 'estrato_fx',
-    valorSeparacion: 'valor_separacion_fx',
-    porcentajeCuotaInicial: 'porcentaje_cuota_inicial_fx',
-    porcentajeFinanciacion: 'porcentaje_financiacion_fx',
-    numeroCuotas: 'numero_cuotas_fx',
-    fechaEntrega: 'fecha_entrega_fx',
-    diasBloqueo: 'dias_bloqueo_fx',
-    vigenciaCotizacion: 'vigencia_cotizacion_fx',
-    agrupacionesPreestablecidas: 'agrupaciones_preestablecidas_fx',
-    totalUnidades: 'total_unidades_fx',
-    unidadesDisponibles: 'unidades_disponibles_fx',
-    unidadesVendidas: 'unidades_vendidas_fx',
-    estado: 'estado_fx',
-  },
-
-  unidad: {
-    nombre: 'nombre_fx',
-    idSinco: 'id_sinco_fx',
-    idProyectoSinco: 'id_proyecto_sinco_fx',
-    tipoUnidadSinco: 'tipo_unidad_sinco_fx',   // numeric code
-    tipoUnidad: 'tipo_unidad_fx',              // enum string
-    clasificacion: 'clasificacion_fx',         // PRINCIPAL | ACCESORIO
-    esPrincipal: 'es_principal_fx',
-    precioLista: 'precio_lista_fx',
-    estado: 'estado_fx',
-    areaConstruida: 'area_construida_fx',
-    areaPrivada: 'area_privada_fx',
-    areaTotal: 'area_total_fx',
-    piso: 'piso_fx',
-    alcobas: 'alcobas_fx',
-    banos: 'banos_fx',                         // Sinco doesn't expose this
-    fechaSync: 'fecha_sync_fx',
-    areaTerraza: 'area_terraza_fx',
-    areaBalcon: 'area_balcon_fx',
-    areaPatio: 'area_patio_fx',
-    tieneJardineria: 'tiene_jardineria_fx',
-    estBloqSinco: 'est_bloq_sinco_fx',
-    idTipoInmuebleSinco: 'id_tipo_inmueble_sinco_fx',
-    nomenclaturaTorre: 'nomenclatura_torre_fx',
-  },
-
-  agrupacion: {
-    nombre: 'nombre_fx',
-    idSinco: 'id_sinco_fx',
-    idProyectoSinco: 'id_proyecto_sinco_fx',
-    valorSubtotal: 'valor_subtotal_fx',
-    valorDescuento: 'valor_descuento_fx',
-    valorDescuentoFinanciero: 'valor_descuento_financiero_fx',
-    valorTotalNeto: 'valor_total_neto_fx',
-    valorSeparacion: 'valor_separacion_fx',
-    estado: 'estado_fx',
-    idCompradorSinco: 'id_comprador_sinco_fx',
-    idVendedorSinco: 'id_vendedor_sinco_fx',
-    idHubspotDeal: 'id_hubspot_deal_fx',
-    tipoVenta: 'tipo_venta_fx',
-    fechaVenta: 'fecha_venta_fx',
-    observaciones: 'observaciones_fx',
-    numeroEncargo: 'numero_encargo_fx',
-    fechaSeparacion: 'fecha_separacion_fx',
-    fechaCreacionSinco: 'fecha_creacion_sinco_fx',
-    idUnidadPrincipalSinco: 'id_unidad_principal_sinco_fx',
-    idMedioPublicitarioSinco: 'id_medio_publicitario_sinco_fx',
-    ventaExterior: 'venta_exterior_fx',
-    valorAdicionales: 'valor_adicionales_fx',
-    valorExclusiones: 'valor_exclusiones_fx',
-    valorSobrecosto: 'valor_sobrecosto_fx',
-    numeroIdentificacionComprador: 'numero_identificacion_comprador_fx',
-    fechaSync: 'fecha_sync_fx',
-  },
+  // Comunes a todos los Custom Objects
+  externalId: 'id_sinco_fx',
+  nombre: 'nombre_fx',
+  // Macroproyecto
+  macroActivo: 'activo_fx',
+  // Proyecto
+  proyectoIdMacro: 'id_macroproyecto_sinco_fx',
+  proyectoActivo: 'activo_fx',
+  // Unidad
+  unidadIdProyecto: 'id_proyecto_sinco_fx',
+  unidadTipo: 'tipo_unidad_fx',
+  unidadEsPrincipal: 'es_principal_fx',
+  unidadPrecio: 'precio_lista_fx',
+  unidadEstado: 'estado_fx',
+  unidadAreaConstruida: 'area_construida_fx',
+  unidadAreaPrivada: 'area_privada_fx',
+  unidadPiso: 'piso_fx',
+  // Agrupación
+  agrupacionIdProyecto: 'id_proyecto_sinco_fx',
+  agrupacionEstado: 'estado_fx',
+  agrupacionValorTotal: 'valor_total_neto_fx',
+  agrupacionDealId: 'id_hubspot_deal_fx',
 } as const;
 
-/**
- * All 4 Custom Objects use 'id_sinco_fx' as the external ID property.
- * Centralized here so the sync code stays decoupled from specific props.
- */
-const EXTERNAL_ID_PROPERTY = PROPS.macro.idSinco;
+export class InventorySync {
+  constructor(
+    private readonly logger: Logger,
+    private readonly eventLog: IEventLog
+  ) {}
 
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
+  async run(
+    erp: IErpConnector,
+    crm: ICrmAdapter,
+    options: SyncOptions
+  ): Promise<Result<SyncReport, EngineError>> {
+    const startedAt = new Date();
+    const log = this.logger.child({
+      clientId: options.clientId,
+      mode: options.mode,
+      operation: 'sync.inventory',
+    });
+    log.info({ options }, 'Starting inventory sync');
 
-/** HubSpot date fields accept YYYY-MM-DD. Extract date portion from ISO datetime. */
-const toHubSpotDate = (v: string | null | undefined): string | null => {
-  if (!v) return null;
-  const datePart = v.substring(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
-  return datePart;
-};
+    const transactionId =
+      options.transactionId ??
+      `sync_${options.clientId}_${options.mode}_${Date.now()}`;
 
-/** Strip null/undefined from property map — HubSpot rejects explicit nulls for many fields. */
-const stripNullish = (obj: Record<string, unknown>): Record<string, unknown> => {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === null || v === undefined) continue;
-    out[k] = v;
-  }
-  return out;
-};
-
-/** Resolve city code to display name via client-config catalog. Falls back to code. */
-const resolveCiudad = (
-  code: number | null | undefined,
-  config: ClientConfig
-): string | null => {
-  if (code === null || code === undefined) return null;
-  const catalog = (config.catalogos?.ciudades ?? {}) as Record<string, string>;
-  return catalog[String(code)] ?? String(code);
-};
-
-/** Chunk an array into batches of size n (HubSpot caps batch operations at 100). */
-const chunk = <T>(arr: readonly T[], size: number): T[][] => {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    out.push(arr.slice(i, i + size) as T[]);
-  }
-  return out;
-};
-
-const BATCH_SIZE = 100;
-
-// ============================================================================
-// MAPPERS — Engine domain -> CRM properties
-// ============================================================================
-
-interface MacroComputed {
-  precioDesde: number | null;
-  precioHasta: number | null;
-}
-
-const mapMacroToProperties = (
-  m: Macroproyecto,
-  config: ClientConfig,
-  computed: MacroComputed
-): Record<string, unknown> => {
-  const opsMacro = config.macros?.find((cm) => cm.idSinco === m.externalId);
-
-  return stripNullish({
-    [PROPS.macro.nombre]: m.nombre,
-    [PROPS.macro.idSinco]: m.externalId,
-    [PROPS.macro.direccion]: m.direccion,
-    [PROPS.macro.ciudad]: resolveCiudad(m.ciudadCodigo, config),
-    [PROPS.macro.numeroPisos]: m.numeroPisos,
-    [PROPS.macro.aptosPorPiso]: m.aptosPorPiso,
-    [PROPS.macro.idOrigenSinco]: config.sinco?.idOrigen,
-    [PROPS.macro.tipo]: opsMacro?.tipo,
-    [PROPS.macro.precioDesde]: computed.precioDesde,
-    [PROPS.macro.precioHasta]: computed.precioHasta,
-    [PROPS.macro.estado]: m.estado ?? 'ACTIVO',
-  });
-};
-
-interface ProyectoComputed {
-  totalUnidades: number;
-  unidadesDisponibles: number;
-  unidadesVendidas: number;
-}
-
-const mapProyectoToProperties = (
-  p: Proyecto,
-  config: ClientConfig,
-  computed: ProyectoComputed
-): Record<string, unknown> => {
-  const opsProyecto = config.proyectos?.find((cp) => cp.idSinco === p.externalId);
-
-  // Precedence: Sinco first if non-null/non-zero, else Ops fallback.
-  const valorSeparacion = p.valorSeparacion ?? opsProyecto?.valorSeparacion ?? null;
-  const porcentajeFinanciacion =
-    p.porcentajeFinanciacion ?? opsProyecto?.porcentajeFinanciacion ?? null;
-  const fechaEntrega = p.fechaEntrega ?? opsProyecto?.fechaEntrega ?? null;
-  const diasBloqueo =
-    p.numeroDiasReservaOpcionVenta ?? opsProyecto?.diasBloqueo ?? null;
-
-  return stripNullish({
-    [PROPS.proyecto.nombre]: p.nombre,
-    [PROPS.proyecto.idSinco]: p.externalId,
-    [PROPS.proyecto.idMacroSinco]: p.macroproyectoExternalId,
-    [PROPS.proyecto.estrato]: p.estrato,
-    [PROPS.proyecto.valorSeparacion]: valorSeparacion,
-    [PROPS.proyecto.porcentajeCuotaInicial]: opsProyecto?.porcentajeCuotaInicial,
-    [PROPS.proyecto.porcentajeFinanciacion]: porcentajeFinanciacion,
-    [PROPS.proyecto.numeroCuotas]: opsProyecto?.numeroCuotas,
-    [PROPS.proyecto.fechaEntrega]: toHubSpotDate(fechaEntrega),
-    [PROPS.proyecto.diasBloqueo]: diasBloqueo,
-    [PROPS.proyecto.vigenciaCotizacion]: opsProyecto?.vigenciaCotizacion,
-    [PROPS.proyecto.agrupacionesPreestablecidas]:
-      opsProyecto?.agrupacionesPreestablecidas ?? false,
-    [PROPS.proyecto.totalUnidades]: computed.totalUnidades,
-    [PROPS.proyecto.unidadesDisponibles]: computed.unidadesDisponibles,
-    [PROPS.proyecto.unidadesVendidas]: computed.unidadesVendidas,
-    [PROPS.proyecto.estado]: p.estado ?? 'ACTIVO',
-  });
-};
-
-const mapUnidadToProperties = (u: Unidad): Record<string, unknown> => {
-  const nowIso = new Date().toISOString();
-
-  return stripNullish({
-    [PROPS.unidad.nombre]: u.nombre,
-    [PROPS.unidad.idSinco]: u.externalId,
-    [PROPS.unidad.idProyectoSinco]: u.proyectoExternalId,
-    [PROPS.unidad.tipoUnidadSinco]: u.tipoCodigo,
-    [PROPS.unidad.tipoUnidad]: u.tipo,
-    [PROPS.unidad.clasificacion]:
-      u.clasificacion ?? (u.esPrincipal ? 'PRINCIPAL' : 'ACCESORIO'),
-    [PROPS.unidad.esPrincipal]: u.esPrincipal,
-    [PROPS.unidad.precioLista]: u.precio,
-    [PROPS.unidad.estado]: u.estado,
-    [PROPS.unidad.areaConstruida]: u.areaConstruida,
-    [PROPS.unidad.areaPrivada]: u.areaPrivada,
-    [PROPS.unidad.areaTotal]: u.areaTotal,
-    [PROPS.unidad.piso]: u.piso,
-    [PROPS.unidad.alcobas]: u.cantidadAlcobas,
-    [PROPS.unidad.banos]: u.cantidadBanos, // null in Sinco
-    [PROPS.unidad.fechaSync]: toHubSpotDate(nowIso),
-    [PROPS.unidad.areaTerraza]: u.areaTerraza,
-    [PROPS.unidad.areaBalcon]: u.areaBalcon,
-    [PROPS.unidad.areaPatio]: u.areaPatio,
-    [PROPS.unidad.tieneJardineria]: u.tieneJardineria ?? false,
-    [PROPS.unidad.estBloqSinco]: u.bloqueadoEnErp ?? false,
-    [PROPS.unidad.idTipoInmuebleSinco]: u.tipoInmuebleId,
-    [PROPS.unidad.nomenclaturaTorre]: u.nomenclaturaTorre,
-  });
-};
-
-const mapAgrupacionToProperties = (a: Agrupacion): Record<string, unknown> => {
-  const nowIso = new Date().toISOString();
-
-  return stripNullish({
-    [PROPS.agrupacion.nombre]: a.nombre,
-    [PROPS.agrupacion.idSinco]: a.externalId,
-    [PROPS.agrupacion.idProyectoSinco]: a.proyectoExternalId,
-    [PROPS.agrupacion.valorSubtotal]: a.valorSubtotal,
-    [PROPS.agrupacion.valorDescuento]: a.valorDescuento,
-    [PROPS.agrupacion.valorDescuentoFinanciero]: a.valorDescuentoFinanciero,
-    [PROPS.agrupacion.valorTotalNeto]: a.valorTotalNeto,
-    [PROPS.agrupacion.valorSeparacion]: a.valorSeparacion,
-    [PROPS.agrupacion.estado]: a.estado,
-    [PROPS.agrupacion.idCompradorSinco]: a.compradorExternalId,
-    [PROPS.agrupacion.idVendedorSinco]: a.vendedorExternalId,
-    // idHubspotDeal intentionally NOT written from sync — owned by write-back flow.
-    [PROPS.agrupacion.tipoVenta]: a.tipoVentaCodigo,
-    [PROPS.agrupacion.fechaVenta]: toHubSpotDate(a.fechaVenta),
-    [PROPS.agrupacion.observaciones]: a.observaciones,
-    [PROPS.agrupacion.numeroEncargo]: a.numeroEncargo,
-    [PROPS.agrupacion.fechaSeparacion]: toHubSpotDate(a.fechaSeparacion),
-    [PROPS.agrupacion.fechaCreacionSinco]: toHubSpotDate(a.fechaCreacionErp),
-    [PROPS.agrupacion.idUnidadPrincipalSinco]: a.idUnidadPrincipalExternalId,
-    [PROPS.agrupacion.idMedioPublicitarioSinco]: a.idMedioPublicitario,
-    [PROPS.agrupacion.ventaExterior]: a.ventaExterior ?? false,
-    [PROPS.agrupacion.valorAdicionales]: a.valorAdicionales,
-    [PROPS.agrupacion.valorExclusiones]: a.valorExclusiones,
-    [PROPS.agrupacion.valorSobrecosto]: a.valorSobrecosto,
-    [PROPS.agrupacion.numeroIdentificacionComprador]:
-      a.compradorNumeroIdentificacion,
-    [PROPS.agrupacion.fechaSync]: toHubSpotDate(nowIso),
-  });
-};
-
-// ============================================================================
-// AGGREGATE COMPUTERS
-// ============================================================================
-
-const computeProyectoAggregates = (
-  unidades: readonly Unidad[]
-): ProyectoComputed => {
-  const principales = unidades.filter((u) => u.esPrincipal);
-  return {
-    totalUnidades: principales.length,
-    unidadesDisponibles: principales.filter((u) => u.estado === 'DISPONIBLE').length,
-    unidadesVendidas: principales.filter(
-      (u) => u.estado === 'VENDIDA' || u.estado === 'LEGALIZADA'
-    ).length,
-  };
-};
-
-const computeMacroAggregates = (unidades: readonly Unidad[]): MacroComputed => {
-  const principalesConPrecio = unidades.filter(
-    (u) => u.esPrincipal && u.precio > 0
-  );
-  if (principalesConPrecio.length === 0) {
-    return { precioDesde: null, precioHasta: null };
-  }
-  const precios = principalesConPrecio.map((u) => u.precio);
-  return {
-    precioDesde: Math.min(...precios),
-    precioHasta: Math.max(...precios),
-  };
-};
-
-// ============================================================================
-// SYNC RESULT
-// ============================================================================
-
-export interface InventorySyncStats {
-  readonly macros: { upserted: number; failed: number };
-  readonly proyectos: { upserted: number; failed: number };
-  readonly unidades: { upserted: number; failed: number };
-  readonly agrupaciones: { upserted: number; failed: number };
-  readonly skipped: number;
-  readonly errors: readonly string[];
-  readonly durationMs: number;
-}
-
-// ============================================================================
-// SYNC RUNNER
-// ============================================================================
-
-export interface InventorySyncDeps {
-  readonly erp: IErpConnector;
-  readonly crm: ICrmAdapter;
-  readonly config: ClientConfig;
-  readonly logger?: {
-    info: (msg: string, data?: unknown) => void;
-    warn: (msg: string, data?: unknown) => void;
-    error: (msg: string, data?: unknown) => void;
-  };
-}
-
-/**
- * Run a full inventory sync: ERP -> CRM Custom Objects.
- * Idempotent via upsertRecordsByExternalId (keyed on id_sinco_fx).
- *
- * Returns Result<InventorySyncStats, EngineError> — follows Engine convention.
- */
-export const runInventorySync = async (
-  deps: InventorySyncDeps
-): Promise<Result<InventorySyncStats, EngineError>> => {
-  const { erp, crm, config, logger } = deps;
-  const log = logger ?? {
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-  };
-
-  const startedAt = Date.now();
-  const stats = {
-    macros: { upserted: 0, failed: 0 },
-    proyectos: { upserted: 0, failed: 0 },
-    unidades: { upserted: 0, failed: 0 },
-    agrupaciones: { upserted: 0, failed: 0 },
-    skipped: 0,
-    errors: [] as string[],
-  };
-
-  const recordError = (context: string, err: unknown): void => {
-    const msg =
-      err instanceof Error
-        ? err.message
-        : typeof err === 'object' && err !== null && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : String(err);
-    const full = `${context}: ${msg}`;
-    stats.errors.push(full);
-    log.error(`[sync] ${full}`);
-  };
-
-  // Helper: run batch upserts and accumulate stats.
-  // Uses the adapter's upsertRecordsByExternalId (idempotent, keyed on id_sinco_fx).
-  const runBatch = async (
-    objectType: CrmObjectType,
-    inputs: CrmRecordInput[],
-    counterKey: 'macros' | 'proyectos' | 'unidades' | 'agrupaciones'
-  ): Promise<void> => {
-    if (inputs.length === 0) return;
-
-    for (const batch of chunk(inputs, BATCH_SIZE)) {
-      const result = await crm.upsertRecordsByExternalId(
-        objectType,
-        EXTERNAL_ID_PROPERTY,
-        batch
-      );
-
-      if (!result.ok) {
-        recordError(`upsert batch ${objectType}`, result.error);
-        stats[counterKey].failed += batch.length;
-        continue;
-      }
-
-      const batchResult: BatchResult<CrmRecord> = result.value;
-      stats[counterKey].upserted += batchResult.successful.length;
-      stats[counterKey].failed += batchResult.failed.length;
-
-      for (const f of batchResult.failed) {
-        recordError(`upsert ${objectType} partial`, f.error);
-      }
+    if (await this.eventLog.hasSucceeded(transactionId)) {
+      log.warn({ transactionId }, 'Sync transactionId already succeeded — skipping');
+      return ok(this.emptyReport(options, startedAt));
     }
-  };
 
-  try {
-    log.info('[sync] Starting inventory sync');
+    await this.eventLog.begin({
+      transactionId,
+      clientId: options.clientId,
+      operation: 'sync.inventory',
+      payload: { mode: options.mode },
+    });
 
-    // ----- Phase 1: Fetch all macroproyectos from ERP -----
-    const macros = await erp.getMacroproyectos();
-    log.info(`[sync] Fetched ${macros.length} macroproyectos`);
+    const counts = this.emptyCounts();
+    const errors: Array<{ stage: string; errorCode: string; message: string }> = [];
 
-    // Accumulators — batch-write at the end for max throughput.
-    const allUnidadInputs: CrmRecordInput[] = [];
-    const allAgrupacionInputs: CrmRecordInput[] = [];
-    const allProyectoInputs: CrmRecordInput[] = [];
-    const allMacroInputs: CrmRecordInput[] = [];
+    try {
+      // ---------------------------------------------------------------------
+      // 1) Leer macroproyectos
+      // ---------------------------------------------------------------------
+      const macrosResult = options.macroproyectoExternalId
+        ? await this.fetchSingleMacro(erp, options.macroproyectoExternalId)
+        : await erp.getMacroproyectos();
 
-    // ----- Phase 2: Walk the tree (macros -> proyectos -> unidades/agrupaciones) -----
-    for (const macro of macros) {
-      const unidadesDelMacro: Unidad[] = [];
-
-      let proyectos: readonly Proyecto[] = [];
-      try {
-        proyectos = await erp.getProyectos(macro.externalId);
-        log.info(
-          `[sync] Macro ${macro.externalId} "${macro.nombre}": ${proyectos.length} proyectos`
-        );
-      } catch (err) {
-        recordError(`getProyectos macro ${macro.externalId}`, err);
-        continue;
+      if (macrosResult.isErr()) {
+        const e = macrosResult.error;
+        errors.push({ stage: 'getMacroproyectos', errorCode: e.code, message: e.message });
+        await this.eventLog.fail(transactionId, { code: e.code, message: e.message });
+        return err(e);
       }
 
-      for (const proyecto of proyectos) {
-        let unidades: readonly Unidad[] = [];
-        let agrupaciones: readonly Agrupacion[] = [];
+      const macros = macrosResult.value;
+      counts.macroproyectos.read = macros.length;
+      log.info({ count: macros.length }, 'Macroproyectos fetched');
 
-        try {
-          unidades = await erp.getUnidades(proyecto.externalId);
-        } catch (err) {
-          recordError(`getUnidades proyecto ${proyecto.externalId}`, err);
-        }
-
-        try {
-          agrupaciones = await erp.getAgrupaciones(proyecto.externalId);
-        } catch (err) {
-          recordError(`getAgrupaciones proyecto ${proyecto.externalId}`, err);
-        }
-
-        log.info(
-          `[sync]   Proyecto ${proyecto.externalId} "${proyecto.nombre}": ` +
-            `${unidades.length} unidades, ${agrupaciones.length} agrupaciones`
+      // ---------------------------------------------------------------------
+      // 2) Upsert macroproyectos en CRM (skip si modo prices)
+      // ---------------------------------------------------------------------
+      if (options.mode === 'full' && macros.length > 0) {
+        const macroInputs = macros.map((m) => this.mapMacroToCrm(m));
+        const upsertResult = await crm.upsertRecordsByExternalId(
+          'macroproyecto',
+          PROPS.externalId,
+          macroInputs
         );
-
-        unidadesDelMacro.push(...unidades);
-
-        // Queue unidades
-        for (const u of unidades) {
-          allUnidadInputs.push({
-            objectType: 'unidad',
-            properties: mapUnidadToProperties(u),
-          });
-        }
-
-        // Queue agrupaciones (filter ghosts first)
-        for (const a of agrupaciones) {
-          if (!a.nombre || a.nombre.trim() === '' || a.unidades.length === 0) {
-            stats.skipped++;
-            continue;
+        if (upsertResult.isOk()) {
+          counts.macroproyectos.written = upsertResult.value.successful.length;
+          counts.macroproyectos.failed = upsertResult.value.failed.length;
+          for (const f of upsertResult.value.failed) {
+            errors.push({
+              stage: 'upsert.macroproyecto',
+              errorCode: f.error.code,
+              message: f.error.message,
+            });
           }
-          allAgrupacionInputs.push({
-            objectType: 'agrupacion',
-            properties: mapAgrupacionToProperties(a),
+        } else {
+          errors.push({
+            stage: 'upsert.macroproyecto',
+            errorCode: upsertResult.error.code,
+            message: upsertResult.error.message,
           });
         }
+      }
 
-        // Queue proyecto with aggregates
-        const proyectoComputed = computeProyectoAggregates(unidades);
-        allProyectoInputs.push({
-          objectType: 'proyecto',
-          properties: mapProyectoToProperties(proyecto, config, proyectoComputed),
+      // ---------------------------------------------------------------------
+      // 3) Por cada macro, leer proyectos y procesarlos
+      // ---------------------------------------------------------------------
+      const allProyectos: Array<{ macro: Macroproyecto; proyecto: Proyecto }> = [];
+      for (const macro of macros) {
+        const proyectosResult = await erp.getProyectosByMacroproyecto(macro.externalId);
+        if (proyectosResult.isErr()) {
+          errors.push({
+            stage: `getProyectos.macro(${macro.externalId})`,
+            errorCode: proyectosResult.error.code,
+            message: proyectosResult.error.message,
+          });
+          continue;
+        }
+        for (const p of proyectosResult.value) {
+          allProyectos.push({ macro, proyecto: p });
+        }
+      }
+      counts.proyectos.read = allProyectos.length;
+
+      // Filtrar por proyecto si se especificó
+      const proyectosToProcess = options.proyectoExternalId
+        ? allProyectos.filter((p) => p.proyecto.externalId === options.proyectoExternalId)
+        : allProyectos;
+
+      // ---------------------------------------------------------------------
+      // 4) Upsert proyectos
+      // ---------------------------------------------------------------------
+      if (options.mode === 'full' && proyectosToProcess.length > 0) {
+        const proyectoInputs = proyectosToProcess.map(({ proyecto }) =>
+          this.mapProyectoToCrm(proyecto)
+        );
+        const upsertResult = await crm.upsertRecordsByExternalId(
+          'proyecto',
+          PROPS.externalId,
+          proyectoInputs
+        );
+        if (upsertResult.isOk()) {
+          counts.proyectos.written = upsertResult.value.successful.length;
+          counts.proyectos.failed = upsertResult.value.failed.length;
+          for (const f of upsertResult.value.failed) {
+            errors.push({
+              stage: 'upsert.proyecto',
+              errorCode: f.error.code,
+              message: f.error.message,
+            });
+          }
+        }
+      }
+
+      // ---------------------------------------------------------------------
+      // 5) Por cada proyecto, leer agrupaciones (con sus unidades)
+      // ---------------------------------------------------------------------
+      const allAgrupaciones: Array<{
+        proyecto: Proyecto;
+        agrupacion: Agrupacion;
+      }> = [];
+      const allUnidades: Array<{ proyecto: Proyecto; unidad: Unidad }> = [];
+
+      for (const { proyecto } of proyectosToProcess) {
+        const agrupacionesResult = await erp.getAgrupacionesByProyecto(proyecto.externalId);
+        if (agrupacionesResult.isErr()) {
+          errors.push({
+            stage: `getAgrupaciones.proyecto(${proyecto.externalId})`,
+            errorCode: agrupacionesResult.error.code,
+            message: agrupacionesResult.error.message,
+          });
+          continue;
+        }
+
+        for (const ag of agrupacionesResult.value) {
+          allAgrupaciones.push({ proyecto, agrupacion: ag });
+          for (const u of ag.unidades) {
+            allUnidades.push({ proyecto, unidad: u });
+          }
+        }
+
+        // Si Sinco no devolvió unidades dentro de las agrupaciones, intentamos
+        // leerlas independientemente.
+        if (agrupacionesResult.value.length > 0 &&
+            !agrupacionesResult.value.some((a) => a.unidades.length > 0)) {
+          const unidadesResult = await erp.getUnidadesByProyecto(proyecto.externalId);
+          if (unidadesResult.isOk()) {
+            for (const u of unidadesResult.value) {
+              allUnidades.push({ proyecto, unidad: u });
+            }
+          }
+        }
+      }
+
+      counts.agrupaciones.read = allAgrupaciones.length;
+      counts.unidades.read = allUnidades.length;
+
+      // ---------------------------------------------------------------------
+      // 6) Upsert unidades
+      // ---------------------------------------------------------------------
+      if (allUnidades.length > 0) {
+        const unidadInputs = allUnidades.map(({ unidad }) =>
+          options.mode === 'prices'
+            ? this.mapUnidadToCrmPricesOnly(unidad)
+            : this.mapUnidadToCrm(unidad)
+        );
+        const upsertResult = await crm.upsertRecordsByExternalId(
+          'unidad',
+          PROPS.externalId,
+          unidadInputs
+        );
+        if (upsertResult.isOk()) {
+          counts.unidades.written = upsertResult.value.successful.length;
+          counts.unidades.failed = upsertResult.value.failed.length;
+          for (const f of upsertResult.value.failed) {
+            errors.push({
+              stage: 'upsert.unidad',
+              errorCode: f.error.code,
+              message: f.error.message,
+            });
+          }
+        }
+      }
+
+      // ---------------------------------------------------------------------
+      // 7) Upsert agrupaciones
+      // ---------------------------------------------------------------------
+      if (allAgrupaciones.length > 0) {
+        const agrupacionInputs = allAgrupaciones.map(({ agrupacion }) =>
+          options.mode === 'prices'
+            ? this.mapAgrupacionToCrmPricesOnly(agrupacion)
+            : this.mapAgrupacionToCrm(agrupacion)
+        );
+        const upsertResult = await crm.upsertRecordsByExternalId(
+          'agrupacion',
+          PROPS.externalId,
+          agrupacionInputs
+        );
+        if (upsertResult.isOk()) {
+          counts.agrupaciones.written = upsertResult.value.successful.length;
+          counts.agrupaciones.failed = upsertResult.value.failed.length;
+          for (const f of upsertResult.value.failed) {
+            errors.push({
+              stage: 'upsert.agrupacion',
+              errorCode: f.error.code,
+              message: f.error.message,
+            });
+          }
+        }
+      }
+
+      // ---------------------------------------------------------------------
+      // 8) Crear associations (solo en modo full)
+      // ---------------------------------------------------------------------
+      if (options.mode === 'full') {
+        const assocResult = await this.createAssociations(
+          crm,
+          { macros, proyectos: proyectosToProcess, agrupaciones: allAgrupaciones, unidades: allUnidades }
+        );
+        counts.associations.created = assocResult.created;
+        counts.associations.failed = assocResult.failed;
+        for (const e of assocResult.errors) {
+          errors.push(e);
+        }
+      }
+
+      // ---------------------------------------------------------------------
+      // 9) Cerrar evento
+      // ---------------------------------------------------------------------
+      const endedAt = new Date();
+      const report: SyncReport = {
+        mode: options.mode,
+        clientId: options.clientId,
+        startedAt,
+        endedAt,
+        durationMs: endedAt.getTime() - startedAt.getTime(),
+        counts,
+        errors,
+      };
+
+      await this.eventLog.succeed(transactionId, {
+        durationMs: report.durationMs,
+        counts: counts as unknown as Record<string, unknown>,
+        errorCount: errors.length,
+      });
+
+      log.info({ report: { ...report, errors: errors.slice(0, 5) } }, 'Sync completed');
+      return ok(report);
+    } catch (caught) {
+      const code = 'ERP_NETWORK_ERROR';
+      const message = caught instanceof Error ? caught.message : String(caught);
+      await this.eventLog.fail(transactionId, { code, message });
+      log.error({ message }, 'Sync threw unexpectedly');
+      throw caught;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Mappers ERP → CRM
+  // -------------------------------------------------------------------------
+
+  private mapMacroToCrm(m: Macroproyecto): CrmRecordInput {
+    return {
+      objectType: 'macroproyecto',
+      properties: {
+        [PROPS.externalId]: m.externalId,
+        [PROPS.nombre]: m.nombre,
+        [PROPS.macroActivo]: m.activo,
+      },
+    };
+  }
+
+  private mapProyectoToCrm(p: Proyecto): CrmRecordInput {
+    return {
+      objectType: 'proyecto',
+      properties: {
+        [PROPS.externalId]: p.externalId,
+        [PROPS.nombre]: p.nombre,
+        [PROPS.proyectoIdMacro]: p.macroproyectoExternalId,
+        [PROPS.proyectoActivo]: p.activo,
+      },
+    };
+  }
+
+  private mapUnidadToCrm(u: Unidad): CrmRecordInput {
+    return {
+      objectType: 'unidad',
+      properties: {
+        [PROPS.externalId]: u.externalId,
+        [PROPS.nombre]: u.nombre,
+        [PROPS.unidadIdProyecto]: u.proyectoExternalId,
+        [PROPS.unidadTipo]: u.tipo,
+        [PROPS.unidadEsPrincipal]: u.esPrincipal,
+        [PROPS.unidadPrecio]: u.precio,
+        [PROPS.unidadEstado]: u.estado,
+        ...(u.areaConstruida != null && { [PROPS.unidadAreaConstruida]: u.areaConstruida }),
+        ...(u.areaPrivada != null && { [PROPS.unidadAreaPrivada]: u.areaPrivada }),
+        ...(u.piso != null && { [PROPS.unidadPiso]: u.piso }),
+      },
+    };
+  }
+
+  private mapUnidadToCrmPricesOnly(u: Unidad): CrmRecordInput {
+    return {
+      objectType: 'unidad',
+      properties: {
+        [PROPS.externalId]: u.externalId,
+        [PROPS.unidadPrecio]: u.precio,
+        [PROPS.unidadEstado]: u.estado,
+      },
+    };
+  }
+
+  private mapAgrupacionToCrm(a: Agrupacion): CrmRecordInput {
+    return {
+      objectType: 'agrupacion',
+      properties: {
+        [PROPS.externalId]: a.externalId,
+        [PROPS.nombre]: a.nombre,
+        [PROPS.agrupacionIdProyecto]: a.proyectoExternalId,
+        [PROPS.agrupacionEstado]: a.estado,
+        [PROPS.agrupacionValorTotal]: a.valorTotal,
+        ...(a.crmDealId && { [PROPS.agrupacionDealId]: a.crmDealId }),
+      },
+    };
+  }
+
+  private mapAgrupacionToCrmPricesOnly(a: Agrupacion): CrmRecordInput {
+    return {
+      objectType: 'agrupacion',
+      properties: {
+        [PROPS.externalId]: a.externalId,
+        [PROPS.agrupacionValorTotal]: a.valorTotal,
+        [PROPS.agrupacionEstado]: a.estado,
+      },
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Associations
+  // -------------------------------------------------------------------------
+
+  private async createAssociations(
+    crm: ICrmAdapter,
+    data: {
+      macros: readonly Macroproyecto[];
+      proyectos: ReadonlyArray<{ macro: Macroproyecto; proyecto: Proyecto }>;
+      agrupaciones: ReadonlyArray<{ proyecto: Proyecto; agrupacion: Agrupacion }>;
+      unidades: ReadonlyArray<{ proyecto: Proyecto; unidad: Unidad }>;
+    }
+  ): Promise<{
+    created: number;
+    failed: number;
+    errors: Array<{ stage: string; errorCode: string; message: string }>;
+  }> {
+    const errors: Array<{ stage: string; errorCode: string; message: string }> = [];
+    let created = 0;
+    let failed = 0;
+
+    // Para crear associations necesitamos los IDs de HubSpot, no los external IDs.
+    // Hacemos lookup en batch usando findByExternalId (search).
+    // Para sync con miles de records, este paso puede ser caro — está OK para
+    // sync inicial. El sync periódico de precios lo salta.
+
+    const macroIdMap = await this.buildExternalIdMap(crm, 'macroproyecto', data.macros.map((m) => m.externalId));
+    const proyectoIdMap = await this.buildExternalIdMap(
+      crm,
+      'proyecto',
+      data.proyectos.map((p) => p.proyecto.externalId)
+    );
+    const agrupacionIdMap = await this.buildExternalIdMap(
+      crm,
+      'agrupacion',
+      data.agrupaciones.map((a) => a.agrupacion.externalId)
+    );
+    const unidadIdMap = await this.buildExternalIdMap(
+      crm,
+      'unidad',
+      data.unidades.map((u) => u.unidad.externalId)
+    );
+
+    const associations: CrmAssociation[] = [];
+
+    // Macro → Proyecto
+    for (const { macro, proyecto } of data.proyectos) {
+      const fromId = macroIdMap.get(macro.externalId);
+      const toId = proyectoIdMap.get(proyecto.externalId);
+      if (fromId && toId) {
+        associations.push({
+          fromObjectType: 'macroproyecto',
+          fromId,
+          toObjectType: 'proyecto',
+          toId,
         });
       }
+    }
 
-      // Queue macro with price aggregates
-      const macroComputed = computeMacroAggregates(unidadesDelMacro);
-      allMacroInputs.push({
-        objectType: 'macroproyecto',
-        properties: mapMacroToProperties(macro, config, macroComputed),
+    // Proyecto → Agrupación
+    for (const { proyecto, agrupacion } of data.agrupaciones) {
+      const fromId = proyectoIdMap.get(proyecto.externalId);
+      const toId = agrupacionIdMap.get(agrupacion.externalId);
+      if (fromId && toId) {
+        associations.push({
+          fromObjectType: 'proyecto',
+          fromId,
+          toObjectType: 'agrupacion',
+          toId,
+        });
+      }
+    }
+
+    // Agrupación → Unidad (cada unidad asociada a su agrupación)
+    for (const { agrupacion } of data.agrupaciones) {
+      const agrId = agrupacionIdMap.get(agrupacion.externalId);
+      if (!agrId) continue;
+      for (const u of agrupacion.unidades) {
+        const uId = unidadIdMap.get(u.externalId);
+        if (uId) {
+          associations.push({
+            fromObjectType: 'agrupacion',
+            fromId: agrId,
+            toObjectType: 'unidad',
+            toId: uId,
+          });
+        }
+      }
+    }
+
+    // Proyecto → Unidad
+    for (const { proyecto, unidad } of data.unidades) {
+      const fromId = proyectoIdMap.get(proyecto.externalId);
+      const toId = unidadIdMap.get(unidad.externalId);
+      if (fromId && toId) {
+        associations.push({
+          fromObjectType: 'proyecto',
+          fromId,
+          toObjectType: 'unidad',
+          toId,
+        });
+      }
+    }
+
+    if (associations.length === 0) {
+      return { created: 0, failed: 0, errors };
+    }
+
+    const result = await crm.createAssociationsBatch(associations);
+    if (result.isOk()) {
+      created = result.value.successful.length;
+      failed = result.value.failed.length;
+      for (const f of result.value.failed) {
+        errors.push({
+          stage: 'createAssociations',
+          errorCode: f.error.code,
+          message: f.error.message,
+        });
+      }
+    } else {
+      errors.push({
+        stage: 'createAssociations',
+        errorCode: result.error.code,
+        message: result.error.message,
       });
     }
 
-    // ----- Phase 3: Batch upsert in dependency order -----
-    log.info(
-      `[sync] Queued for upsert: ${allMacroInputs.length} macros, ` +
-        `${allProyectoInputs.length} proyectos, ${allUnidadInputs.length} unidades, ` +
-        `${allAgrupacionInputs.length} agrupaciones`
-    );
+    return { created, failed, errors };
+  }
 
-    await runBatch('macroproyecto', allMacroInputs, 'macros');
-    await runBatch('proyecto', allProyectoInputs, 'proyectos');
-    await runBatch('unidad', allUnidadInputs, 'unidades');
-    await runBatch('agrupacion', allAgrupacionInputs, 'agrupaciones');
+  /**
+   * Construye un mapa externalId → CRM ID consultando el CRM en batch.
+   * Para optimizar, hace una sola search con filter `in` sobre los externalIds.
+   */
+  private async buildExternalIdMap(
+    crm: ICrmAdapter,
+    objectType: 'macroproyecto' | 'proyecto' | 'unidad' | 'agrupacion',
+    externalIds: readonly number[]
+  ): Promise<Map<number, string>> {
+    const map = new Map<number, string>();
+    if (externalIds.length === 0) return map;
 
-    const durationMs = Date.now() - startedAt;
-    log.info(
-      `[sync] Done in ${durationMs}ms. ` +
-        `macros=${stats.macros.upserted}/${stats.macros.upserted + stats.macros.failed} ` +
-        `proyectos=${stats.proyectos.upserted}/${stats.proyectos.upserted + stats.proyectos.failed} ` +
-        `unidades=${stats.unidades.upserted}/${stats.unidades.upserted + stats.unidades.failed} ` +
-        `agrupaciones=${stats.agrupaciones.upserted}/${stats.agrupaciones.upserted + stats.agrupaciones.failed} ` +
-        `skipped=${stats.skipped} errors=${stats.errors.length}`
-    );
+    // HubSpot search: max 100 por batch, max 100 valores en filter `in`.
+    const batchSize = 100;
+    for (let i = 0; i < externalIds.length; i += batchSize) {
+      const chunk = externalIds.slice(i, i + batchSize);
+      const result = await crm.searchRecords({
+        objectType,
+        filters: [
+          {
+            property: PROPS.externalId,
+            operator: 'in',
+            value: chunk,
+          },
+        ],
+        properties: [PROPS.externalId],
+        limit: batchSize,
+      });
 
-    return { ok: true, value: { ...stats, durationMs } };
-  } catch (err) {
-    const durationMs = Date.now() - startedAt;
-    const msg = err instanceof Error ? err.message : String(err);
-    log.error(`[sync] Fatal error: ${msg}`);
+      if (result.isErr()) {
+        this.logger.warn(
+          { objectType, errorCode: result.error.code },
+          'Failed to lookup external IDs'
+        );
+        continue;
+      }
+
+      for (const record of result.value.records) {
+        const externalIdValue = record.properties[PROPS.externalId];
+        if (externalIdValue != null) {
+          map.set(Number(externalIdValue), record.id);
+        }
+      }
+    }
+
+    return map;
+  }
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+
+  private async fetchSingleMacro(
+    erp: IErpConnector,
+    externalId: number
+  ): Promise<Result<readonly Macroproyecto[], EngineError>> {
+    const allResult = await erp.getMacroproyectos();
+    if (allResult.isErr()) return allResult;
+    const found = allResult.value.find((m) => m.externalId === externalId);
+    return ok(found ? [found] : []);
+  }
+
+  private emptyCounts() {
     return {
-      ok: false,
-      error: {
-        code: 'SYNC_FATAL',
-        message: msg,
-        cause: err,
-        context: { partialStats: { ...stats, durationMs } },
-      } as EngineError,
+      macroproyectos: { read: 0, written: 0, failed: 0 },
+      proyectos: { read: 0, written: 0, failed: 0 },
+      agrupaciones: { read: 0, written: 0, failed: 0 },
+      unidades: { read: 0, written: 0, failed: 0 },
+      associations: { created: 0, failed: 0 },
     };
   }
-};
+
+  private emptyReport(options: SyncOptions, startedAt: Date): SyncReport {
+    const endedAt = new Date();
+    return {
+      mode: options.mode,
+      clientId: options.clientId,
+      startedAt,
+      endedAt,
+      durationMs: endedAt.getTime() - startedAt.getTime(),
+      counts: this.emptyCounts(),
+      errors: [],
+    };
+  }
+}
