@@ -80,11 +80,21 @@ function buildDeployPlan(config) {
   // ─── Dynamic Options from JSON ───
   const opts = buildDynamicOptions(config);
 
-  // ─── Contact Properties (always created) ───
-  plan.contactProperties = buildContactProperties(config, opts);
+  // ─── Contact Properties ───
+  // Priority: JSON.contactProperties (v9+) > buildContactProperties (legacy fallback)
+  if (config.contactProperties && config.contactProperties.length > 0) {
+    plan.contactProperties = config.contactProperties;
+  } else {
+    plan.contactProperties = buildContactProperties(config, opts);
+  }
 
-  // ─── Deal Properties (conditional on cotizador/sinco) ───
-  plan.dealProperties = buildDealProperties(config, opts);
+  // ─── Deal Properties ───
+  // Priority: JSON.dealProperties (v9+) > buildDealProperties (legacy fallback)
+  if (config.dealProperties && config.dealProperties.length > 0) {
+    plan.dealProperties = config.dealProperties;
+  } else {
+    plan.dealProperties = buildDealProperties(config, opts);
+  }
 
   // ─── Pipeline ───
   if (config.pipeline && config.pipeline.length > 0) {
@@ -154,7 +164,31 @@ function buildDynamicOptions(config) {
     value: e.trim().toLowerCase().replace(/\s+/g, "_").normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
   }));
 
-  return { macroNames, allChannels, trackingChannels, rangos, niveles, motivosPerdida, motivosPerdidaDeal, etapas };
+  // Torres/etapas by project (for deal property)
+  const torresEtapas = [];
+  (config.macros || []).forEach(m => {
+    (m.torres || []).forEach(t => {
+      const label = `${m.nombre} - ${t.nombre}`;
+      torresEtapas.push({ label, value: norm(label) });
+    });
+  });
+
+  // Ciudades from macros
+  const ciudades = [...new Set((config.macros || []).map(m => m.ciudad).filter(Boolean))].map(c => ({
+    label: c, value: norm(c),
+  }));
+
+  // Tipologías from macros
+  const tipologias = [...new Set((config.macros || []).map(m => m.tipologias).filter(Boolean))].map(t => ({
+    label: t, value: norm(t),
+  }));
+
+  // Tipos VIS/No VIS
+  const tiposProyecto = [...new Set((config.macros || []).map(m => m.tipo).filter(Boolean))].map(t => ({
+    label: t, value: norm(t),
+  }));
+
+  return { macroNames, allChannels, trackingChannels, rangos, niveles, motivosPerdida, motivosPerdidaDeal, etapas, torresEtapas, ciudades, tipologias, tiposProyecto };
 }
 
 /* ─── Contact Properties: base universal + conditional ─── */
@@ -163,6 +197,7 @@ function buildContactProperties(config, opts) {
 
   // Always created — universal Focux properties
   props.push({ name: "lista_proyectos_fx", label: "Lista de Proyectos", type: "enumeration", fieldType: "checkbox", group: "focux", options: opts.macroNames });
+  props.push({ name: "proyecto_activo_fx", label: "Proyecto Activo", type: "enumeration", fieldType: "select", group: "focux", options: opts.macroNames });
 
   if (opts.etapas.length > 0) {
     props.push({ name: "etapa_lead_fx", label: "Etapa del Lead", type: "enumeration", fieldType: "select", group: "focux", options: opts.etapas });
@@ -203,11 +238,13 @@ function buildContactProperties(config, opts) {
     props.push({ name: "motivo_descarte_fx", label: "Motivo de Descarte", type: "enumeration", fieldType: "select", group: "focux", options: opts.motivosPerdida });
   }
 
+  // Universal identification — every real estate client needs these
+  props.push({ name: "cedula_fx", label: "Cédula / Identificación", type: "string", fieldType: "text", group: "focux" });
+  props.push({ name: "tipo_identificacion_fx", label: "Tipo de Identificación", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "CC", value: "CC" }, { label: "CE", value: "CE" }, { label: "NIT", value: "NIT" }, { label: "Pasaporte", value: "PAS" }] });
+
   // Sinco-specific contact properties (only if tieneCotizador)
   if (config.tieneCotizador === true) {
     props.push({ name: "cotizacion_solicitada_fx", label: "Cotización Solicitada", type: "enumeration", fieldType: "booleancheckbox", group: "focux", options: [{ label: "Sí", value: "true" }, { label: "No", value: "false" }] });
-    props.push({ name: "cedula_fx", label: "Cédula / Identificación", type: "string", fieldType: "text", group: "focux" });
-    props.push({ name: "tipo_identificacion_fx", label: "Tipo de Identificación", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "CC", value: "CC" }, { label: "CE", value: "CE" }, { label: "NIT", value: "NIT" }, { label: "Pasaporte", value: "PAS" }] });
     props.push({ name: "id_sinco_comprador_fx", label: "ID Comprador Sinco", type: "number", fieldType: "number", group: "focux" });
   }
 
@@ -223,26 +260,51 @@ function buildContactProperties(config, opts) {
   return props;
 }
 
-/* ─── Deal Properties: base universal + conditional Sinco ─── */
+/* ─── Deal Properties: universal real estate + conditional Sinco ─── */
 function buildDealProperties(config, opts) {
   const props = [];
 
-  // Universal deal properties
+  // ── Grupo Identificación (universal) ──
+  props.push({ name: "cedula_deal_fx", label: "Cédula / Identificación", type: "string", fieldType: "text", group: "focux" });
+  props.push({ name: "tipo_identificacion_deal_fx", label: "Tipo de Identificación", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "CC", value: "CC" }, { label: "CE", value: "CE" }, { label: "NIT", value: "NIT" }, { label: "Pasaporte", value: "PAS" }] });
+  props.push({ name: "lista_proyectos_fx", label: "Proyecto", type: "enumeration", fieldType: "select", group: "focux", options: opts.macroNames });
+
+  if (opts.torresEtapas.length > 0) {
+    props.push({ name: "torre_etapa_fx", label: "Torre / Etapa", type: "enumeration", fieldType: "select", group: "focux", options: opts.torresEtapas });
+  }
+  if (opts.tipologias.length > 0) {
+    props.push({ name: "tipologia_deal_fx", label: "Tipología", type: "enumeration", fieldType: "select", group: "focux", options: opts.tipologias });
+  }
+  if (opts.ciudades.length > 0) {
+    props.push({ name: "ciudad_proyecto_fx", label: "Ciudad del Proyecto", type: "enumeration", fieldType: "select", group: "focux", options: opts.ciudades });
+  }
+  if (opts.tiposProyecto.length > 0) {
+    props.push({ name: "tipo_proyecto_fx", label: "Tipo de Proyecto", type: "enumeration", fieldType: "select", group: "focux", options: opts.tiposProyecto });
+  }
+
+  // ── Grupo Datos Financieros (universal) ──
+  props.push({ name: "valor_inmueble_fx", label: "Valor del Inmueble", type: "number", fieldType: "number", group: "focux" });
+  props.push({ name: "porcentaje_separacion_fx", label: "% Separación", type: "number", fieldType: "number", group: "focux" });
+  props.push({ name: "valor_separacion_fx", label: "Valor Separación", type: "number", fieldType: "number", group: "focux" });
+  props.push({ name: "porcentaje_cuota_inicial_fx", label: "% Cuota Inicial", type: "number", fieldType: "number", group: "focux" });
+  props.push({ name: "valor_cuota_inicial_fx", label: "Valor Cuota Inicial", type: "number", fieldType: "number", group: "focux" });
+  props.push({ name: "numero_cuotas_fx", label: "Número de Cuotas", type: "number", fieldType: "number", group: "focux" });
+
+  // ── Grupo Gestión (universal) ──
   if (opts.motivosPerdidaDeal.length > 0) {
     props.push({ name: "motivo_perdida_fx", label: "Motivo de Pérdida", type: "enumeration", fieldType: "select", group: "focux", options: opts.motivosPerdidaDeal });
   }
+  props.push({ name: "fecha_opcion_fx", label: "Fecha de Opción", type: "date", fieldType: "date", group: "focux" });
+  props.push({ name: "fecha_separacion_fx", label: "Fecha de Separación", type: "date", fieldType: "date", group: "focux" });
+  props.push({ name: "fecha_formalizacion_fx", label: "Fecha de Formalización", type: "date", fieldType: "date", group: "focux" });
 
-  props.push({ name: "lista_proyectos_fx", label: "Proyecto", type: "enumeration", fieldType: "select", group: "focux", options: opts.macroNames });
-
-  // Sinco/Cotizador-specific deal properties
+  // ── Sinco/Cotizador-specific deal properties ──
   if (config.tieneCotizador === true) {
     const sincoProps = [
       { name: "id_venta_sinco_fx", label: "ID Venta Sinco", type: "number", fieldType: "number" },
       { name: "id_agrupacion_sinco_fx", label: "ID Agrupación Sinco", type: "number", fieldType: "number" },
       { name: "id_sinco_comprador_fx", label: "ID Comprador Sinco", type: "number", fieldType: "number" },
-      { name: "valor_separacion_fx", label: "Valor Separación", type: "number", fieldType: "number" },
-      { name: "cuota_inicial_fx", label: "Cuota Inicial Total", type: "number", fieldType: "number" },
-      { name: "numero_cuotas_fx", label: "Número de Cuotas", type: "number", fieldType: "number" },
+      { name: "cuota_inicial_fx", label: "Cuota Inicial Total (Sinco)", type: "number", fieldType: "number" },
       { name: "valor_cuota_fx", label: "Valor Cuota Mensual", type: "number", fieldType: "number" },
       { name: "valor_credito_fx", label: "Valor Crédito / Saldo Final", type: "number", fieldType: "number" },
       { name: "porcentaje_financiacion_fx", label: "% Financiación", type: "number", fieldType: "number" },
