@@ -77,19 +77,18 @@ function buildDeployPlan(config) {
     { objectType: "companies", name: "focux", label: "Focux Engine" },
   ];
 
-  // ─── Dynamic Options from JSON ───
-  const opts = buildDynamicOptions(config);
+  // ─── Contact & Deal Properties ───
+  // Priority: JSON.contactProperties/dealProperties (v9+) > build functions (legacy fallback)
+  const needsLegacyBuild = !(config.contactProperties && config.contactProperties.length > 0) ||
+                            !(config.dealProperties && config.dealProperties.length > 0);
+  const opts = needsLegacyBuild ? buildDynamicOptions(config) : null;
 
-  // ─── Contact Properties ───
-  // Priority: JSON.contactProperties (v9+) > buildContactProperties (legacy fallback)
   if (config.contactProperties && config.contactProperties.length > 0) {
     plan.contactProperties = config.contactProperties;
   } else {
     plan.contactProperties = buildContactProperties(config, opts);
   }
 
-  // ─── Deal Properties ───
-  // Priority: JSON.dealProperties (v9+) > buildDealProperties (legacy fallback)
   if (config.dealProperties && config.dealProperties.length > 0) {
     plan.dealProperties = config.dealProperties;
   } else {
@@ -117,8 +116,10 @@ function buildDeployPlan(config) {
   return plan;
 }
 
-/* ─── Build dynamic options from config ─── */
+/* ─── Build dynamic options from config (legacy fallback for JSONs without contactProperties/dealProperties) ─── */
 function buildDynamicOptions(config) {
+  const norm = (s) => s.toLowerCase().replace(/\s+/g, "_").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
   const macroNames = (config.macros || []).map(m => ({
     label: m.nombre,
     value: m.nombre.toLowerCase().replace(/\s+/g, "_").normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
