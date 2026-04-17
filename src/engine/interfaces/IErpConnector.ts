@@ -14,6 +14,10 @@
  *
  * Regla crítica: todos los métodos retornan Result<T, EngineError>.
  * Ninguno hace throw. Esto fuerza manejo de errores explícito en el caller.
+ *
+ * v2 — Abril 17, 2026: Expanded domain types to carry all fields needed by
+ * InventorySync mappers (76 HubSpot properties). Previous version only had
+ * ~25 fields total; the rest were silently dropped during sync.
  */
 
 import type { Result } from '@/engine/core/types/Result';
@@ -29,6 +33,12 @@ export interface Macroproyecto {
   readonly nombre: string;
   readonly activo: boolean;
   readonly imagenUrl?: string;
+  // --- v2: campos adicionales para sync completo ---
+  readonly direccion?: string;
+  readonly ciudadCodigo?: number;
+  readonly numeroPisos?: number;
+  readonly aptosPorPiso?: number;
+  readonly estado?: string;
 }
 
 export interface Proyecto {
@@ -37,6 +47,13 @@ export interface Proyecto {
   readonly nombre: string;
   readonly activo: boolean;
   readonly imagenUrl?: string;
+  // --- v2: campos adicionales para sync completo ---
+  readonly estrato?: number;
+  readonly valorSeparacion?: number;
+  readonly porcentajeFinanciacion?: number;
+  readonly fechaEntrega?: string;
+  readonly numeroDiasReservaOpcionVenta?: number;
+  readonly estado?: string;
 }
 
 export type UnidadTipo = 'APARTAMENTO' | 'PARQUEADERO' | 'DEPOSITO' | 'OTRO';
@@ -47,13 +64,27 @@ export interface Unidad {
   readonly proyectoExternalId: number;
   readonly nombre: string;
   readonly tipo: UnidadTipo;
+  /** Código numérico del tipo en el ERP (ej. 2=Apto, 28=Parq, 3=Dep en Sinco). */
+  readonly tipoCodigo?: number;
   /** Si es la unidad principal de una agrupación (el apto vs el parqueadero). */
   readonly esPrincipal: boolean;
   readonly precio: number;
   readonly estado: UnidadEstado;
   readonly areaConstruida?: number;
   readonly areaPrivada?: number;
+  readonly areaTotal?: number;
   readonly piso?: number;
+  // --- v2: campos adicionales para sync completo ---
+  readonly cantidadAlcobas?: number;
+  readonly cantidadBanos?: number;
+  readonly bloqueadoEnErp?: boolean;
+  readonly tipoInmuebleId?: number;
+  readonly clasificacion?: string;
+  readonly nomenclaturaTorre?: string;
+  readonly areaTerraza?: number;
+  readonly areaBalcon?: number;
+  readonly areaPatio?: number;
+  readonly tieneJardineria?: boolean;
   /** Campos específicos del ERP que no fueron mapeados. Útil para debugging. */
   readonly raw?: Readonly<Record<string, unknown>>;
 }
@@ -72,6 +103,27 @@ export interface Agrupacion {
    * En Sinco este campo existe (con typo "idHusbpot" en el response).
    */
   readonly crmDealId?: string | null;
+  // --- v2: campos adicionales para sync completo ---
+  readonly valorSubtotal?: number;
+  readonly valorDescuento?: number;
+  readonly valorDescuentoFinanciero?: number;
+  readonly valorTotalNeto?: number;
+  readonly valorSeparacion?: number;
+  readonly compradorExternalId?: number;
+  readonly vendedorExternalId?: number;
+  readonly tipoVentaCodigo?: number;
+  readonly fechaVenta?: string;
+  readonly observaciones?: string;
+  readonly numeroEncargo?: string;
+  readonly fechaSeparacion?: string;
+  readonly fechaCreacionErp?: string;
+  readonly idUnidadPrincipalExternalId?: number;
+  readonly idMedioPublicitario?: number;
+  readonly ventaExterior?: boolean;
+  readonly valorAdicionales?: number;
+  readonly valorExclusiones?: number;
+  readonly valorSobrecosto?: number;
+  readonly compradorNumeroIdentificacion?: string;
   readonly raw?: Readonly<Record<string, unknown>>;
 }
 

@@ -1,17 +1,17 @@
 /**
+ * src/engine/connectors/erp/sinco/types.ts
+ *
  * Schemas Zod para validar responses de la API Sinco en runtime.
  *
- * Por qué Zod y no "as unknown as Tipo":
- *   La API de Sinco puede cambiar silenciosamente (nuevo campo requerido,
- *   tipo distinto, null inesperado). Sin validación runtime, un cambio
- *   upstream te tumba el sync en producción con errores crípticos.
- *   Con Zod, cada response es validado y si falla generas un
- *   ERP_SCHEMA_MISMATCH con detalles exactos de qué campo rompió.
+ * v2 — Abril 17, 2026: Expanded schemas to capture ALL fields returned by
+ * Sinco's API (validated with production data from Jiménez). Previous version
+ * only parsed ~5-7 fields per entity; the rest were silently dropped by Zod
+ * even though .passthrough() kept them in the raw object.
  *
- * Estrategia:
- *   - `.passthrough()` en objetos — Sinco agrega campos y no queremos romper.
- *   - `.nullable()` agresivo — Sinco retorna null en campos "opcionales".
- *   - Enums mapeados a strings legibles — ej. tipoUnidad 2 -> APARTAMENTO.
+ * Strategy:
+ *   - .passthrough() on all objects — Sinco may add fields, we don't break.
+ *   - .nullable().optional() aggressively — Sinco returns null on many fields.
+ *   - All new fields are optional — backwards compatible with existing data.
  */
 
 import { z } from 'zod';
@@ -29,14 +29,9 @@ import type {
 } from '@/engine/interfaces/IErpConnector';
 
 // ============================================================================
-// Autenticación
+// Autenticación (unchanged)
 // ============================================================================
 
-/**
- * Response del POST /API/Auth/Usuario — el primer paso del 3-step auth.
- * HTTP 200 = 1 BD, token listo. HTTP 300 = múltiples BDs, hay que seleccionar.
- * En ambos casos el body es parecido pero bdIngreso cambia.
- */
 export const SincoAuthStep1ResponseSchema = z.object({
   access_token: z.string(),
   expires_in: z.number(),
@@ -52,10 +47,6 @@ export const SincoAuthStep1ResponseSchema = z.object({
 
 export type SincoAuthStep1Response = z.infer<typeof SincoAuthStep1ResponseSchema>;
 
-/**
- * Response del GET /API/Cliente/Empresas — lista de empresas (razones sociales).
- * IdOrigen es crítico: se usa en el Step 3 para obtener el token final.
- */
 export const SincoEmpresaSchema = z.object({
   IdOrigen: z.number(),
   IdEmpresa: z.number(),
@@ -65,13 +56,8 @@ export const SincoEmpresaSchema = z.object({
 }).passthrough();
 
 export const SincoEmpresasResponseSchema = z.array(SincoEmpresaSchema);
-
 export type SincoEmpresa = z.infer<typeof SincoEmpresaSchema>;
 
-/**
- * Response del GET /API/Auth/Sesion/IniciarMovil/... — Step 3.
- * Devuelve el token final que se usa con los endpoints de negocio.
- */
 export const SincoAuthStep3ResponseSchema = z.object({
   access_token: z.string(),
   expires_in: z.number(),
@@ -81,7 +67,7 @@ export const SincoAuthStep3ResponseSchema = z.object({
 export type SincoAuthStep3Response = z.infer<typeof SincoAuthStep3ResponseSchema>;
 
 // ============================================================================
-// Macroproyecto
+// Macroproyecto — EXPANDED
 // ============================================================================
 
 export const SincoMacroproyectoSchema = z.object({
@@ -89,10 +75,14 @@ export const SincoMacroproyectoSchema = z.object({
   nombre: z.string(),
   activo: z.boolean().optional().default(true),
   imagen: z.string().nullable().optional(),
+  // v2: new fields from GET /Macroproyectos/Basica
+  direccion: z.string().nullable().optional(),
+  ciudad: z.number().nullable().optional(),
+  numeroPisos: z.number().nullable().optional(),
+  aptosPorPiso: z.number().nullable().optional(),
 }).passthrough();
 
 export const SincoMacroproyectosResponseSchema = z.array(SincoMacroproyectoSchema);
-
 export type SincoMacroproyectoRaw = z.infer<typeof SincoMacroproyectoSchema>;
 
 export function mapMacroproyecto(raw: SincoMacroproyectoRaw): Macroproyecto {
@@ -101,11 +91,16 @@ export function mapMacroproyecto(raw: SincoMacroproyectoRaw): Macroproyecto {
     nombre: raw.nombre,
     activo: raw.activo ?? true,
     imagenUrl: raw.imagen ?? undefined,
+    // v2
+    direccion: raw.direccion ?? undefined,
+    ciudadCodigo: raw.ciudad ?? undefined,
+    numeroPisos: raw.numeroPisos ?? undefined,
+    aptosPorPiso: raw.aptosPorPiso ?? undefined,
   };
 }
 
 // ============================================================================
-// Proyecto
+// Proyecto — EXPANDED
 // ============================================================================
 
 export const SincoProyectoSchema = z.object({
@@ -114,10 +109,15 @@ export const SincoProyectoSchema = z.object({
   nombre: z.string(),
   activo: z.boolean().optional().default(true),
   imagen: z.string().nullable().optional(),
+  // v2: new fields from GET /Proyectos/{idMacro}
+  estrato: z.number().nullable().optional(),
+  valorSeparacion: z.number().nullable().optional(),
+  porcentajeFinanciacion: z.number().nullable().optional(),
+  fechaEntrega: z.string().nullable().optional(),
+  numeroDiasReservaOpcionDeVenta: z.number().nullable().optional(),
 }).passthrough();
 
 export const SincoProyectosResponseSchema = z.array(SincoProyectoSchema);
-
 export type SincoProyectoRaw = z.infer<typeof SincoProyectoSchema>;
 
 export function mapProyecto(raw: SincoProyectoRaw): Proyecto {
@@ -127,17 +127,19 @@ export function mapProyecto(raw: SincoProyectoRaw): Proyecto {
     nombre: raw.nombre,
     activo: raw.activo ?? true,
     imagenUrl: raw.imagen ?? undefined,
+    // v2
+    estrato: raw.estrato ?? undefined,
+    valorSeparacion: raw.valorSeparacion ?? undefined,
+    porcentajeFinanciacion: raw.porcentajeFinanciacion ?? undefined,
+    fechaEntrega: raw.fechaEntrega ?? undefined,
+    numeroDiasReservaOpcionVenta: raw.numeroDiasReservaOpcionDeVenta ?? undefined,
   };
 }
 
 // ============================================================================
-// Unidad
+// Unidad — EXPANDED
 // ============================================================================
 
-/**
- * Enums de Sinco para tipoUnidad e idEstado.
- * Fuente: validación de producción Porto Sabbia (abril 2026).
- */
 const SINCO_TIPO_UNIDAD: Record<number, UnidadTipo> = {
   2: 'APARTAMENTO',
   3: 'DEPOSITO',
@@ -147,8 +149,6 @@ const SINCO_TIPO_UNIDAD: Record<number, UnidadTipo> = {
 const SINCO_ESTADO_UNIDAD: Record<number, UnidadEstado> = {
   0: 'DISPONIBLE',
   1: 'VENDIDA',
-  // Sinco usa más estados internamente (bloqueado, reservado), pero a nivel
-  // de API pública solo se observan 0 y 1. Si aparece otro, caemos al default.
 };
 
 export const SincoUnidadSchema = z.object({
@@ -156,29 +156,30 @@ export const SincoUnidadSchema = z.object({
   idProyecto: z.number().optional(),
   nombre: z.string(),
   idTipoUnidad: z.number(),
+  tipoUnidad: z.string().nullable().optional(),
   esPrincipal: z.boolean().optional().default(false),
   valor: z.number(),
   idEstado: z.number(),
+  estado: z.string().nullable().optional(),
   areaConstruida: z.number().nullable().optional(),
   areaPrivada: z.number().nullable().optional(),
+  areaTotal: z.number().nullable().optional(),
   numeroPiso: z.number().nullable().optional(),
+  // v2: new fields
+  cantidadAlcobas: z.number().nullable().optional(),
+  estBloq: z.boolean().nullable().optional(),
+  idTipoInmueble: z.number().nullable().optional(),
+  tipoInmueble: z.string().nullable().optional(),
+  fechaCreacion: z.string().nullable().optional(),
 }).passthrough();
 
 export const SincoUnidadesResponseSchema = z.array(SincoUnidadSchema);
-
 export type SincoUnidadRaw = z.infer<typeof SincoUnidadSchema>;
 
-/**
- * Extrae el piso del nombre de la unidad si numeroPiso es null.
- * Ejemplo: "APT-401" -> 4, "APT-APTO1302" -> 13.
- * Patrón observado en Jiménez: 4 dígitos al final, primeros 1-2 son el piso.
- */
 function inferPisoFromNombre(nombre: string): number | undefined {
   const match = nombre.match(/(\d{3,4})\s*$/);
   if (!match) return undefined;
   const digits = match[1]!;
-  // APT-401 -> "401" -> piso 4
-  // APT-1302 -> "1302" -> piso 13
   if (digits.length === 3) return Number(digits.charAt(0));
   if (digits.length === 4) return Number(digits.substring(0, 2));
   return undefined;
@@ -194,43 +195,65 @@ export function mapUnidad(raw: SincoUnidadRaw, proyectoExternalId: number): Unid
     proyectoExternalId: raw.idProyecto ?? proyectoExternalId,
     nombre: raw.nombre,
     tipo,
+    tipoCodigo: raw.idTipoUnidad,
     esPrincipal: raw.esPrincipal ?? false,
     precio: raw.valor,
     estado,
     areaConstruida: raw.areaConstruida ?? undefined,
     areaPrivada: raw.areaPrivada ?? undefined,
+    areaTotal: raw.areaTotal ?? undefined,
     piso,
+    // v2
+    cantidadAlcobas: raw.cantidadAlcobas ?? undefined,
+    bloqueadoEnErp: raw.estBloq ?? undefined,
+    tipoInmuebleId: raw.idTipoInmueble ?? undefined,
     raw,
   };
 }
 
 // ============================================================================
-// Agrupación
+// Agrupación — EXPANDED
 // ============================================================================
 
-/**
- * El campo idHusbpot existe con ese typo en el response real de Sinco.
- * Lo aceptamos y lo exponemos como crmDealId en nuestro dominio.
- */
 export const SincoAgrupacionSchema = z.object({
   id: z.number(),
   idProyecto: z.number(),
-  nombre: z.string().optional(),
+  nombre: z.string().nullable().optional(),
+  nombreUnidadPrincipal: z.string().nullable().optional(),
   idEstado: z.number().optional(),
+  estado: z.string().nullable().optional(),
   estBloq: z.boolean().optional(),
-  valorTotal: z.number().optional(),
-  idHusbpot: z.string().nullable().optional(), // typo original preservado
+  valorTotal: z.number().nullable().optional(),
+  idHusbpot: z.string().nullable().optional(),
   unidades: z.array(SincoUnidadSchema).optional().default([]),
+  // v2: all the fields InventorySync needs
+  valorSubTotal: z.number().nullable().optional(),
+  valorDescuento: z.number().nullable().optional(),
+  valorDescuentoFinanciero: z.number().nullable().optional(),
+  valorTotalNeto: z.number().nullable().optional(),
+  valorSeparacion: z.number().nullable().optional(),
+  idComprador: z.number().nullable().optional(),
+  idVendedor: z.number().nullable().optional(),
+  tipoVenta: z.number().nullable().optional(),
+  fechaVenta: z.string().nullable().optional(),
+  observaciones: z.string().nullable().optional(),
+  numeroEncargo: z.string().nullable().optional(),
+  fechaSeparacion: z.string().nullable().optional(),
+  fechaCreacion: z.string().nullable().optional(),
+  idMedioPublicitario: z.number().nullable().optional(),
+  ventaExterior: z.boolean().nullable().optional(),
+  valorAdicionales: z.number().nullable().optional(),
+  valorExclusiones: z.number().nullable().optional(),
+  valorSobrecosto: z.number().nullable().optional(),
+  numeroIdentificacionComprador: z.string().nullable().optional(),
 }).passthrough();
 
 export const SincoAgrupacionesResponseSchema = z.array(SincoAgrupacionSchema);
-
 export type SincoAgrupacionRaw = z.infer<typeof SincoAgrupacionSchema>;
 
 const SINCO_ESTADO_AGRUPACION: Record<number, AgrupacionEstado> = {
   0: 'DISPONIBLE',
   1: 'VENDIDA',
-  // Estados intermedios si aparecen
 };
 
 export function mapAgrupacion(raw: SincoAgrupacionRaw): Agrupacion {
@@ -238,8 +261,11 @@ export function mapAgrupacion(raw: SincoAgrupacionRaw): Agrupacion {
   const valorTotal = raw.valorTotal ?? unidades.reduce((sum, u) => sum + u.precio, 0);
   const estado = SINCO_ESTADO_AGRUPACION[raw.idEstado ?? 0] ?? 'DISPONIBLE';
 
-  // Si no hay nombre en Sinco, construir uno con las unidades.
-  const nombre = raw.nombre ?? unidades.map((u) => u.nombre).join(' + ');
+  // Sinco puede devolver el nombre en "nombre" o en "nombreUnidadPrincipal"
+  const nombre = raw.nombreUnidadPrincipal ?? raw.nombre ?? unidades.map((u) => u.nombre).join(' + ');
+
+  // Derive idUnidadPrincipal from the unidades array
+  const unidadPrincipal = unidades.find((u) => u.esPrincipal);
 
   return {
     externalId: raw.id,
@@ -249,12 +275,33 @@ export function mapAgrupacion(raw: SincoAgrupacionRaw): Agrupacion {
     valorTotal,
     unidades,
     crmDealId: raw.idHusbpot ?? null,
+    // v2: all additional fields
+    valorSubtotal: raw.valorSubTotal ?? undefined,
+    valorDescuento: raw.valorDescuento ?? undefined,
+    valorDescuentoFinanciero: raw.valorDescuentoFinanciero ?? undefined,
+    valorTotalNeto: raw.valorTotalNeto ?? undefined,
+    valorSeparacion: raw.valorSeparacion ?? undefined,
+    compradorExternalId: raw.idComprador ?? undefined,
+    vendedorExternalId: raw.idVendedor ?? undefined,
+    tipoVentaCodigo: raw.tipoVenta ?? undefined,
+    fechaVenta: raw.fechaVenta ?? undefined,
+    observaciones: raw.observaciones ?? undefined,
+    numeroEncargo: raw.numeroEncargo ?? undefined,
+    fechaSeparacion: raw.fechaSeparacion ?? undefined,
+    fechaCreacionErp: raw.fechaCreacion ?? undefined,
+    idUnidadPrincipalExternalId: unidadPrincipal?.externalId ?? undefined,
+    idMedioPublicitario: raw.idMedioPublicitario ?? undefined,
+    ventaExterior: raw.ventaExterior ?? undefined,
+    valorAdicionales: raw.valorAdicionales ?? undefined,
+    valorExclusiones: raw.valorExclusiones ?? undefined,
+    valorSobrecosto: raw.valorSobrecosto ?? undefined,
+    compradorNumeroIdentificacion: raw.numeroIdentificacionComprador ?? undefined,
     raw,
   };
 }
 
 // ============================================================================
-// Comprador
+// Comprador (unchanged)
 // ============================================================================
 
 export const SincoCompradorSchema = z.object({
@@ -300,7 +347,7 @@ export function mapComprador(raw: SincoCompradorRaw): Comprador {
 }
 
 // ============================================================================
-// Vendedor
+// Vendedor (unchanged)
 // ============================================================================
 
 export const SincoVendedorSchema = z.object({
@@ -311,7 +358,6 @@ export const SincoVendedorSchema = z.object({
 }).passthrough();
 
 export const SincoVendedoresResponseSchema = z.array(SincoVendedorSchema);
-
 export type SincoVendedorRaw = z.infer<typeof SincoVendedorSchema>;
 
 export function mapVendedor(raw: SincoVendedorRaw): Vendedor {
@@ -324,26 +370,15 @@ export function mapVendedor(raw: SincoVendedorRaw): Vendedor {
 }
 
 // ============================================================================
-// Concepto Plan de Pagos
+// Concepto Plan de Pagos (unchanged)
 // ============================================================================
 
-/**
- * Los conceptos "core" mapeados de Jiménez (producción):
- *   - Separación
- *   - Cuota Inicial
- *   - Saldo Final
- *   - Crédito Hipotecario
- *   - Confirmación
- */
 const CONCEPTOS_CORE_KEYWORDS = [
-  'separacion',
-  'separación',
+  'separacion', 'separación',
   'cuota inicial',
   'saldo final',
-  'credito',
-  'crédito',
-  'confirmacion',
-  'confirmación',
+  'credito', 'crédito',
+  'confirmacion', 'confirmación',
 ];
 
 export const SincoConceptoPlanPagoSchema = z.object({
@@ -352,7 +387,6 @@ export const SincoConceptoPlanPagoSchema = z.object({
 }).passthrough();
 
 export const SincoConceptosPlanPagoResponseSchema = z.array(SincoConceptoPlanPagoSchema);
-
 export type SincoConceptoPlanPagoRaw = z.infer<typeof SincoConceptoPlanPagoSchema>;
 
 export function mapConceptoPlanPago(raw: SincoConceptoPlanPagoRaw): ConceptoPlanPago {
@@ -366,13 +400,9 @@ export function mapConceptoPlanPago(raw: SincoConceptoPlanPagoRaw): ConceptoPlan
 }
 
 // ============================================================================
-// Create Comprador (request body)
+// Create Comprador (request body — unchanged)
 // ============================================================================
 
-/**
- * POST /Compradores — body mínimo requerido.
- * Sinco acepta 80+ campos pero solo 3 son obligatorios.
- */
 export interface SincoCreateCompradorBody {
   tipoPersona: string;
   tipoIdentificacion: string;
@@ -392,14 +422,14 @@ export interface SincoCreateCompradorBody {
 export const SincoCreateCompradorResponseSchema = z.number();
 
 // ============================================================================
-// Confirmar Venta (request body) — el write-back más crítico
+// Confirmar Venta (request body — unchanged)
 // ============================================================================
 
 export interface SincoConfirmacionVentaBody {
   idVenta: number;
   idProyecto: number;
   numeroIdentificacionComprador: string;
-  fecha?: string; // DD-MM-YYYY
+  fecha?: string;
   porcentajeParticipacion: number;
   valorDescuento: number;
   valorDescuentoFinanciero: number;
@@ -407,7 +437,7 @@ export interface SincoConfirmacionVentaBody {
   idAsesor?: number | null;
   planPagos: ReadonlyArray<{
     idConcepto: number;
-    fecha: string; // DD-MM-YYYY
+    fecha: string;
     valor: number;
     numeroCuota: number;
     idEntidad?: number | null;
@@ -430,10 +460,6 @@ export function mapTipoVentaToSinco(tipo: string): number {
   return TIPO_VENTA_TO_SINCO[tipo] ?? 1;
 }
 
-/**
- * Formatea una fecha a DD-MM-YYYY como exige Sinco.
- * Otros formatos causan FormatException.
- */
 export function formatSincoDate(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
