@@ -28,7 +28,7 @@ import { ok, err, type Result } from '@/engine/core/types/Result';
 import { EngineError } from '@/engine/core/errors/EngineError';
 import type { Logger } from '@/engine/core/logging/Logger';
 import type { IEventLog } from '@/engine/core/eventlog/EventLog';
-import type { ClientConfig } from '@/engine/config/ClientConfigStore';
+import type { ClientConfig } from '@/engine/types/ClientConfig';
 
 // ============================================================================
 // SYNC MODES
