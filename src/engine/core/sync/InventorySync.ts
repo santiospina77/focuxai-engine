@@ -5,9 +5,20 @@
  * and upserts them as CRM Custom Objects using the 76 internal property names
  * defined in the Adapter v3 blueprint (JSON v16).
  *
- * Uses ICrmAdapter.upsertRecordsByExternalId for batch performance (up to 100/call).
- * ERP/CRM-agnostic: no knowledge of Sinco or HubSpot at this level.
- * All methods return Result<T, EngineError> — follows Engine convention.
+ * Architecture:
+ *   - Uses ICrmAdapter.upsertRecordsByExternalId for batch performance (up to 100/call).
+ *   - ERP/CRM-agnostic: no knowledge of Sinco or HubSpot at this level.
+ *   - Merges data from 3 sources: ERP (Sinco), ClientConfig (Ops), computed aggregates.
+ *   - All methods return Result<T, EngineError> — follows Engine's error-handling convention.
+ *
+ * Flow:
+ *   1. Fetch all macros -> collect in memory
+ *   2. Per macro: fetch proyectos -> collect
+ *   3. Per proyecto: fetch unidades + agrupaciones -> collect
+ *   4. Compute aggregates (project and macro level)
+ *   5. Batch upsert in dependency order: macros -> proyectos -> unidades -> agrupaciones
+ *
+ * Ghost filtering: agrupaciones with empty names or null unidades arrays are dropped.
  */
 
 import type {
@@ -16,33 +27,17 @@ import type {
   Proyecto,
   Unidad,
   Agrupacion,
-} from '@/engine/interfaces/IErpConnector';
+} from '../../interfaces/IErpConnector';
 import type {
   ICrmAdapter,
   CrmObjectType,
   CrmRecordInput,
   BatchResult,
   CrmRecord,
-} from '@/engine/interfaces/ICrmAdapter';
-import { ok, err, type Result } from '@/engine/core/types/Result';
-import { EngineError } from '@/engine/core/errors/EngineError';
-import type { Logger } from '@/engine/core/logging/Logger';
-import type { IEventLog } from '@/engine/core/eventlog/EventLog';
-import type { ClientConfig } from '@/engine/types/ClientConfig';
-
-// ============================================================================
-// SYNC MODES
-// ============================================================================
-
-export type SyncMode = 'full' | 'prices';
-
-export interface SyncRunOptions {
-  readonly clientId: string;
-  readonly mode: SyncMode;
-  readonly macroproyectoExternalId?: number;
-  readonly proyectoExternalId?: number;
-  readonly config?: ClientConfig;
-}
+} from '../../interfaces/ICrmAdapter';
+import type { Result } from '../types/Result';
+import type { EngineError } from '../errors/EngineError';
+import type { ClientConfig } from '../../types/ClientConfig';
 
 // ============================================================================
 // PROPERTY NAMES — must match JSON v16 exactly (76 total: 11+16+23+26)
@@ -57,11 +52,12 @@ const PROPS = {
     numeroPisos: 'numero_pisos_fx',
     aptosPorPiso: 'aptos_por_piso_fx',
     idOrigenSinco: 'id_origen_sinco_fx',
-    tipo: 'tipo_fx',
+    tipo: 'tipo_fx',                   // enum: VIS | NO_VIS
     precioDesde: 'precio_desde_fx',
     precioHasta: 'precio_hasta_fx',
-    estado: 'estado_fx',
+    estado: 'estado_fx',               // enum: ACTIVO | INACTIVO
   },
+
   proyecto: {
     nombre: 'nombre_fx',
     idSinco: 'id_sinco_fx',
@@ -80,13 +76,14 @@ const PROPS = {
     unidadesVendidas: 'unidades_vendidas_fx',
     estado: 'estado_fx',
   },
+
   unidad: {
     nombre: 'nombre_fx',
     idSinco: 'id_sinco_fx',
     idProyectoSinco: 'id_proyecto_sinco_fx',
-    tipoUnidadSinco: 'tipo_unidad_sinco_fx',
-    tipoUnidad: 'tipo_unidad_fx',
-    clasificacion: 'clasificacion_fx',
+    tipoUnidadSinco: 'tipo_unidad_sinco_fx',   // numeric code
+    tipoUnidad: 'tipo_unidad_fx',              // enum string
+    clasificacion: 'clasificacion_fx',         // PRINCIPAL | ACCESORIO
     esPrincipal: 'es_principal_fx',
     precioLista: 'precio_lista_fx',
     estado: 'estado_fx',
@@ -95,7 +92,7 @@ const PROPS = {
     areaTotal: 'area_total_fx',
     piso: 'piso_fx',
     alcobas: 'alcobas_fx',
-    banos: 'banos_fx',
+    banos: 'banos_fx',                         // Sinco doesn't expose this
     fechaSync: 'fecha_sync_fx',
     areaTerraza: 'area_terraza_fx',
     areaBalcon: 'area_balcon_fx',
@@ -105,6 +102,7 @@ const PROPS = {
     idTipoInmuebleSinco: 'id_tipo_inmueble_sinco_fx',
     nomenclaturaTorre: 'nomenclatura_torre_fx',
   },
+
   agrupacion: {
     nombre: 'nombre_fx',
     idSinco: 'id_sinco_fx',
@@ -135,36 +133,45 @@ const PROPS = {
   },
 } as const;
 
-const EXTERNAL_ID_PROPERTY = PROPS.macro.idSinco; // 'id_sinco_fx' for all 4 COs
-const BATCH_SIZE = 100;
+/**
+ * All 4 Custom Objects use 'id_sinco_fx' as the external ID property.
+ * Centralized here so the sync code stays decoupled from specific props.
+ */
+const EXTERNAL_ID_PROPERTY = PROPS.macro.idSinco;
 
 // ============================================================================
-// UTILITIES
+// UTILITY FUNCTIONS
 // ============================================================================
 
+/** HubSpot date fields accept YYYY-MM-DD. Extract date portion from ISO datetime. */
 const toHubSpotDate = (v: string | null | undefined): string | null => {
   if (!v) return null;
   const datePart = v.substring(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return null;
+  return datePart;
 };
 
+/** Strip null/undefined from property map — HubSpot rejects explicit nulls for many fields. */
 const stripNullish = (obj: Record<string, unknown>): Record<string, unknown> => {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (v !== null && v !== undefined) out[k] = v;
+    if (v === null || v === undefined) continue;
+    out[k] = v;
   }
   return out;
 };
 
+/** Resolve city code to display name via client-config catalog. Falls back to code. */
 const resolveCiudad = (
   code: number | null | undefined,
-  config: ClientConfig | undefined
+  config: ClientConfig
 ): string | null => {
   if (code === null || code === undefined) return null;
-  const catalog = (config?.catalogos?.ciudades ?? {}) as Record<string, string>;
+  const catalog = (config.catalogos?.ciudades ?? {}) as Record<string, string>;
   return catalog[String(code)] ?? String(code);
 };
 
+/** Chunk an array into batches of size n (HubSpot caps batch operations at 100). */
 const chunk = <T>(arr: readonly T[], size: number): T[][] => {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) {
@@ -173,8 +180,10 @@ const chunk = <T>(arr: readonly T[], size: number): T[][] => {
   return out;
 };
 
+const BATCH_SIZE = 100;
+
 // ============================================================================
-// MAPPERS
+// MAPPERS — Engine domain -> CRM properties
 // ============================================================================
 
 interface MacroComputed {
@@ -182,18 +191,13 @@ interface MacroComputed {
   precioHasta: number | null;
 }
 
-interface ProyectoComputed {
-  totalUnidades: number;
-  unidadesDisponibles: number;
-  unidadesVendidas: number;
-}
-
-const mapMacro = (
+const mapMacroToProperties = (
   m: Macroproyecto,
-  config: ClientConfig | undefined,
+  config: ClientConfig,
   computed: MacroComputed
 ): Record<string, unknown> => {
-  const opsMacro = config?.macros?.find((cm) => cm.idSinco === m.externalId);
+  const opsMacro = config.macros?.find((cm) => cm.idSinco === m.externalId);
+
   return stripNullish({
     [PROPS.macro.nombre]: m.nombre,
     [PROPS.macro.idSinco]: m.externalId,
@@ -201,7 +205,7 @@ const mapMacro = (
     [PROPS.macro.ciudad]: resolveCiudad(m.ciudadCodigo, config),
     [PROPS.macro.numeroPisos]: m.numeroPisos,
     [PROPS.macro.aptosPorPiso]: m.aptosPorPiso,
-    [PROPS.macro.idOrigenSinco]: config?.sinco?.idOrigen,
+    [PROPS.macro.idOrigenSinco]: config.sinco?.idOrigen,
     [PROPS.macro.tipo]: opsMacro?.tipo,
     [PROPS.macro.precioDesde]: computed.precioDesde,
     [PROPS.macro.precioHasta]: computed.precioHasta,
@@ -209,12 +213,20 @@ const mapMacro = (
   });
 };
 
-const mapProyecto = (
+interface ProyectoComputed {
+  totalUnidades: number;
+  unidadesDisponibles: number;
+  unidadesVendidas: number;
+}
+
+const mapProyectoToProperties = (
   p: Proyecto,
-  config: ClientConfig | undefined,
+  config: ClientConfig,
   computed: ProyectoComputed
 ): Record<string, unknown> => {
-  const opsProyecto = config?.proyectos?.find((cp) => cp.idSinco === p.externalId);
+  const opsProyecto = config.proyectos?.find((cp) => cp.idSinco === p.externalId);
+
+  // Precedence: Sinco first if non-null/non-zero, else Ops fallback.
   const valorSeparacion = p.valorSeparacion ?? opsProyecto?.valorSeparacion ?? null;
   const porcentajeFinanciacion =
     p.porcentajeFinanciacion ?? opsProyecto?.porcentajeFinanciacion ?? null;
@@ -243,8 +255,9 @@ const mapProyecto = (
   });
 };
 
-const mapUnidad = (u: Unidad): Record<string, unknown> => {
+const mapUnidadToProperties = (u: Unidad): Record<string, unknown> => {
   const nowIso = new Date().toISOString();
+
   return stripNullish({
     [PROPS.unidad.nombre]: u.nombre,
     [PROPS.unidad.idSinco]: u.externalId,
@@ -261,7 +274,7 @@ const mapUnidad = (u: Unidad): Record<string, unknown> => {
     [PROPS.unidad.areaTotal]: u.areaTotal,
     [PROPS.unidad.piso]: u.piso,
     [PROPS.unidad.alcobas]: u.cantidadAlcobas,
-    [PROPS.unidad.banos]: u.cantidadBanos,
+    [PROPS.unidad.banos]: u.cantidadBanos, // null in Sinco
     [PROPS.unidad.fechaSync]: toHubSpotDate(nowIso),
     [PROPS.unidad.areaTerraza]: u.areaTerraza,
     [PROPS.unidad.areaBalcon]: u.areaBalcon,
@@ -273,18 +286,9 @@ const mapUnidad = (u: Unidad): Record<string, unknown> => {
   });
 };
 
-/** Prices-only mode: minimal payload with just id + price + state. */
-const mapUnidadPricesOnly = (u: Unidad): Record<string, unknown> => {
-  return stripNullish({
-    [PROPS.unidad.idSinco]: u.externalId,
-    [PROPS.unidad.precioLista]: u.precio,
-    [PROPS.unidad.estado]: u.estado,
-    [PROPS.unidad.fechaSync]: toHubSpotDate(new Date().toISOString()),
-  });
-};
-
-const mapAgrupacion = (a: Agrupacion): Record<string, unknown> => {
+const mapAgrupacionToProperties = (a: Agrupacion): Record<string, unknown> => {
   const nowIso = new Date().toISOString();
+
   return stripNullish({
     [PROPS.agrupacion.nombre]: a.nombre,
     [PROPS.agrupacion.idSinco]: a.externalId,
@@ -297,6 +301,7 @@ const mapAgrupacion = (a: Agrupacion): Record<string, unknown> => {
     [PROPS.agrupacion.estado]: a.estado,
     [PROPS.agrupacion.idCompradorSinco]: a.compradorExternalId,
     [PROPS.agrupacion.idVendedorSinco]: a.vendedorExternalId,
+    // idHubspotDeal intentionally NOT written from sync — owned by write-back flow.
     [PROPS.agrupacion.tipoVenta]: a.tipoVentaCodigo,
     [PROPS.agrupacion.fechaVenta]: toHubSpotDate(a.fechaVenta),
     [PROPS.agrupacion.observaciones]: a.observaciones,
@@ -309,16 +314,19 @@ const mapAgrupacion = (a: Agrupacion): Record<string, unknown> => {
     [PROPS.agrupacion.valorAdicionales]: a.valorAdicionales,
     [PROPS.agrupacion.valorExclusiones]: a.valorExclusiones,
     [PROPS.agrupacion.valorSobrecosto]: a.valorSobrecosto,
-    [PROPS.agrupacion.numeroIdentificacionComprador]: a.compradorNumeroIdentificacion,
+    [PROPS.agrupacion.numeroIdentificacionComprador]:
+      a.compradorNumeroIdentificacion,
     [PROPS.agrupacion.fechaSync]: toHubSpotDate(nowIso),
   });
 };
 
 // ============================================================================
-// AGGREGATES
+// AGGREGATE COMPUTERS
 // ============================================================================
 
-const computeProyectoAggregates = (unidades: readonly Unidad[]): ProyectoComputed => {
+const computeProyectoAggregates = (
+  unidades: readonly Unidad[]
+): ProyectoComputed => {
   const principales = unidades.filter((u) => u.esPrincipal);
   return {
     totalUnidades: principales.length,
@@ -330,9 +338,13 @@ const computeProyectoAggregates = (unidades: readonly Unidad[]): ProyectoCompute
 };
 
 const computeMacroAggregates = (unidades: readonly Unidad[]): MacroComputed => {
-  const withPrice = unidades.filter((u) => u.esPrincipal && u.precio > 0);
-  if (withPrice.length === 0) return { precioDesde: null, precioHasta: null };
-  const precios = withPrice.map((u) => u.precio);
+  const principalesConPrecio = unidades.filter(
+    (u) => u.esPrincipal && u.precio > 0
+  );
+  if (principalesConPrecio.length === 0) {
+    return { precioDesde: null, precioHasta: null };
+  }
+  const precios = principalesConPrecio.map((u) => u.precio);
   return {
     precioDesde: Math.min(...precios),
     precioHasta: Math.max(...precios),
@@ -340,12 +352,10 @@ const computeMacroAggregates = (unidades: readonly Unidad[]): MacroComputed => {
 };
 
 // ============================================================================
-// SYNC STATS
+// SYNC RESULT
 // ============================================================================
 
 export interface InventorySyncStats {
-  readonly mode: SyncMode;
-  readonly clientId: string;
   readonly macros: { upserted: number; failed: number };
   readonly proyectos: { upserted: number; failed: number };
   readonly unidades: { upserted: number; failed: number };
@@ -356,199 +366,212 @@ export interface InventorySyncStats {
 }
 
 // ============================================================================
-// MAIN CLASS
+// SYNC RUNNER
 // ============================================================================
 
-export class InventorySync {
-  constructor(
-    private readonly logger: Logger,
-    private readonly eventLog: IEventLog
-  ) {}
+export interface InventorySyncDeps {
+  readonly erp: IErpConnector;
+  readonly crm: ICrmAdapter;
+  readonly config: ClientConfig;
+  readonly logger?: {
+    info: (msg: string, data?: unknown) => void;
+    warn: (msg: string, data?: unknown) => void;
+    error: (msg: string, data?: unknown) => void;
+  };
+}
 
-  async run(
-    erp: IErpConnector,
-    crm: ICrmAdapter,
-    options: SyncRunOptions
-  ): Promise<Result<InventorySyncStats, EngineError>> {
-    const { clientId, mode, macroproyectoExternalId, proyectoExternalId, config } = options;
-    const log = this.logger.child({ clientId, operation: 'inventorySync', mode });
-    const startedAt = Date.now();
+/**
+ * Run a full inventory sync: ERP -> CRM Custom Objects.
+ * Idempotent via upsertRecordsByExternalId (keyed on id_sinco_fx).
+ *
+ * Returns Result<InventorySyncStats, EngineError> — follows Engine convention.
+ */
+export const runInventorySync = async (
+  deps: InventorySyncDeps
+): Promise<Result<InventorySyncStats, EngineError>> => {
+  const { erp, crm, config, logger } = deps;
+  const log = logger ?? {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  };
 
-    const stats = {
-      mode,
-      clientId,
-      macros: { upserted: 0, failed: 0 },
-      proyectos: { upserted: 0, failed: 0 },
-      unidades: { upserted: 0, failed: 0 },
-      agrupaciones: { upserted: 0, failed: 0 },
-      skipped: 0,
-      errors: [] as string[],
-    };
+  const startedAt = Date.now();
+  const stats = {
+    macros: { upserted: 0, failed: 0 },
+    proyectos: { upserted: 0, failed: 0 },
+    unidades: { upserted: 0, failed: 0 },
+    agrupaciones: { upserted: 0, failed: 0 },
+    skipped: 0,
+    errors: [] as string[],
+  };
 
-    const recordError = (context: string, e: unknown): void => {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : typeof e === 'object' && e !== null && 'message' in e
-          ? String((e as { message: unknown }).message)
-          : String(e);
-      const full = `${context}: ${msg}`;
-      stats.errors.push(full);
-      log.error({ err: e }, `[sync] ${full}`);
-    };
+  const recordError = (context: string, err: unknown): void => {
+    const msg =
+      err instanceof Error
+        ? err.message
+        : typeof err === 'object' && err !== null && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+    const full = `${context}: ${msg}`;
+    stats.errors.push(full);
+    log.error(`[sync] ${full}`);
+  };
 
-    const runBatch = async (
-      objectType: CrmObjectType,
-      inputs: CrmRecordInput[],
-      counterKey: 'macros' | 'proyectos' | 'unidades' | 'agrupaciones'
-    ): Promise<void> => {
-      if (inputs.length === 0) return;
-      for (const batch of chunk(inputs, BATCH_SIZE)) {
-        const result = await crm.upsertRecordsByExternalId(
-          objectType,
-          EXTERNAL_ID_PROPERTY,
-          batch
+  // Helper: run batch upserts and accumulate stats.
+  // Uses the adapter's upsertRecordsByExternalId (idempotent, keyed on id_sinco_fx).
+  const runBatch = async (
+    objectType: CrmObjectType,
+    inputs: CrmRecordInput[],
+    counterKey: 'macros' | 'proyectos' | 'unidades' | 'agrupaciones'
+  ): Promise<void> => {
+    if (inputs.length === 0) return;
+
+    for (const batch of chunk(inputs, BATCH_SIZE)) {
+      const result = await crm.upsertRecordsByExternalId(
+        objectType,
+        EXTERNAL_ID_PROPERTY,
+        batch
+      );
+
+      if (!result.ok) {
+        recordError(`upsert batch ${objectType}`, result.error);
+        stats[counterKey].failed += batch.length;
+        continue;
+      }
+
+      const batchResult: BatchResult<CrmRecord> = result.value;
+      stats[counterKey].upserted += batchResult.successful.length;
+      stats[counterKey].failed += batchResult.failed.length;
+
+      for (const f of batchResult.failed) {
+        recordError(`upsert ${objectType} partial`, f.error);
+      }
+    }
+  };
+
+  try {
+    log.info('[sync] Starting inventory sync');
+
+    // ----- Phase 1: Fetch all macroproyectos from ERP -----
+    const macros = await erp.getMacroproyectos();
+    log.info(`[sync] Fetched ${macros.length} macroproyectos`);
+
+    // Accumulators — batch-write at the end for max throughput.
+    const allUnidadInputs: CrmRecordInput[] = [];
+    const allAgrupacionInputs: CrmRecordInput[] = [];
+    const allProyectoInputs: CrmRecordInput[] = [];
+    const allMacroInputs: CrmRecordInput[] = [];
+
+    // ----- Phase 2: Walk the tree (macros -> proyectos -> unidades/agrupaciones) -----
+    for (const macro of macros) {
+      const unidadesDelMacro: Unidad[] = [];
+
+      let proyectos: readonly Proyecto[] = [];
+      try {
+        proyectos = await erp.getProyectos(macro.externalId);
+        log.info(
+          `[sync] Macro ${macro.externalId} "${macro.nombre}": ${proyectos.length} proyectos`
         );
-        if (result.isErr()) {
-          recordError(`upsert batch ${objectType}`, result.error);
-          stats[counterKey].failed += batch.length;
-          continue;
-        }
-        const batchResult: BatchResult<CrmRecord> = result.value;
-        stats[counterKey].upserted += batchResult.successful.length;
-        stats[counterKey].failed += batchResult.failed.length;
-        for (const f of batchResult.failed) {
-          recordError(`upsert ${objectType} partial`, f.error);
-        }
+      } catch (err) {
+        recordError(`getProyectos macro ${macro.externalId}`, err);
+        continue;
       }
-    };
 
-    try {
-      log.info({}, `[sync] Starting (mode=${mode})`);
+      for (const proyecto of proyectos) {
+        let unidades: readonly Unidad[] = [];
+        let agrupaciones: readonly Agrupacion[] = [];
 
-      // Fetch macros — optionally scoped
-      let macrosRes = await erp.getMacroproyectos();
-      if (macrosRes.isErr()) {
-        return err(macrosRes.error);
-      }
-      let macros = macrosRes.value;
-      if (macroproyectoExternalId != null) {
-        macros = macros.filter((m) => m.externalId === macroproyectoExternalId);
-      }
-      log.info({ count: macros.length }, '[sync] Macros to process');
-
-      const allMacroInputs: CrmRecordInput[] = [];
-      const allProyectoInputs: CrmRecordInput[] = [];
-      const allUnidadInputs: CrmRecordInput[] = [];
-      const allAgrupacionInputs: CrmRecordInput[] = [];
-
-      for (const macro of macros) {
-        const unidadesDelMacro: Unidad[] = [];
-
-        const proyectosRes = await erp.getProyectos(macro.externalId);
-        if (proyectosRes.isErr()) {
-          recordError(`getProyectos macro ${macro.externalId}`, proyectosRes.error);
-          continue;
-        }
-        let proyectos = proyectosRes.value;
-        if (proyectoExternalId != null) {
-          proyectos = proyectos.filter((p) => p.externalId === proyectoExternalId);
+        try {
+          unidades = await erp.getUnidades(proyecto.externalId);
+        } catch (err) {
+          recordError(`getUnidades proyecto ${proyecto.externalId}`, err);
         }
 
-        for (const proyecto of proyectos) {
-          const unidadesRes = await erp.getUnidades(proyecto.externalId);
-          let unidades: readonly Unidad[] = [];
-          if (unidadesRes.isErr()) {
-            recordError(`getUnidades proyecto ${proyecto.externalId}`, unidadesRes.error);
-          } else {
-            unidades = unidadesRes.value;
-          }
-
-          unidadesDelMacro.push(...unidades);
-
-          // Queue unidades (full: all props, prices: minimal)
-          for (const u of unidades) {
-            allUnidadInputs.push({
-              objectType: 'unidad',
-              properties: mode === 'prices' ? mapUnidadPricesOnly(u) : mapUnidad(u),
-            });
-          }
-
-          // Full mode only: fetch agrupaciones and queue proyecto with aggregates
-          if (mode === 'full') {
-            const agrupRes = await erp.getAgrupaciones(proyecto.externalId);
-            let agrupaciones: readonly Agrupacion[] = [];
-            if (agrupRes.isErr()) {
-              recordError(`getAgrupaciones proyecto ${proyecto.externalId}`, agrupRes.error);
-            } else {
-              agrupaciones = agrupRes.value;
-            }
-
-            for (const a of agrupaciones) {
-              // Ghost filter: empty name or no unidades
-              if (!a.nombre || a.nombre.trim() === '' || a.unidades.length === 0) {
-                stats.skipped++;
-                continue;
-              }
-              allAgrupacionInputs.push({
-                objectType: 'agrupacion',
-                properties: mapAgrupacion(a),
-              });
-            }
-
-            const proyComputed = computeProyectoAggregates(unidades);
-            allProyectoInputs.push({
-              objectType: 'proyecto',
-              properties: mapProyecto(proyecto, config, proyComputed),
-            });
-          }
+        try {
+          agrupaciones = await erp.getAgrupaciones(proyecto.externalId);
+        } catch (err) {
+          recordError(`getAgrupaciones proyecto ${proyecto.externalId}`, err);
         }
 
-        // Full mode only: queue macro with price aggregates
-        if (mode === 'full') {
-          const macroComputed = computeMacroAggregates(unidadesDelMacro);
-          allMacroInputs.push({
-            objectType: 'macroproyecto',
-            properties: mapMacro(macro, config, macroComputed),
+        log.info(
+          `[sync]   Proyecto ${proyecto.externalId} "${proyecto.nombre}": ` +
+            `${unidades.length} unidades, ${agrupaciones.length} agrupaciones`
+        );
+
+        unidadesDelMacro.push(...unidades);
+
+        // Queue unidades
+        for (const u of unidades) {
+          allUnidadInputs.push({
+            objectType: 'unidad',
+            properties: mapUnidadToProperties(u),
           });
         }
+
+        // Queue agrupaciones (filter ghosts first)
+        for (const a of agrupaciones) {
+          if (!a.nombre || a.nombre.trim() === '' || a.unidades.length === 0) {
+            stats.skipped++;
+            continue;
+          }
+          allAgrupacionInputs.push({
+            objectType: 'agrupacion',
+            properties: mapAgrupacionToProperties(a),
+          });
+        }
+
+        // Queue proyecto with aggregates
+        const proyectoComputed = computeProyectoAggregates(unidades);
+        allProyectoInputs.push({
+          objectType: 'proyecto',
+          properties: mapProyectoToProperties(proyecto, config, proyectoComputed),
+        });
       }
 
-      log.info(
-        {
-          macros: allMacroInputs.length,
-          proyectos: allProyectoInputs.length,
-          unidades: allUnidadInputs.length,
-          agrupaciones: allAgrupacionInputs.length,
-        },
-        '[sync] Queued for upsert'
-      );
-
-      // Dependency order: macros -> proyectos -> unidades -> agrupaciones
-      await runBatch('macroproyecto', allMacroInputs, 'macros');
-      await runBatch('proyecto', allProyectoInputs, 'proyectos');
-      await runBatch('unidad', allUnidadInputs, 'unidades');
-      await runBatch('agrupacion', allAgrupacionInputs, 'agrupaciones');
-
-      const durationMs = Date.now() - startedAt;
-      log.info(
-        { durationMs, stats },
-        `[sync] Done in ${durationMs}ms`
-      );
-
-      return ok({ ...stats, durationMs });
-    } catch (e) {
-      const durationMs = Date.now() - startedAt;
-      const msg = e instanceof Error ? e.message : String(e);
-      log.error({ err: e, durationMs }, `[sync] Fatal: ${msg}`);
-      return err(
-        new EngineError(
-          'ERP_SERVER_ERROR',
-          `Inventory sync fatal: ${msg}`,
-          { clientId, mode, durationMs },
-          e
-        )
-      );
+      // Queue macro with price aggregates
+      const macroComputed = computeMacroAggregates(unidadesDelMacro);
+      allMacroInputs.push({
+        objectType: 'macroproyecto',
+        properties: mapMacroToProperties(macro, config, macroComputed),
+      });
     }
+
+    // ----- Phase 3: Batch upsert in dependency order -----
+    log.info(
+      `[sync] Queued for upsert: ${allMacroInputs.length} macros, ` +
+        `${allProyectoInputs.length} proyectos, ${allUnidadInputs.length} unidades, ` +
+        `${allAgrupacionInputs.length} agrupaciones`
+    );
+
+    await runBatch('macroproyecto', allMacroInputs, 'macros');
+    await runBatch('proyecto', allProyectoInputs, 'proyectos');
+    await runBatch('unidad', allUnidadInputs, 'unidades');
+    await runBatch('agrupacion', allAgrupacionInputs, 'agrupaciones');
+
+    const durationMs = Date.now() - startedAt;
+    log.info(
+      `[sync] Done in ${durationMs}ms. ` +
+        `macros=${stats.macros.upserted}/${stats.macros.upserted + stats.macros.failed} ` +
+        `proyectos=${stats.proyectos.upserted}/${stats.proyectos.upserted + stats.proyectos.failed} ` +
+        `unidades=${stats.unidades.upserted}/${stats.unidades.upserted + stats.unidades.failed} ` +
+        `agrupaciones=${stats.agrupaciones.upserted}/${stats.agrupaciones.upserted + stats.agrupaciones.failed} ` +
+        `skipped=${stats.skipped} errors=${stats.errors.length}`
+    );
+
+    return { ok: true, value: { ...stats, durationMs } };
+  } catch (err) {
+    const durationMs = Date.now() - startedAt;
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error(`[sync] Fatal error: ${msg}`);
+    return {
+      ok: false,
+      error: {
+        code: 'SYNC_FATAL',
+        message: msg,
+        cause: err,
+        context: { partialStats: { ...stats, durationMs } },
+      } as EngineError,
+    };
   }
-}
+};
