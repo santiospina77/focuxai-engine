@@ -68,10 +68,10 @@ const CLIENTS: ClientConfig[] = [
       kind: 'hubspot',
       // Placeholders — se actualizan tras correr el Adapter en el portal demo.
       customObjectTypeIds: {
-        macroproyecto: 'PLACEHOLDER_MACROPROYECTO',
-        proyecto: 'PLACEHOLDER_PROYECTO',
-        unidad: 'PLACEHOLDER_UNIDAD',
-        agrupacion: 'PLACEHOLDER_AGRUPACION',
+        macroproyecto: '2-60986238',
+        proyecto: '2-60987399',
+        unidad: '2-60987403',
+        agrupacion: '2-60987404',
       },
     },
     features: {
