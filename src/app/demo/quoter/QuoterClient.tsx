@@ -135,20 +135,29 @@ const AREA_TIPOLOGIA: Record<number,string> = { 34.21:"A1", 35.11:"A2", 39.34:"A
 const AREA_HABS: Record<number,number> = { 34.21:1, 35.11:1, 39.34:1, 40.92:1, 41.53:1, 41.28:1, 42.53:1, 43.46:1, 43.5:1, 43.49:1, 43.12:1, 45.04:2, 46.38:2, 46.01:2, 46.33:2, 46.76:2, 54.19:2 };
 const AREA_BANOS: Record<number,number> = { 34.21:1, 35.11:1, 39.34:1, 40.92:1, 41.53:1, 41.28:1, 42.53:1, 43.46:1, 43.5:1, 43.49:1, 43.12:1, 45.04:1, 46.38:2, 46.01:2, 46.33:2, 46.76:2, 54.19:2 };
 
-const ESTADOS = { D: "disponible", B: "bloqueada", V: "vendida", C: "cotizada" };
+const ESTADOS = { D: "disponible", B: "bloqueada", S: "separada", V: "vendida", C: "cotizada" };
 
-const parseSincoUnits = () => SINCO_RAW.map(r => {
-  const num = String(r[1]).replace("APT-","");
-  const piso = num.length === 3 ? parseInt(num[0]) : parseInt(num.substring(0,2));
-  const pos = num.substring(num.length - 2);
-  return {
-    id: r[0], torreId: 1, piso, numero: num, pos,
-    tipologia: AREA_TIPOLOGIA[r[5]] || "?",
-    area: r[5], habs: AREA_HABS[r[5]] || 1, banos: AREA_BANOS[r[5]] || 1,
-    precio: r[2], estado: r[6]==="V" ? ESTADOS.V : ESTADOS.D,
-    tipo_inmueble: "APT", sincoId: r[0], descuento: r[3], neto: r[4],
-  };
-});
+const parseSincoUnits = () => {
+  // IDs to show as Bloqueada (demo — simulates units with active timer)
+  const BLOQUEADAS = new Set([16795, 16838, 16598]); // APT-502, APT-716, APT-1202
+  // IDs to show as Separada (demo — simulates units where client paid separation)
+  const SEPARADAS = new Set([16837, 16820, 16597]); // APT-715, APT-614, APT-1201
+  return SINCO_RAW.map(r => {
+    const num = String(r[1]).replace("APT-","");
+    const piso = num.length === 3 ? parseInt(num[0]) : parseInt(num.substring(0,2));
+    const pos = num.substring(num.length - 2);
+    let estado = r[6]==="V" ? ESTADOS.V : ESTADOS.D;
+    if (BLOQUEADAS.has(r[0])) estado = ESTADOS.B;
+    if (SEPARADAS.has(r[0])) estado = ESTADOS.S;
+    return {
+      id: r[0], torreId: 1, piso, numero: num, pos,
+      tipologia: AREA_TIPOLOGIA[r[5]] || "?",
+      area: r[5], habs: AREA_HABS[r[5]] || 1, banos: AREA_BANOS[r[5]] || 1,
+      precio: r[2], estado,
+      tipo_inmueble: "APT", sincoId: r[0], descuento: r[3], neto: r[4],
+    };
+  });
+};
 
 // ── GENERATE DEMO UNITS for other torres ──
 const DEMO_TIPS = [
@@ -268,8 +277,8 @@ const CONFIG = {
 // ── HELPERS ──
 const fmt = n => new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",minimumFractionDigits:0,maximumFractionDigits:0}).format(n);
 const fmtS = n => { if(n>=1e9) return `$${(n/1e9).toFixed(1)}B`; if(n>=1e6) return `$${Math.round(n/1e6)}M`; return fmt(n); };
-const eColor = e => e===ESTADOS.D?"#16A34A":e===ESTADOS.B?"#D97706":e===ESTADOS.C?"#2563EB":"#DC2626";
-const eLabel = e => e===ESTADOS.D?"Disponible":e===ESTADOS.B?"Bloqueada":e===ESTADOS.C?"Cotizada":"Vendida";
+const eColor = e => e===ESTADOS.D?"#16A34A":e===ESTADOS.B?"#D97706":e===ESTADOS.S?"#2563EB":e===ESTADOS.C?"#8B5CF6":"#DC2626";
+const eLabel = e => e===ESTADOS.D?"Disponible":e===ESTADOS.B?"Bloqueada":e===ESTADOS.S?"Separada":e===ESTADOS.C?"Cotizada":"Vendida";
 const validatePhone = (num: string, country: any) => { const digits = num.replace(/\D/g,""); return digits.length === country.len; };
 const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -364,6 +373,8 @@ export default function QuoterClient() {
   const [asesor, setAsesor] = useState(ASESORES[0]);
   // Plan
   const [separacionPct, setSeparacionPct] = useState(CONFIG.separacion_pct);
+  const [separacionMode, setSeparacionMode] = useState<"%"|"$">("$"); // toggle: % or fixed $
+  const [separacionFijo, setSeparacionFijo] = useState(3000000); // fixed value when mode="$", default $3M (Porto Sabbia standard)
   const [ciPct, setCiPct] = useState(CONFIG.cuota_inicial_pct);
   const [numCuotas, setNumCuotas] = useState(CONFIG.cuotas_default);
   // Descuentos (fixed fields — map to valorDescuento/valorDescuentoFinanciero in Sinco)
@@ -447,7 +458,7 @@ export default function QuoterClient() {
   const totalDescuentos = dtoComercial + dtoFinanciero;
   const totalAbonos = abonos.reduce((s,a)=>s+a.valor,0);
   const valorNeto = subtotal - totalDescuentos;
-  const separacion = Math.round(valorNeto * separacionPct / 100);
+  const separacion = separacionMode === "%" ? Math.round(valorNeto * separacionPct / 100) : separacionFijo;
   const cuotaInicialTotal = Math.round(valorNeto * ciPct / 100);
   // Abonos are EXTRA payments on top of cuotas — do NOT reduce cuota mensual
   // They reduce saldo final (less mortgage/credit needed)
@@ -482,15 +493,15 @@ export default function QuoterClient() {
   },[selectedUnit,separacion,valorCuota,numCuotas,saldoFinal,valorNeto,abonos,cuotaInicialNeta]);
 
   const allStats = useMemo(()=>{
-    if(!macro) return { total:0, disp:0, bloq:0, vend:0 };
+    if(!macro) return { total:0, disp:0, bloq:0, sep:0, vend:0 };
     const torresIds = (TORRES[macro.id]||[]).map(t=>t.id);
     const all = torresIds.flatMap(tid => getUnits(tid));
-    return { total:all.length, disp:all.filter(u=>u.estado===ESTADOS.D).length, bloq:all.filter(u=>u.estado===ESTADOS.B).length, vend:all.filter(u=>u.estado===ESTADOS.V).length };
+    return { total:all.length, disp:all.filter(u=>u.estado===ESTADOS.D).length, bloq:all.filter(u=>u.estado===ESTADOS.B).length, sep:all.filter(u=>u.estado===ESTADOS.S).length, vend:all.filter(u=>u.estado===ESTADOS.V).length };
   },[macro]);
 
   const torreStats = useMemo(()=>{
     if(!torre) return null;
-    return { total:units.length, disp:units.filter(u=>u.estado===ESTADOS.D).length, bloq:units.filter(u=>u.estado===ESTADOS.B).length, vend:units.filter(u=>u.estado===ESTADOS.V).length };
+    return { total:units.length, disp:units.filter(u=>u.estado===ESTADOS.D).length, bloq:units.filter(u=>u.estado===ESTADOS.B).length, sep:units.filter(u=>u.estado===ESTADOS.S).length, vend:units.filter(u=>u.estado===ESTADOS.V).length };
   },[torre,units]);
 
   const steps = ["Macroproyecto","Proyecto","Inventario","Agrupación","Comprador","Plan de Pagos","Cotización"];
@@ -611,8 +622,8 @@ export default function QuoterClient() {
             </div>
             <div style={{ ...S.goldBar, marginBottom:24 }} />
 
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 }}>
-              {[{v:allStats.total,l:"Total",c:C.navy},{v:allStats.disp,l:"Disponibles",c:C.green},{v:allStats.bloq,l:"Bloqueadas",c:C.yellow},{v:allStats.vend,l:"Vendidas",c:C.red}].map((m,i)=>(
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:24 }}>
+              {[{v:allStats.total,l:"Total",c:C.navy},{v:allStats.disp,l:"Disponibles",c:C.green},{v:allStats.bloq,l:"Bloqueadas",c:C.yellow},{v:allStats.sep,l:"Separadas",c:C.blue},{v:allStats.vend,l:"Vendidas",c:C.red}].map((m,i)=>(
                 <div key={i} style={{ ...S.card, textAlign:"center", padding:16 }}>
                   <div style={{ fontSize:26, fontWeight:300, color:m.c, fontFamily:"'Montserrat',sans-serif", fontVariantNumeric:"lining-nums" }}>{m.v}</div>
                   <div style={{ fontSize:9, letterSpacing:"2px", textTransform:"uppercase", color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:2 }}>{m.l}</div>
@@ -694,7 +705,7 @@ export default function QuoterClient() {
                 }}>{l}</button>
               ))}
               <div style={{ flex:1 }} />
-              <span style={{ fontSize:12, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{units.filter(u=>u.estado===ESTADOS.D).length} disponibles · {units.filter(u=>u.estado===ESTADOS.V).length} vendidas</span>
+              <span style={{ fontSize:12, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{units.filter(u=>u.estado===ESTADOS.D).length} disp. · {units.filter(u=>u.estado===ESTADOS.B).length} bloq. · {units.filter(u=>u.estado===ESTADOS.S).length} sep. · {units.filter(u=>u.estado===ESTADOS.V).length} vend.</span>
             </div>
 
             {/* ── TOWER VIEW ── */}
@@ -703,10 +714,11 @@ export default function QuoterClient() {
                 {/* Legend */}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                   <span style={S.label}>Mapa de Torre — Pisos {Math.min(...pisos)} al {Math.max(...pisos)}</span>
-                  <div style={{ display:"flex", gap:16, fontSize:11, fontFamily:"'Montserrat',sans-serif" }}>
+                  <div style={{ display:"flex", gap:12, fontSize:11, fontFamily:"'Montserrat',sans-serif", flexWrap:"wrap" }}>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.greenBg, border:`2px solid ${C.green}` }}/> Disponible</span>
+                    <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.yellowBg, border:`2px solid ${C.yellow}` }}/> Bloqueada</span>
+                    <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.blueBg, border:`2px solid ${C.blue}` }}/> Separada</span>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.redBg, border:`2px solid ${C.red}` }}/> Vendida</span>
-                    <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.borderLight, border:`1px solid ${C.border}` }}/> Sin data</span>
                   </div>
                 </div>
                 <div style={{ overflowX:"auto" }}>
@@ -726,8 +738,13 @@ export default function QuoterClient() {
                           const unit = unitMap[key];
                           if(!unit) return <div key={pos} style={{ width:36, height:30, background:C.borderLight, borderRadius:4, border:`1px solid ${C.border}` }} />;
                           const isDisp = unit.estado===ESTADOS.D;
+                          const isBloq = unit.estado===ESTADOS.B;
+                          const isSep = unit.estado===ESTADOS.S;
                           const isHov = hoveredUnit?.id===unit.id;
                           const isSel = selectedUnit?.id===unit.id;
+                          const cellBg = isDisp ? C.greenBg : isBloq ? C.yellowBg : isSep ? C.blueBg : C.redBg;
+                          const cellBorder = isDisp ? C.greenBorder : isBloq ? C.yellowBorder : isSep ? `${C.blue}44` : C.redBorder;
+                          const cellHoverBorder = isDisp ? C.green : isBloq ? C.yellow : isSep ? C.blue : C.red;
                           return (
                             <div key={pos}
                               onMouseEnter={()=>setHoveredUnit(unit)}
@@ -736,8 +753,8 @@ export default function QuoterClient() {
                               style={{
                                 width:36, height:30, borderRadius:4,
                                 cursor: isDisp ? "pointer" : "default",
-                                background: isDisp ? C.greenBg : C.redBg,
-                                border: isSel ? `2.5px solid ${C.gold}` : isHov ? `2px solid ${isDisp?C.green:C.red}` : `1.5px solid ${isDisp?C.greenBorder:C.redBorder}`,
+                                background: cellBg,
+                                border: isSel ? `2.5px solid ${C.gold}` : isHov ? `2px solid ${cellHoverBorder}` : `1.5px solid ${cellBorder}`,
                                 transition:"all 0.12s ease",
                                 transform: isHov ? "scale(1.15)" : "scale(1)",
                                 zIndex: isHov ? 2 : 1,
@@ -903,7 +920,7 @@ export default function QuoterClient() {
                     <div style={{ display:"flex", gap:8 }}>
                       <input style={{...S.input, flex:1, borderColor:emailError?C.red:contactExists?C.green:C.border}} type="email" placeholder="correo@ejemplo.com" value={email}
                         onChange={e=>{setEmail(e.target.value);setEmailError(e.target.value&&!validateEmail(e.target.value)?"Email inválido":"");setContactExists(false);setContactData(null);}} />
-                      <button style={{...S.btn("sm"), whiteSpace:"nowrap", opacity:!email||emailError?.5:1}} disabled={!email||!!emailError}
+                      <button style={{ padding:"9px 18px", background:(!email||!!emailError)?C.border:C.navy, color:(!email||!!emailError)?C.textTer:C.white, border:"none", borderRadius:6, cursor:(!email||!!emailError)?"not-allowed":"pointer", fontSize:12, fontWeight:700, letterSpacing:"1px", textTransform:"uppercase" as const, fontFamily:"'Montserrat',sans-serif", transition:"all 0.2s", whiteSpace:"nowrap" as const, boxShadow:(!email||!!emailError)?"none":`0 2px 8px ${C.navy}44` }} disabled={!email||!!emailError}
                         onClick={()=>{
                           setContactLoading(true);
                           // MOCK: simulate HubSpot lookup by email via /api/hubspot/crm/v3/objects/contacts/search
@@ -1050,7 +1067,33 @@ export default function QuoterClient() {
               <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 <div style={{ ...S.card, padding:20 }}>
                   <div style={{ ...S.label, fontSize:12, color:C.gold, marginBottom:16 }}>Configuración Base</div>
-                  <SliderInput label="Separación" value={separacionPct} onChange={setSeparacionPct} min={0} max={15} step={0.5} suffix="%" />
+                  {/* Separación — toggle % / $ */}
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                      <span style={S.label}>Separación</span>
+                      <div style={{ display:"flex", background:C.borderLight, borderRadius:6, overflow:"hidden", border:`1px solid ${C.border}` }}>
+                        {(["%","$"] as const).map(m=>(
+                          <button key={m} onClick={()=>setSeparacionMode(m)}
+                            style={{ padding:"4px 14px", fontSize:11, fontWeight:separacionMode===m?700:400, fontFamily:"'Montserrat',sans-serif", background:separacionMode===m?C.gold:"transparent", color:separacionMode===m?C.white:C.textSec, border:"none", cursor:"pointer", transition:"all 0.2s", letterSpacing:"0.5px" }}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {separacionMode === "%" ? (
+                      <SliderInput label="" value={separacionPct} onChange={setSeparacionPct} min={0} max={15} step={0.5} suffix="%" />
+                    ) : (
+                      <div style={{ display:"flex", alignItems:"center" }}>
+                        <span style={{ padding:"11px 10px", background:C.goldBg, border:`1px solid ${C.goldBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.gold, fontFamily:"'Montserrat',sans-serif", fontWeight:600 }}>$</span>
+                        <input style={{...S.input, borderRadius:"0 6px 6px 0", borderLeft:"none", fontSize:15, fontWeight:600, color:C.navy}} placeholder="3,000,000" value={separacionFijo===0?"":separacionFijo.toLocaleString("es-CO")}
+                          onChange={e=>{const v=parseInt(e.target.value.replace(/\D/g,""))||0; setSeparacionFijo(v);}} />
+                      </div>
+                    )}
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6, padding:"6px 10px", background:C.goldBg, borderRadius:4 }}>
+                      <span style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Valor separación</span>
+                      <span style={{ fontSize:15, fontWeight:700, color:C.gold, fontFamily:"'Montserrat',sans-serif" }}>{fmt(separacion)}</span>
+                    </div>
+                  </div>
                   <SliderInput label="Cuota Inicial Total" value={ciPct} onChange={setCiPct} min={0} max={100} step={0.5} suffix="%" />
                   <SliderInput label="Número de Cuotas" value={numCuotas} onChange={setNumCuotas} min={1} max={60} />
                   <div style={{ padding:"10px 14px", background:C.goldBg, borderRadius:6, border:`1px solid ${C.goldBorder}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1381,7 +1424,7 @@ export default function QuoterClient() {
                 <span key={i} style={S.tag(t.bg,t.c,t.b)}>{t.l}</span>
               ))}
             </div>
-            <button style={{ ...S.btn("primary"), marginTop:24 }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setCotNum("");}}>
+            <button style={{ ...S.btn("primary"), marginTop:24 }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setCotNum("");setSeparacionMode("$");setSeparacionFijo(3000000);}}>
               Nueva cotización
             </button>
           </div>
