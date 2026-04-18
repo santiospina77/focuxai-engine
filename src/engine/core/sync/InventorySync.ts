@@ -553,7 +553,7 @@ export class InventorySync {
         [PROPS.agrupacionValorSubtotal]: a.valorSubtotal,
         [PROPS.agrupacionValorDescuento]: a.valorDescuento,
         [PROPS.agrupacionValorDescuentoFinanciero]: a.valorDescuentoFinanciero,
-        [PROPS.agrupacionValorTotal]: a.valorTotal,
+        [PROPS.agrupacionValorTotal]: a.valorTotalNeto ?? a.valorTotal,
         [PROPS.agrupacionValorSeparacion]: a.valorSeparacion,
         [PROPS.agrupacionIdComprador]: a.compradorExternalId,
         [PROPS.agrupacionIdVendedor]: a.vendedorExternalId,
@@ -581,7 +581,7 @@ export class InventorySync {
       objectType: 'agrupacion',
       properties: this.clean({
         [PROPS.externalId]: a.externalId,
-        [PROPS.agrupacionValorTotal]: a.valorTotal,
+        [PROPS.agrupacionValorTotal]: a.valorTotalNeto ?? a.valorTotal,
         [PROPS.agrupacionEstado]: a.estado,
         [PROPS.agrupacionFechaSync]: new Date().toISOString(),
       }),
@@ -766,6 +766,19 @@ export class InventorySync {
    * Limpia un dict de properties: elimina nulls, undefineds, y convierte
    * todo a string (HubSpot requiere string values en properties).
    */
+  /**
+   * Properties that are enumerations in HubSpot — their values MUST be lowercase.
+   * The domain types use UPPERCASE (DISPONIBLE, VENDIDA, APARTAMENTO) but HubSpot
+   * enum options are defined as lowercase (disponible, vendida, apartamento).
+   */
+  private static readonly ENUM_PROPS = new Set([
+    'estado_fx',
+    'clasificacion_fx',
+    'tipo_fx',
+    'tipo_venta_fx',
+    'tipo_unidad_fx',
+  ]);
+
   private clean(props: Record<string, unknown>): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [key, val] of Object.entries(props)) {
@@ -777,7 +790,8 @@ export class InventorySync {
         const str = String(val);
         // Sinco a veces devuelve la string literal "null" o "undefined"
         if (str === 'null' || str === 'undefined' || str === 'NaN') continue;
-        result[key] = str;
+        // Enum properties must be lowercase for HubSpot
+        result[key] = InventorySync.ENUM_PROPS.has(key) ? str.toLowerCase() : str;
       }
     }
     return result;

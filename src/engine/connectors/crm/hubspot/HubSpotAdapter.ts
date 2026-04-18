@@ -282,30 +282,6 @@ export class HubSpotAdapter implements ICrmAdapter {
       });
 
       if (response.isErr()) {
-        // Batch failed (likely 400 from one bad record killing the whole batch).
-        // Fallback: retry each record individually to isolate the bad ones.
-        if (response.error.code === 'CRM_VALIDATION_ERROR') {
-          this.logger.warn(
-            { objectType, chunkSize: chunk.length, error: response.error.message },
-            'Batch create failed with validation error — falling back to individual creates'
-          );
-          const successful: CrmRecord[] = [];
-          const failed: Array<{ input: unknown; error: EngineError }> = [];
-          for (const input of chunk) {
-            const single = await this.createRecord(input);
-            if (single.isOk()) {
-              successful.push(single.value);
-            } else {
-              this.logger.warn(
-                { objectType, properties: Object.keys(input.properties), error: single.error.message },
-                'Individual create failed — bad record isolated'
-              );
-              failed.push({ input, error: single.error });
-            }
-          }
-          return { successful, failed };
-        }
-        // Non-validation error (network, auth, etc.) — fail the whole chunk
         return {
           successful: [],
           failed: chunk.map((input) => ({ input, error: response.error })),
@@ -365,29 +341,6 @@ export class HubSpotAdapter implements ICrmAdapter {
       });
 
       if (response.isErr()) {
-        // Batch failed — fallback to individual updates to isolate bad records.
-        if (response.error.code === 'CRM_VALIDATION_ERROR') {
-          this.logger.warn(
-            { objectType, chunkSize: chunk.length, error: response.error.message },
-            'Batch update failed with validation error — falling back to individual updates'
-          );
-          const successful: CrmRecord[] = [];
-          const failed: Array<{ input: unknown; error: EngineError }> = [];
-          for (const update of chunk) {
-            const single = await this.updateRecord(update);
-            if (single.isOk()) {
-              successful.push(single.value);
-            } else {
-              this.logger.warn(
-                { objectType, id: update.id, error: single.error.message },
-                'Individual update failed — bad record isolated'
-              );
-              failed.push({ input: update, error: single.error });
-            }
-          }
-          return { successful, failed };
-        }
-        // Non-validation error — fail the whole chunk
         return {
           successful: [],
           failed: chunk.map((input) => ({ input, error: response.error })),
