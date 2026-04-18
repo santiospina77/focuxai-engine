@@ -23,6 +23,7 @@ import type { IErpConnector, Macroproyecto, Proyecto, Agrupacion, Unidad } from 
 import type { ICrmAdapter, CrmAssociation, CrmRecordInput, CrmRecordUpdate } from '@/engine/interfaces/ICrmAdapter';
 import type { Logger } from '../logging/Logger';
 import type { EngineError } from '../errors/EngineError';
+import { CrmError } from '../errors/EngineError';
 import type { IEventLog } from '../eventlog/EventLog';
 import { type Result, ok, err } from '../types/Result';
 
@@ -397,12 +398,56 @@ export class InventorySync {
     let written = 0;
     let failed = 0;
 
-    // 1) Lookup existing records by id_sinco_fx
-    const externalIds = inputs
-      .map((i) => Number(i.properties[PROPS.externalId]))
-      .filter((id) => !isNaN(id) && id > 0);
+    // 0) Validate ALL inputs have valid externalId — a record without one is dangerous
+    const rawIds = inputs.map((i) => Number(i.properties[PROPS.externalId]));
+    const invalidCount = rawIds.filter((id) => !Number.isFinite(id) || id <= 0).length;
+    if (invalidCount > 0) {
+      log.error(
+        { objectType, invalidCount, total: inputs.length },
+        'ABORTING: inputs contain records without valid externalId — refusing to sync'
+      );
+      errors.push({
+        errorCode: 'SYNC_INVALID_INPUT',
+        message: `${invalidCount} ${objectType} records have invalid/missing id_sinco_fx. Aborting to prevent orphan records.`,
+      });
+      failed = inputs.length;
+      return { written, failed, errors };
+    }
 
-    const existingMap = await this.buildExternalIdMap(crm, objectType, externalIds);
+    // 1) Validate no duplicate externalIds in input
+    const inputIds = rawIds;
+    const inputIdSet = new Set(inputIds);
+    if (inputIdSet.size !== inputIds.length) {
+      const dupes = inputIds.filter((id, idx) => inputIds.indexOf(id) !== idx);
+      log.error(
+        { objectType, duplicateIds: [...new Set(dupes)].slice(0, 10) },
+        'ABORTING: Duplicate externalIds in sync input — data integrity issue'
+      );
+      errors.push({
+        errorCode: 'SYNC_DUPLICATE_INPUT',
+        message: `Duplicate externalIds found in ${objectType} input: ${[...new Set(dupes)].slice(0, 5).join(', ')}. Aborting to prevent duplicates.`,
+      });
+      failed = inputs.length;
+      return { written, failed, errors };
+    }
+
+    // 1) Lookup existing records by id_sinco_fx — FAIL HARD if lookup fails
+    const existingMapResult = await this.buildExternalIdMap(crm, objectType, inputIds);
+
+    if (existingMapResult.isErr()) {
+      log.error(
+        { objectType, errorCode: existingMapResult.error.code },
+        'ABORTING smartUpsert: lookup failed — refusing to create records without certainty'
+      );
+      errors.push({
+        errorCode: existingMapResult.error.code,
+        message: `Lookup failed for ${objectType}: ${existingMapResult.error.message}. Sync aborted to prevent duplicates.`,
+      });
+      failed = inputs.length;
+      return { written, failed, errors };
+    }
+
+    const existingMap = existingMapResult.value;
 
     // 2) Split into creates vs updates
     const toCreate: CrmRecordInput[] = [];
@@ -553,7 +598,7 @@ export class InventorySync {
         [PROPS.agrupacionValorSubtotal]: a.valorSubtotal,
         [PROPS.agrupacionValorDescuento]: a.valorDescuento,
         [PROPS.agrupacionValorDescuentoFinanciero]: a.valorDescuentoFinanciero,
-        [PROPS.agrupacionValorTotal]: a.valorTotal,
+        [PROPS.agrupacionValorTotal]: a.valorTotalNeto ?? a.valorTotal,
         [PROPS.agrupacionValorSeparacion]: a.valorSeparacion,
         [PROPS.agrupacionIdComprador]: a.compradorExternalId,
         [PROPS.agrupacionIdVendedor]: a.vendedorExternalId,
@@ -581,7 +626,7 @@ export class InventorySync {
       objectType: 'agrupacion',
       properties: this.clean({
         [PROPS.externalId]: a.externalId,
-        [PROPS.agrupacionValorTotal]: a.valorTotal,
+        [PROPS.agrupacionValorTotal]: a.valorTotalNeto ?? a.valorTotal,
         [PROPS.agrupacionEstado]: a.estado,
         [PROPS.agrupacionFechaSync]: new Date().toISOString(),
       }),
@@ -610,23 +655,45 @@ export class InventorySync {
     let failed = 0;
 
     // Para crear associations necesitamos los IDs de HubSpot, no los external IDs.
-    // Hacemos lookup en batch usando search.
-    const macroIdMap = await this.buildExternalIdMap(crm, 'macroproyecto', data.macros.map((m) => m.externalId));
-    const proyectoIdMap = await this.buildExternalIdMap(
+    // Hacemos lookup en batch usando search. Si falla, abortamos associations.
+    const macroIdMapResult = await this.buildExternalIdMap(crm, 'macroproyecto', data.macros.map((m) => m.externalId));
+    const proyectoIdMapResult = await this.buildExternalIdMap(
       crm,
       'proyecto',
       data.proyectos.map((p) => p.proyecto.externalId)
     );
-    const agrupacionIdMap = await this.buildExternalIdMap(
+    const agrupacionIdMapResult = await this.buildExternalIdMap(
       crm,
       'agrupacion',
       data.agrupaciones.map((a) => a.agrupacion.externalId)
     );
-    const unidadIdMap = await this.buildExternalIdMap(
+    const unidadIdMapResult = await this.buildExternalIdMap(
       crm,
       'unidad',
       data.unidades.map((u) => u.unidad.externalId)
     );
+
+    // If any lookup failed, skip associations but don't crash the sync
+    for (const [name, result] of [
+      ['macroproyecto', macroIdMapResult],
+      ['proyecto', proyectoIdMapResult],
+      ['agrupacion', agrupacionIdMapResult],
+      ['unidad', unidadIdMapResult],
+    ] as const) {
+      if ((result as Result<Map<number, string>, EngineError>).isErr()) {
+        errors.push({
+          stage: `associations.lookup.${name}`,
+          errorCode: (result as any).error.code,
+          message: `Lookup failed for ${name} — skipping associations`,
+        });
+        return { created, failed, errors };
+      }
+    }
+
+    const macroIdMap = macroIdMapResult.isOk() ? macroIdMapResult.value : new Map<number, string>();
+    const proyectoIdMap = proyectoIdMapResult.isOk() ? proyectoIdMapResult.value : new Map<number, string>();
+    const agrupacionIdMap = agrupacionIdMapResult.isOk() ? agrupacionIdMapResult.value : new Map<number, string>();
+    const unidadIdMap = unidadIdMapResult.isOk() ? unidadIdMapResult.value : new Map<number, string>();
 
     const associations: CrmAssociation[] = [];
 
@@ -709,15 +776,18 @@ export class InventorySync {
 
   /**
    * Construye un mapa externalId → CRM ID consultando el CRM en batch.
-   * Para optimizar, hace una sola search con filter `in` sobre los externalIds.
+   *
+   * FAIL HARD: si cualquier chunk falla o devuelve resultados ambiguos,
+   * retorna err() para que smartUpsert() aborte. NUNCA devolver un mapa
+   * incompleto — eso causa duplicados masivos.
    */
   private async buildExternalIdMap(
     crm: ICrmAdapter,
     objectType: 'macroproyecto' | 'proyecto' | 'unidad' | 'agrupacion',
     externalIds: readonly number[]
-  ): Promise<Map<number, string>> {
+  ): Promise<Result<Map<number, string>, EngineError>> {
     const map = new Map<number, string>();
-    if (externalIds.length === 0) return map;
+    if (externalIds.length === 0) return ok(map);
 
     // Dedup
     const uniqueIds = [...new Set(externalIds)];
@@ -739,23 +809,50 @@ export class InventorySync {
         limit: batchSize,
       });
 
+      // FAIL HARD: if search fails, abort — do NOT create duplicates
       if (result.isErr()) {
-        this.logger.warn(
-          { objectType, errorCode: result.error.code },
-          'Failed to lookup external IDs'
+        this.logger.error(
+          { objectType, errorCode: result.error.code, chunk: chunk.slice(0, 5) },
+          'ABORTING: Failed to lookup external IDs — refusing to continue to prevent duplicates'
         );
-        continue;
+        return err(result.error);
+      }
+
+      // FAIL HARD: if results are paginated or total exceeds chunk, we have an incomplete view
+      if (result.value.nextCursor || (result.value.total != null && result.value.total > chunk.length)) {
+        this.logger.error(
+          { objectType, total: result.value.total, returned: result.value.records.length, chunkSize: chunk.length },
+          'ABORTING: Search returned more results than expected — possible duplicates in CRM'
+        );
+        return err(new CrmError(
+          'CRM_VALIDATION_ERROR',
+          `Search for ${objectType} returned more results than expected (total=${result.value.total}, chunk=${chunk.length}). Possible duplicates in CRM — aborting to prevent more.`,
+          { objectType, retryable: false }
+        ));
       }
 
       for (const record of result.value.records) {
         const externalIdValue = record.properties[PROPS.externalId];
         if (externalIdValue != null) {
-          map.set(Number(externalIdValue), record.id);
+          const extId = Number(externalIdValue);
+          // FAIL HARD: if same externalId appears twice, there are duplicates in CRM
+          if (map.has(extId)) {
+            this.logger.error(
+              { objectType, externalId: extId, existingCrmId: map.get(extId), newCrmId: record.id },
+              'ABORTING: Duplicate externalId found in CRM — data integrity issue'
+            );
+            return err(new CrmError(
+              'CRM_DUPLICATE_RECORD',
+              `Duplicate ${objectType} with id_sinco_fx=${extId} found in CRM (ids: ${map.get(extId)}, ${record.id}). Clean up duplicates before syncing.`,
+              { objectType, externalId: extId, retryable: false }
+            ));
+          }
+          map.set(extId, record.id);
         }
       }
     }
 
-    return map;
+    return ok(map);
   }
 
   // -------------------------------------------------------------------------
@@ -771,6 +868,7 @@ export class InventorySync {
     'clasificacion_fx',
     'tipo_fx',
     'tipo_venta_fx',
+    'tipo_unidad_fx',
   ]);
 
   /**
