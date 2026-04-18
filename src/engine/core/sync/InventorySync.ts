@@ -770,10 +770,14 @@ export class InventorySync {
     const result: Record<string, string> = {};
     for (const [key, val] of Object.entries(props)) {
       if (val === null || val === undefined || val === '') continue;
+      if (typeof val === 'number' && isNaN(val)) continue;
       if (typeof val === 'boolean') {
         result[key] = val ? 'true' : 'false';
       } else {
-        result[key] = String(val);
+        const str = String(val);
+        // Sinco a veces devuelve la string literal "null" o "undefined"
+        if (str === 'null' || str === 'undefined' || str === 'NaN') continue;
+        result[key] = str;
       }
     }
     return result;
