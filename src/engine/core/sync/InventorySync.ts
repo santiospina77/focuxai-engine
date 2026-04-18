@@ -553,7 +553,7 @@ export class InventorySync {
         [PROPS.agrupacionValorSubtotal]: a.valorSubtotal,
         [PROPS.agrupacionValorDescuento]: a.valorDescuento,
         [PROPS.agrupacionValorDescuentoFinanciero]: a.valorDescuentoFinanciero,
-        [PROPS.agrupacionValorTotal]: a.valorTotalNeto ?? a.valorTotal,
+        [PROPS.agrupacionValorTotal]: a.valorTotal,
         [PROPS.agrupacionValorSeparacion]: a.valorSeparacion,
         [PROPS.agrupacionIdComprador]: a.compradorExternalId,
         [PROPS.agrupacionIdVendedor]: a.vendedorExternalId,
@@ -581,7 +581,7 @@ export class InventorySync {
       objectType: 'agrupacion',
       properties: this.clean({
         [PROPS.externalId]: a.externalId,
-        [PROPS.agrupacionValorTotal]: a.valorTotalNeto ?? a.valorTotal,
+        [PROPS.agrupacionValorTotal]: a.valorTotal,
         [PROPS.agrupacionEstado]: a.estado,
         [PROPS.agrupacionFechaSync]: new Date().toISOString(),
       }),
@@ -763,22 +763,48 @@ export class InventorySync {
   // -------------------------------------------------------------------------
 
   /**
-   * Limpia un dict de properties: elimina nulls, undefineds, y convierte
-   * todo a string (HubSpot requiere string values en properties).
-   */
-  /**
-   * Properties that are enumerations in HubSpot — their values MUST be lowercase.
-   * The domain types use UPPERCASE (DISPONIBLE, VENDIDA, APARTAMENTO) but HubSpot
-   * enum options are defined as lowercase (disponible, vendida, apartamento).
+   * Properties that are enumerations in HubSpot — values MUST be lowercase.
+   * Domain types use UPPERCASE (DISPONIBLE, VENDIDA) but HubSpot expects lowercase.
    */
   private static readonly ENUM_PROPS = new Set([
     'estado_fx',
     'clasificacion_fx',
     'tipo_fx',
     'tipo_venta_fx',
-    'tipo_unidad_fx',
   ]);
 
+  /**
+   * Properties that are type 'date' in HubSpot — values MUST be midnight UTC.
+   * HubSpot rejects dates with time components (e.g. "2026-04-18T15:00:00.000Z").
+   * Must send as "YYYY-MM-DD" or epoch ms at midnight UTC.
+   */
+  private static readonly DATE_PROPS = new Set([
+    'fecha_entrega_fx',
+    'fecha_sync_fx',
+    'fecha_venta_fx',
+    'fecha_separacion_fx',
+    'fecha_creacion_sinco_fx',
+  ]);
+
+  /**
+   * Converts a date string or ISO timestamp to YYYY-MM-DD format (midnight UTC).
+   */
+  private static toMidnightDate(val: string): string {
+    // Already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+    // ISO timestamp or Sinco date — extract date part
+    const match = val.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1]!;
+    // Sinco DD-MM-YYYY format
+    const sincoMatch = val.match(/^(\d{2})-(\d{2})-(\d{4})/);
+    if (sincoMatch) return `${sincoMatch[3]}-${sincoMatch[2]}-${sincoMatch[1]}`;
+    return val;
+  }
+
+  /**
+   * Limpia un dict de properties: elimina nulls, undefineds, convierte
+   * todo a string, lowercase para enums, midnight UTC para dates.
+   */
   private clean(props: Record<string, unknown>): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [key, val] of Object.entries(props)) {
@@ -788,10 +814,14 @@ export class InventorySync {
         result[key] = val ? 'true' : 'false';
       } else {
         const str = String(val);
-        // Sinco a veces devuelve la string literal "null" o "undefined"
         if (str === 'null' || str === 'undefined' || str === 'NaN') continue;
-        // Enum properties must be lowercase for HubSpot
-        result[key] = InventorySync.ENUM_PROPS.has(key) ? str.toLowerCase() : str;
+        if (InventorySync.ENUM_PROPS.has(key)) {
+          result[key] = str.toLowerCase();
+        } else if (InventorySync.DATE_PROPS.has(key)) {
+          result[key] = InventorySync.toMidnightDate(str);
+        } else {
+          result[key] = str;
+        }
       }
     }
     return result;
