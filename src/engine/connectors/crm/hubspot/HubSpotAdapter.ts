@@ -21,10 +21,10 @@
  *   - Search API: 4 req/s, 100 resultados por página, max 10k total.
  */
 
-import { CrmError, type EngineError } from '@/engine/core/errors/EngineError';
-import { HttpClient } from '@/engine/core/http/HttpClient';
-import type { Logger } from '@/engine/core/logging/Logger';
-import { type Result, ok, err } from '@/engine/core/types/Result';
+import { CrmError, type EngineError } from '../../../core/errors/EngineError';
+import { HttpClient } from '../../../core/http/HttpClient';
+import type { Logger } from '../../../core/logging/Logger';
+import { type Result, ok, err } from '../../../core/types/Result';
 import type {
   ICrmAdapter,
   CrmRecord,
@@ -36,7 +36,7 @@ import type {
   CrmAssociation,
   CrmPropertyDefinition,
   BatchResult,
-} from '@/engine/interfaces/ICrmAdapter';
+} from '../../../interfaces/ICrmAdapter';
 import {
   HubSpotObjectTypeResolver,
   HubSpotObjectSchema,
@@ -282,6 +282,30 @@ export class HubSpotAdapter implements ICrmAdapter {
       });
 
       if (response.isErr()) {
+        // Batch failed (likely 400 from one bad record killing the whole batch).
+        // Fallback: retry each record individually to isolate the bad ones.
+        if (response.error.code === 'CRM_VALIDATION_ERROR') {
+          this.logger.warn(
+            { objectType, chunkSize: chunk.length, error: response.error.message },
+            'Batch create failed with validation error — falling back to individual creates'
+          );
+          const successful: CrmRecord[] = [];
+          const failed: Array<{ input: unknown; error: EngineError }> = [];
+          for (const input of chunk) {
+            const single = await this.createRecord(input);
+            if (single.isOk()) {
+              successful.push(single.value);
+            } else {
+              this.logger.warn(
+                { objectType, properties: Object.keys(input.properties), error: single.error.message },
+                'Individual create failed — bad record isolated'
+              );
+              failed.push({ input, error: single.error });
+            }
+          }
+          return { successful, failed };
+        }
+        // Non-validation error (network, auth, etc.) — fail the whole chunk
         return {
           successful: [],
           failed: chunk.map((input) => ({ input, error: response.error })),
@@ -341,6 +365,29 @@ export class HubSpotAdapter implements ICrmAdapter {
       });
 
       if (response.isErr()) {
+        // Batch failed — fallback to individual updates to isolate bad records.
+        if (response.error.code === 'CRM_VALIDATION_ERROR') {
+          this.logger.warn(
+            { objectType, chunkSize: chunk.length, error: response.error.message },
+            'Batch update failed with validation error — falling back to individual updates'
+          );
+          const successful: CrmRecord[] = [];
+          const failed: Array<{ input: unknown; error: EngineError }> = [];
+          for (const update of chunk) {
+            const single = await this.updateRecord(update);
+            if (single.isOk()) {
+              successful.push(single.value);
+            } else {
+              this.logger.warn(
+                { objectType, id: update.id, error: single.error.message },
+                'Individual update failed — bad record isolated'
+              );
+              failed.push({ input: update, error: single.error });
+            }
+          }
+          return { successful, failed };
+        }
+        // Non-validation error — fail the whole chunk
         return {
           successful: [],
           failed: chunk.map((input) => ({ input, error: response.error })),
