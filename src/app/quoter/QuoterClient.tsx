@@ -135,9 +135,9 @@ const S: any = {
   select: { width:"100%", padding:"11px 14px", background:C.white, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:13, fontFamily:"'Montserrat',sans-serif", outline:"none", appearance:"none", cursor:"pointer", boxSizing:"border-box", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7280'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 12px center" },
   btn: (variant="primary", disabled=false) => ({
     padding: variant==="sm"?"7px 14px":"12px 24px",
-    background: disabled?C.border : variant==="primary"?C.gold : "transparent",
-    color: disabled?C.textTer : variant==="primary"?C.white : C.gold,
-    border: variant==="outline"?`1.5px solid ${C.gold}`:"none",
+    background: disabled ? "#D4CFC5" : variant==="primary" ? C.gold : "transparent",
+    color: disabled ? "#8B8578" : variant==="primary" ? C.white : C.gold,
+    border: variant==="outline" ? `1.5px solid ${disabled?C.border:C.gold}` : "none",
     borderRadius:6, cursor:disabled?"not-allowed":"pointer",
     fontSize: variant==="sm"?11:12, fontWeight:700, letterSpacing:"1.5px", textTransform:"uppercase",
     fontFamily:"'Montserrat',sans-serif", transition:"all 0.2s",
@@ -809,7 +809,7 @@ export default function QuoterClient() {
                     <div style={{ display:"flex", gap:8 }}>
                       <input style={{...S.input, flex:1, borderColor:emailError?C.red:contactExists?C.green:C.border}} type="email" placeholder="correo@ejemplo.com" value={email}
                         onChange={e=>{setEmail(e.target.value);setEmailError(e.target.value&&!validateEmail(e.target.value)?"Email inválido":"");setContactExists(false);setContactData(null);}} />
-                      <button style={{...S.btn("sm"), whiteSpace:"nowrap", opacity:!email||emailError?.5:1}} disabled={!email||!!emailError}
+                      <button style={{...S.btn("primary"), padding:"10px 18px", fontSize:11, letterSpacing:"1.5px", whiteSpace:"nowrap", opacity:!email||emailError?.5:1}} disabled={!email||!!emailError}
                         onClick={()=>{
                           setContactLoading(true);
                           // MOCK: simulate HubSpot lookup by email via /api/hubspot/crm/v3/objects/contacts/search
