@@ -194,6 +194,8 @@ export default function QuoterClient() {
   // Asesor
   const [asesor, setAsesor] = useState(ASESORES[0]);
   // Plan — initialized with defaults, reset when torre changes
+  const [separacionMode, setSeparacionMode] = useState<"%"|"$">("$"); // toggle: % or fixed $
+  const [separacionFijo, setSeparacionFijo] = useState(3000000); // fixed value when mode="$", default $3M
   const [separacionPct, setSeparacionPct] = useState(5);
   const [ciPct, setCiPct] = useState(30);
   const [numCuotas, setNumCuotas] = useState(24);
@@ -299,7 +301,7 @@ export default function QuoterClient() {
   const totalDescuentos = dtoComercial + dtoFinanciero;
   const totalAbonos = abonos.reduce((s,a)=>s+a.valor,0);
   const valorNeto = subtotal - totalDescuentos;
-  const separacion = Math.round(valorNeto * separacionPct / 100);
+  const separacion = separacionMode === "$" ? separacionFijo : Math.round(valorNeto * separacionPct / 100);
   const cuotaInicialTotal = Math.round(valorNeto * ciPct / 100);
   // Abonos are EXTRA payments on top of cuotas — do NOT reduce cuota mensual
   // They reduce saldo final (less mortgage/credit needed)
@@ -956,7 +958,34 @@ export default function QuoterClient() {
               <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
                 <div style={{ ...S.card, padding:20 }}>
                   <div style={{ ...S.label, fontSize:12, color:C.gold, marginBottom:16 }}>Configuración Base</div>
-                  <SliderInput label="Separación" value={separacionPct} onChange={setSeparacionPct} min={0} max={15} step={0.5} suffix="%" />
+                  {/* Separación con toggle %/$ */}
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                      <span style={S.label}>Separación</span>
+                      <div style={{ display:"flex", gap:0, borderRadius:6, overflow:"hidden", border:`1.5px solid ${C.gold}` }}>
+                        {(["%","$"] as const).map(m=>(
+                          <button key={m} onClick={()=>setSeparacionMode(m)} style={{
+                            padding:"4px 14px", fontSize:12, fontWeight:700, fontFamily:"'Montserrat',sans-serif",
+                            background:separacionMode===m?C.gold:"transparent", color:separacionMode===m?C.white:C.gold,
+                            border:"none", cursor:"pointer", transition:"all .2s"
+                          }}>{m}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {separacionMode==="%" ? (
+                      <SliderInput label="" value={separacionPct} onChange={setSeparacionPct} min={0} max={15} step={0.5} suffix="%" />
+                    ) : (
+                      <div style={{ display:"flex", alignItems:"center" }}>
+                        <span style={{ padding:"11px 10px", background:C.goldBg, border:`1px solid ${C.goldBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.gold, fontFamily:"'Montserrat',sans-serif", fontWeight:700 }}>$</span>
+                        <input style={{ ...S.input, borderRadius:"0 6px 6px 0", borderLeft:"none", fontSize:16, fontWeight:600, color:C.gold }} 
+                          value={separacionFijo===0?"":separacionFijo.toLocaleString("es-CO")}
+                          onChange={e=>{const v=parseInt(e.target.value.replace(/\D/g,""))||0; setSeparacionFijo(v);}} />
+                      </div>
+                    )}
+                    <div style={{ fontSize:11, color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:4 }}>
+                      {separacionMode==="$" ? `= ${valorNeto>0?(separacionFijo/valorNeto*100).toFixed(1):"0"}% del valor neto` : `= ${fmt(separacion)}`}
+                    </div>
+                  </div>
                   <SliderInput label="Cuota Inicial Total" value={ciPct} onChange={setCiPct} min={0} max={100} step={0.5} suffix="%" />
                   <SliderInput label="Número de Cuotas" value={numCuotas} onChange={setNumCuotas} min={1} max={60} />
                   <div style={{ padding:"10px 14px", background:C.goldBg, borderRadius:6, border:`1px solid ${C.goldBorder}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1077,7 +1106,7 @@ export default function QuoterClient() {
                   ...(selectedParking.length>0||selectedStorage.length>0?[{ l:"Subtotal", v:subtotal, bold:true }]:[]),
                   { l:"Descuentos", v:totalDescuentos, red:true, neg:true, hide:totalDescuentos===0 },
                   { l:totalDescuentos>0?"VALOR NETO":"VALOR TOTAL", v:valorNeto, bold:true, gold:true, sep:totalDescuentos>0 },
-                  { l:`Separación (${separacionPct}%)`, v:separacion },
+                  { l:separacionMode==="%"?`Separación (${separacionPct}%)`:`Separación (${fmt(separacionFijo)})`, v:separacion },
                   { l:`Cuota Inicial (${ciPct}%)`, v:cuotaInicialTotal, bold:true },
                   { l:`  └ Neto CI en ${numCuotas} cuotas`, v:Math.max(0,cuotaInicialNeta) },
                   { l:"Valor cuota mensual", v:valorCuota, bold:true },
@@ -1182,6 +1211,29 @@ export default function QuoterClient() {
                   <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Tipo venta: {tipoVenta===0?"Contado":tipoVenta===1?"Crédito":"Leasing"}</div>
                 </div>
               </div>
+              {/* Render + Plano por tipología */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+                {[{label:"Render",file:`render-${selectedUnit?.tipologia}`},{label:"Plano",file:`plano-${selectedUnit?.tipologia}`}].map((img,idx)=>(
+                  <div key={idx} style={{ borderRadius:8, overflow:"hidden", border:`1px solid ${C.borderLight}` }}>
+                    <div style={{ padding:"8px 12px", background:C.goldBg, borderBottom:`1px solid ${C.borderLight}` }}>
+                      <span style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase" as const, color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:600 }}>{img.label} — Tipo {selectedUnit?.tipologia}</span>
+                    </div>
+                    <div style={{ minHeight:140, display:"flex", alignItems:"center", justifyContent:"center", background:"#F5F3EE" }}>
+                      <img src={`/assets/${img.file}.png`} alt={`${img.label} ${selectedUnit?.tipologia}`}
+                        style={{ width:"100%", height:"auto", maxHeight:220, objectFit:"contain", display:"block" }}
+                        onError={e=>{
+                          const el = e.target as HTMLImageElement;
+                          el.style.display="none";
+                          const fb = el.nextElementSibling as HTMLElement;
+                          if(fb) fb.style.display="flex";
+                        }} />
+                      <div style={{ display:"none", flexDirection:"column", alignItems:"center", gap:6, padding:20, color:C.textTer }}>
+                        <span style={{ fontSize:11, fontFamily:"'Montserrat',sans-serif" }}>{img.label} no disponible</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
               {/* Financial summary */}
               <div style={{ background:C.goldBg, borderRadius:8, padding:18, marginBottom:18, border:`1px solid ${C.goldBorder}` }}>
                 <div className="fin-summary" style={{ display:"grid", gridTemplateColumns:`repeat(${[true, totalDescuentos>0, true, true, true, true, totalAbonos>0].filter(Boolean).length},1fr)`, gap:12 }}>
@@ -1189,7 +1241,7 @@ export default function QuoterClient() {
                     {l:"Subtotal",v:fmt(subtotal),hide:totalDescuentos===0},
                     {l:"Descuentos",v:`-${fmt(totalDescuentos)}`,c:C.red,hide:totalDescuentos===0},
                     {l:totalDescuentos>0?"Valor Neto":"Valor Total",v:fmt(valorNeto),c:C.gold,bold:true},
-                    {l:`Separación (${separacionPct}%)`,v:fmt(separacion)},
+                    {l:separacionMode==="%"?`Separación (${separacionPct}%)`:`Separación (${fmt(separacionFijo)})`,v:fmt(separacion)},
                     {l:`CI (${ciPct}%)`,v:fmt(cuotaInicialTotal),bold:true},
                     {l:`${numCuotas} cuotas de`,v:fmt(valorCuota)},
                     {l:`Financiación (${100-ciPct}%)`,v:fmt(saldoFinal)},
@@ -1316,7 +1368,7 @@ export default function QuoterClient() {
               <button style={{...S.btn("outline"), fontSize:10, padding:"8px 16px"}} onClick={handlePrint}>🖨 Imprimir PDF</button>
             </div>
 
-            <button style={{ ...S.btn("primary") }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setCotNum("");}}>
+            <button style={{ ...S.btn("primary") }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setCotNum("");setSeparacionMode("$");setSeparacionFijo(3000000);}}>
               Nueva cotización
             </button>
           </div>
