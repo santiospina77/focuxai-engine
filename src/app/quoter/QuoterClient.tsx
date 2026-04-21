@@ -1212,24 +1212,21 @@ export default function QuoterClient() {
                 </div>
               </div>
               {/* Render + Plano por tipología */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
+              <div id="img-grid-pdf" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
                 {[{label:"Render",file:`render-${selectedUnit?.tipologia}`},{label:"Plano",file:`plano-${selectedUnit?.tipologia}`}].map((img,idx)=>(
-                  <div key={idx} style={{ borderRadius:8, overflow:"hidden", border:`1px solid ${C.borderLight}` }}>
+                  <div key={idx} data-img-pdf style={{ borderRadius:8, overflow:"hidden", border:`1px solid ${C.borderLight}` }}>
                     <div style={{ padding:"8px 12px", background:C.goldBg, borderBottom:`1px solid ${C.borderLight}` }}>
                       <span style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase" as const, color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:600 }}>{img.label} — Tipo {selectedUnit?.tipologia}</span>
                     </div>
-                    <div style={{ minHeight:140, display:"flex", alignItems:"center", justifyContent:"center", background:"#F5F3EE" }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", background:"#F5F3EE" }}>
                       <img src={`/assets/${img.file}.png`} alt={`${img.label} ${selectedUnit?.tipologia}`}
                         style={{ width:"100%", height:"auto", maxHeight:220, objectFit:"contain", display:"block" }}
                         onError={e=>{
-                          const el = e.target as HTMLImageElement;
-                          el.style.display="none";
-                          const fb = el.nextElementSibling as HTMLElement;
-                          if(fb) fb.style.display="flex";
+                          const card = (e.target as HTMLElement).closest("[data-img-pdf]") as HTMLElement;
+                          if(card) card.style.display="none";
+                          const grid = document.getElementById("img-grid-pdf");
+                          if(grid && !grid.querySelector("[data-img-pdf]:not([style*='display: none'])")) grid.style.display="none";
                         }} />
-                      <div style={{ display:"none", flexDirection:"column", alignItems:"center", gap:6, padding:20, color:C.textTer }}>
-                        <span style={{ fontSize:11, fontFamily:"'Montserrat',sans-serif" }}>{img.label} no disponible</span>
-                      </div>
                     </div>
                   </div>
                 ))}
