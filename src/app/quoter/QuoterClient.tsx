@@ -213,13 +213,6 @@ export default function QuoterClient() {
   // Active config for current torre (used in vigencia, subtotal logic, etc.)
   const CONFIG = torre ? getConfig(torre.id) : getConfig(0);
 
-  // Init canal de atribución con primer valor del endpoint
-  useEffect(() => {
-    if (canalesAtribucion.length > 0 && !canalAtribucion) {
-      setCanalAtribucion(canalesAtribucion[0].value);
-    }
-  }, [canalesAtribucion, canalAtribucion]);
-
   // Descuentos (fixed fields — map to valorDescuento/valorDescuentoFinanciero in Sinco)
   const [dtoComercial, setDtoComercial] = useState(0);
   const [dtoFinanciero, setDtoFinanciero] = useState(0);
@@ -236,6 +229,12 @@ export default function QuoterClient() {
   const [tipoVenta, setTipoVenta] = useState(1);
   // Canal de atribución (for new contacts or contacts without canal)
   const [canalAtribucion, setCanalAtribucion] = useState("");
+  // Init canal de atribución con primer valor del endpoint
+  useEffect(() => {
+    if (canalesAtribucion.length > 0 && !canalAtribucion) {
+      setCanalAtribucion(canalesAtribucion[0].value);
+    }
+  }, [canalesAtribucion, canalAtribucion]);
   // Contact lookup — email-first
   const [contactExists, setContactExists] = useState(false);
   const [contactLoading, setContactLoading] = useState(false);
