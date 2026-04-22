@@ -4,8 +4,8 @@ import { useInventoryData } from "./useInventoryData";
 import type { UIMacro, UITorre, UIUnit, UIConfig } from "./useInventoryData";
 
 /* ═══════════════════════════════════════════════════════════════
-   FOCUXAI COTIZADOR v4 — Connected to HubSpot Real Inventory
-   Powered by GET /api/engine/inventory endpoint
+   FOCUXAI COTIZADOR v5 — Connected to HubSpot Real Inventory + Contact Search
+   Powered by GET /api/engine/inventory + POST /api/engine/contacts/search
    ═══════════════════════════════════════════════════════════════ */
 
 // ── DESIGN TOKENS (from constructorajimenez.com) ──
@@ -241,6 +241,8 @@ export default function QuoterClient() {
   const [contactExists, setContactExists] = useState(false);
   const [contactLoading, setContactLoading] = useState(false);
   const [contactData, setContactData] = useState(null); // precarged data from HubSpot
+  const [contactSearched, setContactSearched] = useState(false); // true after a real search attempt
+  const [contactError, setContactError] = useState(""); // error message if search fails
   // UI
   const [showPlan, setShowPlan] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -810,25 +812,62 @@ export default function QuoterClient() {
                     <label style={{...S.label,display:"block",marginBottom:4}}>Email (campo de búsqueda)</label>
                     <div style={{ display:"flex", gap:8 }}>
                       <input style={{...S.input, flex:1, borderColor:emailError?C.red:contactExists?C.green:C.border}} type="email" placeholder="correo@ejemplo.com" value={email}
-                        onChange={e=>{setEmail(e.target.value);setEmailError(e.target.value&&!validateEmail(e.target.value)?"Email inválido":"");setContactExists(false);setContactData(null);}} />
+                        onChange={e=>{setEmail(e.target.value);setEmailError(e.target.value&&!validateEmail(e.target.value)?"Email inválido":"");setContactExists(false);setContactData(null);setContactSearched(false);setContactError("");}} />
                       <button style={{...S.btn("primary"), padding:"10px 18px", fontSize:11, letterSpacing:"1.5px", whiteSpace:"nowrap", opacity:!email||emailError?.5:1}} disabled={!email||!!emailError}
-                        onClick={()=>{
+                        onClick={async ()=>{
                           setContactLoading(true);
-                          // MOCK: simulate HubSpot lookup by email via /api/hubspot/crm/v3/objects/contacts/search
-                          setTimeout(()=>{
-                            const found = email.includes("test") || email.includes("ejemplo");
-                            setContactExists(found);
-                            setContactData(found ? { firstname:"Pepito", lastname:"Pérez", cedula:"1.098.765.432", phone:"3001234567", canal:"Pauta Facebook-IG", proyectos:"Porto Sabbia" } : null);
-                            if(found) { setNombre("Pepito"); setApellido("Pérez"); setCedula("1.098.765.432"); setPhone("3001234567"); }
+                          setContactError("");
+                          try {
+                            // TODO: clientId debería venir de un contexto/config del Quoter, no hardcodeado
+                            const res = await fetch("/api/engine/contacts/search", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ clientId: "jimenez_demo", email: email.trim().toLowerCase() }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) {
+                              console.error("[Cotizador] Contact search error:", data);
+                              setContactExists(false);
+                              setContactData(null);
+                              setContactError(data.message || "Error buscando contacto");
+                            } else if (data.found) {
+                              const c = data.contact;
+                              setContactExists(true);
+                              setContactData({
+                                firstname: c.firstname,
+                                lastname: c.lastname,
+                                cedula: c.cedula,
+                                phone: c.phone,
+                                canal: c.canal,
+                                proyectos: c.listaProyectos,
+                              });
+                              if (c.firstname) setNombre(c.firstname);
+                              if (c.lastname) setApellido(c.lastname);
+                              if (c.cedula) setCedula(c.cedula);
+                              if (c.phone) setPhone(c.phone);
+                              if (c.tipoDocumento) setTipoDoc(c.tipoDocumento);
+                            } else {
+                              setContactExists(false);
+                              setContactData(null);
+                            }
+                          } catch (err) {
+                            console.error("[Cotizador] Contact search failed:", err);
+                            setContactExists(false);
+                            setContactData(null);
+                            setContactError("No se pudo conectar con el servidor");
+                          } finally {
+                            setContactSearched(true);
                             setContactLoading(false);
-                          }, 600);
+                          }
                         }}>
                         {contactLoading ? "..." : "Buscar"}
                       </button>
                     </div>
                     {emailError && <div style={{ fontSize:10, color:C.red, fontFamily:"'Montserrat',sans-serif", marginTop:2 }}>{emailError}</div>}
-                    {/* Lookup result */}
-                    {(contactExists || (email && !emailError && !contactLoading && contactData===null && email.length>5)) && (
+                    {/* Search error */}
+                    {contactError && <div style={{ marginTop:6, fontSize:10, color:C.red, fontFamily:"'Montserrat',sans-serif", padding:"6px 10px", background:C.redBg, borderRadius:4, border:`1px solid ${C.redBorder}` }}>⚠ {contactError}</div>}
+                    {/* Lookup result — only shown after a real search attempt */}
+                    {contactSearched && !contactLoading && !contactError && (
                       <div style={{ marginTop:8, padding:"10px 14px", borderRadius:6, background:contactExists?C.greenBg:C.yellowBg, border:`1px solid ${contactExists?C.greenBorder:C.yellowBorder}` }}>
                         <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontFamily:"'Montserrat',sans-serif", color:contactExists?C.green:C.yellow, fontWeight:600 }}>
                           <span>{contactExists?"✓":"⚠"}</span>
@@ -1365,7 +1404,7 @@ export default function QuoterClient() {
               <button style={{...S.btn("outline"), fontSize:10, padding:"8px 16px"}} onClick={handlePrint}>🖨 Imprimir PDF</button>
             </div>
 
-            <button style={{ ...S.btn("primary") }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setCotNum("");setSeparacionMode("$");setSeparacionFijo(3000000);}}>
+            <button style={{ ...S.btn("primary") }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setContactSearched(false);setContactError("");setCotNum("");setSeparacionMode("$");setSeparacionFijo(3000000);}}>
               Nueva cotización
             </button>
           </div>
