@@ -210,14 +210,15 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
     hx += sw + 16;
   }
 
-  // Company text
-  page.drawText('CONSTRUCTORA JIMÉNEZ S.A.', { x: hx, y: y - 4, size: 13, font: H, color: C.navy });
-  page.drawText('NIT: 802.021.085-1 · Santa Marta, Colombia', { x: hx, y: y - 18, size: 8.5, font: R, color: C.textSec });
-  page.drawText('LO HACEMOS REALIDAD', { x: hx, y: y - 31, size: 7.5, font: H, color: C.gold });
-
-  // ── Cotización badge (right) ──
+  // ── Cotización badge (right) — calculated first to constrain company text ──
   const badgeW = 148, badgeH = 56;
   const badgeX = RE - badgeW;
+
+  // Company text — constrained so it never overlaps badge
+  const maxCompanyW = badgeX - hx - 14;
+  page.drawText(truncate('CONSTRUCTORA JIMÉNEZ S.A.', H, 13, maxCompanyW), { x: hx, y: y - 4, size: 13, font: H, color: C.navy });
+  page.drawText(truncate('NIT: 802.021.085-1 · Santa Marta, Colombia', R, 8.5, maxCompanyW), { x: hx, y: y - 18, size: 8.5, font: R, color: C.textSec });
+  page.drawText('LO HACEMOS REALIDAD', { x: hx, y: y - 31, size: 7.5, font: H, color: C.gold });
   roundRect(page, badgeX, hTop + 4, badgeW, badgeH, 6, C.goldBg, C.goldBorder, 0.6);
 
   drawCenter(page, 'COTIZACIÓN', H, 7.5, badgeX + badgeW / 2, hTop - 8, C.gold);
@@ -352,20 +353,34 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
     finItems.push({ l: 'CUOTAS EXTRA', v: fmt(totalAbonos), c: C.green });
   }
 
-  // Adaptive sizing: if many columns, reduce font
-  const valSize = finItems.length > 6 ? 11.5 : 13;
-  const boxH = finItems.length > 6 ? 64 : 72;
+  // ── 2-row layout: split items into rows of max 4 for breathing room ──
+  const splitAt = finItems.length > 4 ? Math.min(3, finItems.length) : finItems.length;
+  const row1 = finItems.slice(0, splitAt);
+  const row2 = finItems.slice(splitAt);
+  const numRows = row2.length > 0 ? 2 : 1;
+  const rowH = 58;
+  const gap = 6;
+  const boxH = numRows === 2 ? rowH * 2 + gap : rowH;
 
   roundRect(page, MG, y, W, boxH, 8, C.goldBg, C.goldBorder, 0.6);
 
-  const cellW = W / finItems.length;
-  finItems.forEach((item, i) => {
-    const cx = MG + i * cellW + cellW / 2;
-    // Label
-    drawCenter(page, item.l, B, 7.5, cx, y - 22, C.textSec);
-    // Value
-    drawCenter(page, item.v, item.bold ? B : R, valSize, cx, y - (boxH > 68 ? 48 : 44), item.c);
-  });
+  // Divider between rows
+  if (numRows === 2) {
+    const divY = y - rowH;
+    page.drawLine({ start: { x: MG + 16, y: divY }, end: { x: RE - 16, y: divY }, thickness: 0.5, color: C.borderLight });
+  }
+
+  function drawFinRow(items: typeof finItems, rowTop: number, rh: number) {
+    const cellW = W / items.length;
+    items.forEach((item, i) => {
+      const cx = MG + i * cellW + cellW / 2;
+      drawCenter(page, item.l, B, 7.5, cx, rowTop - 18, C.textSec);
+      drawCenter(page, item.v, item.bold ? B : R, 13, cx, rowTop - 40, item.c);
+    });
+  }
+
+  drawFinRow(row1, y, rowH);
+  if (row2.length > 0) drawFinRow(row2, y - rowH - gap, rowH);
 
   y -= boxH + 22;
 

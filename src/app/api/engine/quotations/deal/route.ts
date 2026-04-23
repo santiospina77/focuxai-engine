@@ -131,24 +131,42 @@ async function findOrCreateContact(
     return { contactId, created: false };
   }
 
-  // ── Contact not found → create ──
-  const createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+  // ── Contact not found → create (try full props, fallback to standard-only) ──
+  const fullProps: Record<string, string> = {
+    email,
+    firstname: q.buyer_name || '',
+    lastname: q.buyer_lastname || '',
+    phone: q.buyer_phone ? `${q.buyer_phone_cc || '+57'}${q.buyer_phone}` : '',
+    cedula_fx: String(q.buyer_doc_number || ''),
+    tipo_documento_fx: String(q.buyer_doc_type || 'CC'),
+    proyecto_activo_fx: macroName,
+    lista_proyectos_fx: macroName,
+    canal_atribucion_fx: 'Sala de Ventas Física',
+  };
+
+  const standardProps: Record<string, string> = {
+    email,
+    firstname: fullProps.firstname,
+    lastname: fullProps.lastname,
+    phone: fullProps.phone,
+  };
+
+  // Attempt 1: full properties (includes custom _fx fields)
+  let createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({
-      properties: {
-        email,
-        firstname: q.buyer_name || '',
-        lastname: q.buyer_lastname || '',
-        phone: q.buyer_phone ? `${q.buyer_phone_cc || '+57'}${q.buyer_phone}` : '',
-        cedula_fx: String(q.buyer_doc_number || ''),
-        tipo_documento_fx: String(q.buyer_doc_type || 'CC'),
-        proyecto_activo_fx: macroName,
-        lista_proyectos_fx: macroName,
-        canal_atribucion_fx: 'Sala de Ventas Física',
-      },
-    }),
+    body: JSON.stringify({ properties: fullProps }),
   });
+
+  // Attempt 2: if 400 (likely missing custom properties), retry with standard-only
+  if (createRes.status === 400) {
+    console.warn(`[deal] Contact create with _fx props failed (400), retrying with standard props only`);
+    createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ properties: standardProps }),
+    });
+  }
 
   if (!createRes.ok) {
     const errBody = await createRes.text();
@@ -210,6 +228,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // ── 2. Find or create contact ──
   let contactId: string | null = quotation.hubspot_contact_id || null;
   let contactCreated = false;
+  let contactError: string | null = null;
 
   if (!contactId && quotation.buyer_email) {
     try {
@@ -220,8 +239,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Persist contact ID back to quotation
       await sql`UPDATE quotations SET hubspot_contact_id = ${contactId} WHERE id = ${quotation.id}`;
     } catch (err) {
-      // Contact failure is non-fatal — Deal still gets created
-      console.warn(`[deal] Contact find/create failed (non-fatal): ${err instanceof Error ? err.message : err}`);
+      // Contact failure is non-fatal — Deal still gets created, but we surface the error
+      contactError = err instanceof Error ? err.message : String(err);
+      console.warn(`[deal] Contact find/create failed (non-fatal): ${contactError}`);
     }
   }
 
@@ -350,6 +370,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         dealUrl,
         contactId,
         contactCreated,
+        contactError,
         cotNumber,
         dealName: dealProperties.dealname,
       },
