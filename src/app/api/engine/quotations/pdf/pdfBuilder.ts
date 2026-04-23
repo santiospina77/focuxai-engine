@@ -57,7 +57,7 @@ function fmt(n: number | string): string {
 
 function fmtDate(val: string | Date): string {
   const d = val instanceof Date ? val : new Date(val);
-  return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+  return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Bogota' });
 }
 
 function truncate(text: string, font: PDFFont, size: number, maxW: number): string {
@@ -214,9 +214,16 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   const badgeW = 148, badgeH = 56;
   const badgeX = RE - badgeW;
 
-  // Company text — constrained so it never overlaps badge
+  // Company text — adaptive font size to fit available space without truncation
   const maxCompanyW = badgeX - hx - 14;
-  page.drawText(truncate('CONSTRUCTORA JIMÉNEZ S.A.', H, 13, maxCompanyW), { x: hx, y: y - 4, size: 13, font: H, color: C.navy });
+  const companyName = 'CONSTRUCTORA JIMÉNEZ S.A.';
+  let compSize = 13;
+  // Step down font until it fits (13 → 11 → 9.5)
+  for (const sz of [13, 11, 9.5]) {
+    compSize = sz;
+    if (H.widthOfTextAtSize(companyName, sz) <= maxCompanyW) break;
+  }
+  page.drawText(truncate(companyName, H, compSize, maxCompanyW), { x: hx, y: y - 4, size: compSize, font: H, color: C.navy });
   page.drawText(truncate('NIT: 802.021.085-1 · Santa Marta, Colombia', R, 8.5, maxCompanyW), { x: hx, y: y - 18, size: 8.5, font: R, color: C.textSec });
   page.drawText('LO HACEMOS REALIDAD', { x: hx, y: y - 31, size: 7.5, font: H, color: C.gold });
   roundRect(page, badgeX, hTop + 4, badgeW, badgeH, 6, C.goldBg, C.goldBorder, 0.6);
@@ -288,17 +295,21 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   y -= 84;
 
   // ═══════════════════════════════════════════════════════
-  // RENDER + PLANO
+  // RENDER + PLANO — only show if REAL images exist (skip placeholders < 15KB)
   // ═══════════════════════════════════════════════════════
-  if (renderImg || planoImg) {
+  const MIN_REAL_IMG_BYTES = 15_000; // real renders/planos are always > 15KB
+  const hasRealRender = renderData && renderData.byteLength >= MIN_REAL_IMG_BYTES && renderImg;
+  const hasRealPlano = planoData && planoData.byteLength >= MIN_REAL_IMG_BYTES && planoImg;
+
+  if (hasRealRender || hasRealPlano) {
     needPage(200);
     const imgBoxW = (W - 16) / 2;
     const labelH = 24;
     const imgAreaH = 160;
 
     const panels: Array<{ label: string; img: PDFImage | null; idx: number }> = [
-      { label: `RENDER — Tipo ${tip}`, img: renderImg, idx: 0 },
-      { label: `PLANO — Tipo ${tip}`, img: planoImg, idx: 1 },
+      { label: `RENDER — Tipo ${tip}`, img: hasRealRender ? renderImg : null, idx: 0 },
+      { label: `PLANO — Tipo ${tip}`, img: hasRealPlano ? planoImg : null, idx: 1 },
     ];
 
     for (const { label, img, idx } of panels) {
@@ -466,7 +477,7 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   y -= 24;
   page.drawLine({ start: { x: MG, y }, end: { x: RE, y }, thickness: 0.5, color: C.borderLight });
   y -= 14;
-  page.drawText(`Generado por FocuxAI Engine™ · ${new Date().toLocaleString('es-CO')}`, {
+  page.drawText(`Generado por FocuxAI Engine™ · ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}`, {
     x: MG, y, size: 8, font: R, color: C.textTer,
   });
   drawRight(page, String(q.cot_number), R, 8, RE, y, C.textTer);
