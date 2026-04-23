@@ -1,23 +1,14 @@
 /**
  * POST /api/engine/quotations/pdf — Generar PDF server-side de una cotización.
  *
- * Recibe { clientId, cotNumber } → busca en DB → genera PDF con @react-pdf/renderer → retorna binary.
- *
- * El PDF se genera al vuelo desde los datos persistidos. No se cachea (por ahora).
- *
- * Responses:
- *   200 → application/pdf binary stream
- *   400 → datos faltantes
- *   404 → cotización no encontrada
- *   500 → error generando PDF
+ * Recibe { clientId, cotNumber } → busca en DB → genera PDF con PDFKit → retorna binary.
  *
  * FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/engine/core/db/neon';
-import { renderToBuffer } from '@react-pdf/renderer';
-import { buildQuotationPdf } from './QuotationPdf';
+import { buildPdfBuffer } from './pdfBuilder';
 import type { QuotationRow } from '../types';
 
 function errorResponse(status: number, error: string, message: string) {
@@ -39,7 +30,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!clientId?.trim()) return errorResponse(400, 'MISSING_CLIENT_ID', 'clientId es obligatorio.');
   if (!cotNumber?.trim()) return errorResponse(400, 'MISSING_COT_NUMBER', 'cotNumber es obligatorio.');
 
-  // ── Buscar cotización ──
   try {
     const sql = getDb();
     const rows = await sql`
@@ -54,17 +44,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const quotation = rows[0] as QuotationRow;
 
-    // ── Generar PDF ──
-    // buildQuotationPdf returns a <Document> element directly — not a component
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfBuffer = await renderToBuffer(buildQuotationPdf(quotation) as any);
+    // ── Generar PDF con PDFKit ──
+    const pdfBuffer = await buildPdfBuffer(quotation);
 
     // ── Actualizar pdf_generated_at ──
     await sql`
       UPDATE quotations SET pdf_generated_at = NOW() WHERE id = ${quotation.id}
     `;
 
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
