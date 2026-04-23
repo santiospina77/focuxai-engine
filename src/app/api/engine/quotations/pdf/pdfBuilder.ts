@@ -1,29 +1,53 @@
 /**
- * pdfBuilder — PDF de cotización con pdf-lib + imágenes via fetch.
+ * pdfBuilder v2 — World-class PDF cotización.
  *
- * Logos e imágenes se cargan desde la URL pública del engine.
- * Layout replica el QuoterClient Step 6 lo más fielmente posible
- * dentro de las limitaciones de pdf-lib (coordenadas absolutas, fonts estándar).
+ * Tipografías custom (AinslieSans + CarlaSans) embedidas via fontkit.
+ * Rectángulos redondeados via SVG cubic bézier paths.
+ * Layout replica pixel-for-pixel el QuoterClient Step 6 HTML.
+ * Fallback automático a Helvetica si fonts custom no cargan.
  *
  * FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
  */
 
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont, PDFImage } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 import type { QuotationRow } from '../types';
 
-// ── Hex → rgb ──
+// ═══════════════════════════════════════════════════════════
+// Design tokens
+// ═══════════════════════════════════════════════════════════
+
 function hex(c: string) {
-  return rgb(parseInt(c.slice(1, 3), 16) / 255, parseInt(c.slice(3, 5), 16) / 255, parseInt(c.slice(5, 7), 16) / 255);
+  return rgb(
+    parseInt(c.slice(1, 3), 16) / 255,
+    parseInt(c.slice(3, 5), 16) / 255,
+    parseInt(c.slice(5, 7), 16) / 255,
+  );
 }
 
 const C = {
-  gold: hex('#C2A360'), navy: hex('#2D4051'), midnight: hex('#182633'),
-  sand: hex('#F4F0E5'), goldBg: hex('#FAF8F2'), white: hex('#FFFFFF'),
-  textSec: hex('#5A6872'), textTer: hex('#8C9AA4'),
-  border: hex('#E0DCD2'), borderLight: hex('#EAE6DC'),
-  green: hex('#16A34A'), greenBg: hex('#F0FDF4'),
-  red: hex('#DC2626'), altRow: hex('#F9F7F2'), imgBg: hex('#F5F3EE'),
+  gold:        hex('#C2A360'),
+  goldBorder:  hex('#D4C28A'),
+  navy:        hex('#2D4051'),
+  midnight:    hex('#182633'),
+  goldBg:      hex('#FAF8F2'),
+  white:       hex('#FFFFFF'),
+  textSec:     hex('#5A6872'),
+  textTer:     hex('#8C9AA4'),
+  border:      hex('#E0DCD2'),
+  borderLight: hex('#EAE6DC'),
+  green:       hex('#16A34A'),
+  greenBg:     hex('#F0FDF4'),
+  red:         hex('#DC2626'),
+  altRow:      hex('#FAFAF8'),
+  imgBg:       hex('#F5F3EE'),
 };
+
+type Color = ReturnType<typeof rgb>;
+
+// ═══════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════
 
 function fmt(n: number | string): string {
   const num = typeof n === 'string' ? parseFloat(n) : n;
@@ -39,12 +63,17 @@ function fmtDate(val: string | Date): string {
 function truncate(text: string, font: PDFFont, size: number, maxW: number): string {
   if (!text) return '';
   if (font.widthOfTextAtSize(text, size) <= maxW) return text;
-  while (text.length > 0 && font.widthOfTextAtSize(text + '...', size) > maxW) text = text.slice(0, -1);
-  return text + '...';
+  let t = text;
+  while (t.length > 0 && font.widthOfTextAtSize(t + '…', size) > maxW) t = t.slice(0, -1);
+  return t + '…';
 }
 
-function drawRight(page: PDFPage, text: string, font: PDFFont, size: number, rightEdge: number, y: number, color: ReturnType<typeof rgb>) {
-  page.drawText(text, { x: rightEdge - font.widthOfTextAtSize(text, size), y, size, font, color });
+function drawRight(page: PDFPage, text: string, font: PDFFont, size: number, rx: number, y: number, color: Color) {
+  page.drawText(text, { x: rx - font.widthOfTextAtSize(text, size), y, size, font, color });
+}
+
+function drawCenter(page: PDFPage, text: string, font: PDFFont, size: number, cx: number, y: number, color: Color) {
+  page.drawText(text, { x: cx - font.widthOfTextAtSize(text, size) / 2, y, size, font, color });
 }
 
 function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
@@ -60,172 +89,237 @@ function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: numbe
   return lines;
 }
 
-// ── Fetch image from public URL ──
-async function fetchImage(baseUrl: string, filename: string): Promise<Uint8Array | null> {
+/**
+ * Rounded rectangle via SVG cubic bézier path.
+ * (left, top) = top-left corner in PDF coordinates.
+ * SVG path is drawn y-down, pdf-lib flips it automatically.
+ */
+function roundRect(
+  page: PDFPage, left: number, top: number,
+  w: number, h: number, r: number,
+  fill?: Color, stroke?: Color, sw = 0,
+) {
+  if (r <= 0) {
+    page.drawRectangle({ x: left, y: top - h, width: w, height: h, color: fill, borderColor: stroke, borderWidth: sw });
+    return;
+  }
+  r = Math.min(r, w / 2, h / 2);
+  const k = 0.5522847498 * r; // bézier approx for quarter circle
+  const p = [
+    `M ${r} 0`, `L ${w - r} 0`,
+    `C ${w - r + k} 0 ${w} ${r - k} ${w} ${r}`,
+    `L ${w} ${h - r}`,
+    `C ${w} ${h - r + k} ${w - r + k} ${h} ${w - r} ${h}`,
+    `L ${r} ${h}`,
+    `C ${r - k} ${h} 0 ${h - r + k} 0 ${h - r}`,
+    `L 0 ${r}`,
+    `C 0 ${r - k} ${r - k} 0 ${r} 0`,
+    'Z',
+  ].join(' ');
+  page.drawSvgPath(p, { x: left, y: top, color: fill, borderColor: stroke, borderWidth: sw });
+}
+
+/** Fetch binary asset from public URL */
+async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array | null> {
   try {
-    const res = await fetch(`${baseUrl}/assets/${filename}`);
+    const res = await fetch(`${baseUrl}/${path}`);
     if (!res.ok) return null;
     return new Uint8Array(await res.arrayBuffer());
   } catch { return null; }
 }
 
-async function embedImage(pdfDoc: PDFDocument, data: Uint8Array | null): Promise<PDFImage | null> {
+async function embedImg(doc: PDFDocument, data: Uint8Array | null): Promise<PDFImage | null> {
   if (!data) return null;
-  try { return await pdfDoc.embedPng(data); }
-  catch {
-    try { return await pdfDoc.embedJpg(data); }
-    catch { return null; }
+  try { return await doc.embedPng(data); } catch {
+    try { return await doc.embedJpg(data); } catch { return null; }
   }
 }
 
-// ══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 // MAIN
-// ══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
 export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://engine.focux.co');
 
-  const pdfDoc = await PDFDocument.create();
-  const hv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bd = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const doc = await PDFDocument.create();
 
-  const PW = 612, PH = 792, M = 36;
-  const W = PW - M * 2;
-  const RE = M + W; // right edge
+  // ── Register fontkit & embed custom fonts ──
+  let R: PDFFont;  // AinslieSans Regular — body text
+  let B: PDFFont;  // AinslieSans Bold    — emphasis
+  let H: PDFFont;  // CarlaSans Bold      — headings/display
+  try {
+    doc.registerFontkit(fontkit);
+    const [arBytes, abBytes, cbBytes] = await Promise.all([
+      fetchAsset(baseUrl, 'fonts/AinslieSans-NorReg.otf'),
+      fetchAsset(baseUrl, 'fonts/AinslieSans-NorBol.otf'),
+      fetchAsset(baseUrl, 'fonts/CarlaSansBold.ttf'),
+    ]);
+    R = arBytes ? await doc.embedFont(arBytes) : await doc.embedFont(StandardFonts.Helvetica);
+    B = abBytes ? await doc.embedFont(abBytes) : await doc.embedFont(StandardFonts.HelveticaBold);
+    H = cbBytes ? await doc.embedFont(cbBytes) : await doc.embedFont(StandardFonts.HelveticaBold);
+  } catch {
+    R = await doc.embedFont(StandardFonts.Helvetica);
+    B = await doc.embedFont(StandardFonts.HelveticaBold);
+    H = await doc.embedFont(StandardFonts.HelveticaBold);
+  }
 
-  let page = pdfDoc.addPage([PW, PH]);
-  let y = PH - M;
+  // Page dimensions — Letter
+  const PW = 612, PH = 792, MG = 40;
+  const W = PW - MG * 2;
+  const RE = MG + W;
 
-  function newPageIfNeeded(need: number) {
-    if (y - need < M + 20) { page = pdfDoc.addPage([PW, PH]); y = PH - M; }
+  let page = doc.addPage([PW, PH]);
+  let y = PH - MG;
+
+  function needPage(h: number) {
+    if (y - h < MG + 24) { page = doc.addPage([PW, PH]); y = PH - MG; }
   }
 
   // ── Fetch all images in parallel ──
-  const tipologia = q.unit_tipologia || '';
+  const tip = q.unit_tipologia || '';
   const [logoData, selloData, renderData, planoData] = await Promise.all([
-    fetchImage(baseUrl, 'logo-jimenez-horizontal.png'),
-    fetchImage(baseUrl, 'sello-40-anos.png'),
-    tipologia ? fetchImage(baseUrl, `render-${tipologia}.png`) : null,
-    tipologia ? fetchImage(baseUrl, `plano-${tipologia}.png`) : null,
+    fetchAsset(baseUrl, 'assets/logo-jimenez-horizontal.png'),
+    fetchAsset(baseUrl, 'assets/sello-40-anos.png'),
+    tip ? fetchAsset(baseUrl, `assets/render-${tip}.png`) : null,
+    tip ? fetchAsset(baseUrl, `assets/plano-${tip}.png`) : null,
   ]);
-
   const [logoImg, selloImg, renderImg, planoImg] = await Promise.all([
-    embedImage(pdfDoc, logoData),
-    embedImage(pdfDoc, selloData),
-    embedImage(pdfDoc, renderData),
-    embedImage(pdfDoc, planoData),
+    embedImg(doc, logoData), embedImg(doc, selloData),
+    embedImg(doc, renderData), embedImg(doc, planoData),
   ]);
 
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   // HEADER
-  // ═══════════════════════════════════════════════════
-  let hx = M;
-  const headerTop = y;
+  // ═══════════════════════════════════════════════════════
+  const hTop = y;
+  let hx = MG;
 
+  // Logo
   if (logoImg) {
-    const lh = 38, lw = (logoImg.width / logoImg.height) * lh;
+    const lh = 42, lw = (logoImg.width / logoImg.height) * lh;
     page.drawImage(logoImg, { x: hx, y: y - lh + 6, width: lw, height: lh });
-    hx += lw + 10;
+    hx += lw + 12;
   }
+
+  // Sello 40 años
   if (selloImg) {
-    const sh = 32, sw = (selloImg.width / selloImg.height) * sh;
-    page.drawImage(selloImg, { x: hx, y: y - sh + 4, width: sw, height: sh });
-    hx += sw + 12;
+    const sh = 34, sw = (selloImg.width / selloImg.height) * sh;
+    page.drawImage(selloImg, { x: hx, y: y - sh + 2, width: sw, height: sh });
+    hx += sw + 16;
   }
 
-  page.drawText('CONSTRUCTORA JIMÉNEZ S.A.', { x: hx, y: y - 2, size: 14, font: bd, color: C.navy });
-  page.drawText('NIT: 802.021.085-1 · Santa Marta, Colombia', { x: hx, y: y - 16, size: 9, font: hv, color: C.textSec });
-  page.drawText('LO HACEMOS REALIDAD', { x: hx, y: y - 28, size: 8, font: bd, color: C.gold });
+  // Company text
+  page.drawText('CONSTRUCTORA JIMÉNEZ S.A.', { x: hx, y: y - 4, size: 13, font: H, color: C.navy });
+  page.drawText('NIT: 802.021.085-1 · Santa Marta, Colombia', { x: hx, y: y - 18, size: 8.5, font: R, color: C.textSec });
+  page.drawText('LO HACEMOS REALIDAD', { x: hx, y: y - 31, size: 7.5, font: H, color: C.gold });
 
-  // Right side
-  drawRight(page, 'COTIZACIÓN', bd, 8, RE, headerTop - 2, C.gold);
-  drawRight(page, String(q.cot_number), hv, 20, RE, headerTop - 22, C.navy);
-  drawRight(page, fmtDate(q.created_at), hv, 9, RE, headerTop - 36, C.textSec);
+  // ── Cotización badge (right) ──
+  const badgeW = 148, badgeH = 56;
+  const badgeX = RE - badgeW;
+  roundRect(page, badgeX, hTop + 4, badgeW, badgeH, 6, C.goldBg, C.goldBorder, 0.6);
+
+  drawCenter(page, 'COTIZACIÓN', H, 7.5, badgeX + badgeW / 2, hTop - 8, C.gold);
+  const cotStr = String(q.cot_number);
+  const cotSize = cotStr.length > 20 ? 10 : cotStr.length > 16 ? 12 : 15;
+  drawCenter(page, cotStr, R, cotSize, badgeX + badgeW / 2, hTop - 26, C.navy);
+  drawCenter(page, fmtDate(q.created_at), R, 8, badgeX + badgeW / 2, hTop - 39, C.textSec);
   const vigencia = ((q.config_snapshot as Record<string, number>)?.vigenciaDias) ?? 7;
-  drawRight(page, `Vigencia: ${vigencia} días`, hv, 8, RE, headerTop - 48, C.textTer);
+  drawCenter(page, `Vigencia: ${vigencia} días`, R, 7, badgeX + badgeW / 2, hTop - 50, C.textTer);
 
-  // Gold line
-  y -= 54;
-  page.drawLine({ start: { x: M, y }, end: { x: RE, y }, thickness: 2, color: C.gold });
+  // Gold separator
+  y -= 60;
+  page.drawLine({ start: { x: MG, y }, end: { x: RE, y }, thickness: 2, color: C.gold });
 
-  // ═══════════════════════════════════════════════════
-  // 3 COLUMNS
-  // ═══════════════════════════════════════════════════
-  y -= 22;
-  const colW = (W - 24) / 3;
-  const c2x = M + colW + 12, c3x = M + (colW + 12) * 2;
+  // ═══════════════════════════════════════════════════════
+  // 3-COLUMN INFO SECTION
+  // ═══════════════════════════════════════════════════════
+  y -= 26;
+  const colGap = 16;
+  const colW = (W - colGap * 2) / 3;
 
-  function drawCol(x: number, label: string, name: string, details: string[]) {
+  function drawCol(x: number, label: string, name: string, lines: string[]) {
     let cy = y;
-    page.drawText(label, { x, y: cy, size: 7, font: bd, color: C.gold });
+    page.drawText(label, { x, y: cy, size: 7.5, font: B, color: C.gold });
+    cy -= 17;
+    page.drawText(truncate(name, B, 12, colW), { x, y: cy, size: 12, font: B, color: C.navy });
     cy -= 15;
-    page.drawText(truncate(name, bd, 13, colW), { x, y: cy, size: 13, font: bd, color: C.navy });
-    cy -= 15;
-    for (const d of details) {
-      if (!d) continue;
-      page.drawText(truncate(d, hv, 10, colW), { x, y: cy, size: 10, font: hv, color: C.textSec });
-      cy -= 12;
+    for (const line of lines) {
+      if (!line) continue;
+      page.drawText(truncate(line, R, 9.5, colW), { x, y: cy, size: 9.5, font: R, color: C.textSec });
+      cy -= 13;
     }
   }
 
   // Comprador
-  drawCol(M, 'COMPRADOR', `${q.buyer_name} ${q.buyer_lastname}`, [
+  drawCol(MG, 'COMPRADOR', `${q.buyer_name} ${q.buyer_lastname}`, [
     `${q.buyer_doc_type} ${q.buyer_doc_number}`,
     String(q.buyer_email),
-    `${q.buyer_phone_cc} ${q.buyer_phone}`,
+    `${q.buyer_phone_cc || '+57'} ${q.buyer_phone}`,
   ]);
 
   // Inmueble
-  const parkingArr = (q.parking as Array<{ numero: string }>) || [];
-  const storageArr = (q.storage as Array<{ numero: string }>) || [];
-  const unitDetails: string[] = [];
-  let uLine = `Apto ${q.unit_number}`;
-  if (q.unit_tipologia) uLine += ` · Tipo ${q.unit_tipologia}`;
-  if (q.unit_piso != null) uLine += ` · Piso ${q.unit_piso}`;
-  unitDetails.push(uLine);
-  let aLine = `${q.unit_area} m²`;
-  if (q.unit_habs != null) aLine += ` · ${q.unit_habs} hab`;
-  if (q.unit_banos != null) aLine += ` · ${q.unit_banos} baños`;
-  unitDetails.push(aLine);
-  if (parkingArr.length > 0) unitDetails.push(`Parq: ${parkingArr.map(p => p.numero).join(', ')}`);
-  else if (q.includes_parking) unitDetails.push('Parqueadero incluido *');
-  if (storageArr.length > 0) unitDetails.push(`Dep: ${storageArr.map(d => d.numero).join(', ')}`);
-  else if (q.includes_storage) unitDetails.push('Depósito incluido *');
-  drawCol(c2x, 'INMUEBLE', `${q.macro_name} — ${q.torre_name}`, unitDetails);
+  const parkArr = (q.parking as Array<{ numero: string }>) || [];
+  const stoArr = (q.storage as Array<{ numero: string }>) || [];
+  const propLines: string[] = [];
+  let unitLine = `Apto ${q.unit_number}`;
+  if (q.unit_tipologia) unitLine += ` · Tipo ${q.unit_tipologia}`;
+  if (q.unit_piso != null) unitLine += ` · Piso ${q.unit_piso}`;
+  propLines.push(unitLine);
+  let areaLine = `${q.unit_area} m²`;
+  if (q.unit_habs != null) areaLine += ` · ${q.unit_habs} hab`;
+  if (q.unit_banos != null) areaLine += ` · ${q.unit_banos} baños`;
+  propLines.push(areaLine);
+  if (parkArr.length > 0) propLines.push(`Parq: ${parkArr.map(p => p.numero).join(', ')}`);
+  else if (q.includes_parking) propLines.push('Parqueadero incluido *');
+  if (stoArr.length > 0) propLines.push(`Dep: ${stoArr.map(d => d.numero).join(', ')}`);
+  else if (q.includes_storage) propLines.push('Depósito incluido *');
+  drawCol(MG + colW + colGap, 'INMUEBLE', `${q.macro_name} — ${q.torre_name}`, propLines);
 
   // Asesor
   const saleLabel = Number(q.sale_type) === 0 ? 'Contado' : Number(q.sale_type) === 1 ? 'Crédito' : 'Leasing';
-  drawCol(c3x, 'ASESOR', String(q.advisor_name), [`Tipo venta: ${saleLabel}`]);
+  drawCol(MG + (colW + colGap) * 2, 'ASESOR', String(q.advisor_name), [
+    `ID Sinco: ${q.advisor_id}`,
+    `Tipo venta: ${saleLabel}`,
+  ]);
 
-  y -= 78;
+  y -= 84;
 
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   // RENDER + PLANO
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   if (renderImg || planoImg) {
-    newPageIfNeeded(190);
-    const imgBoxW = (W - 14) / 2;
-    const labelH = 18;
-    const imgAreaH = 150;
+    needPage(200);
+    const imgBoxW = (W - 16) / 2;
+    const labelH = 24;
+    const imgAreaH = 160;
 
-    const images: Array<{ label: string; img: PDFImage | null; idx: number }> = [
-      { label: `RENDER — Tipo ${tipologia}`, img: renderImg, idx: 0 },
-      { label: `PLANO — Tipo ${tipologia}`, img: planoImg, idx: 1 },
+    const panels: Array<{ label: string; img: PDFImage | null; idx: number }> = [
+      { label: `RENDER — Tipo ${tip}`, img: renderImg, idx: 0 },
+      { label: `PLANO — Tipo ${tip}`, img: planoImg, idx: 1 },
     ];
 
-    for (const { label, img, idx } of images) {
+    for (const { label, img, idx } of panels) {
       if (!img) continue;
-      const ix = M + idx * (imgBoxW + 14);
+      const ix = MG + idx * (imgBoxW + 16);
 
-      // Label bar
-      page.drawRectangle({ x: ix, y: y - labelH, width: imgBoxW, height: labelH, color: C.goldBg, borderColor: C.borderLight, borderWidth: 0.5 });
-      page.drawText(label, { x: ix + 10, y: y - 13, size: 7, font: bd, color: C.textSec });
+      // Container with rounded corners
+      roundRect(page, ix, y, imgBoxW, labelH + imgAreaH, 8, undefined, C.borderLight, 0.5);
+
+      // Label bar background (top)
+      roundRect(page, ix, y, imgBoxW, labelH, 8, C.goldBg);
+      // Clean bottom of label bar (overlap the rounded bottom corners)
+      page.drawRectangle({ x: ix, y: y - labelH, width: imgBoxW, height: 10, color: C.goldBg });
+      page.drawLine({ start: { x: ix, y: y - labelH }, end: { x: ix + imgBoxW, y: y - labelH }, thickness: 0.5, color: C.borderLight });
+
+      page.drawText(label, { x: ix + 14, y: y - 16, size: 7.5, font: B, color: C.textSec });
 
       // Image area background
-      page.drawRectangle({ x: ix, y: y - labelH - imgAreaH, width: imgBoxW, height: imgAreaH, color: C.imgBg, borderColor: C.borderLight, borderWidth: 0.5 });
+      page.drawRectangle({ x: ix + 0.5, y: y - labelH - imgAreaH + 8, width: imgBoxW - 1, height: imgAreaH - 8, color: C.imgBg });
 
       // Image scaled to fit
-      const scale = Math.min((imgBoxW - 16) / img.width, (imgAreaH - 12) / img.height);
+      const scale = Math.min((imgBoxW - 24) / img.width, (imgAreaH - 20) / img.height);
       const dw = img.width * scale, dh = img.height * scale;
       page.drawImage(img, {
         x: ix + (imgBoxW - dw) / 2,
@@ -233,117 +327,138 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
         width: dw, height: dh,
       });
     }
-    y -= labelH + imgAreaH + 16;
+    y -= labelH + imgAreaH + 20;
   }
 
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   // FINANCIAL SUMMARY
-  // ═══════════════════════════════════════════════════
-  newPageIfNeeded(65);
-  const boxH = 56;
-  page.drawRectangle({ x: M, y: y - boxH, width: W, height: boxH, color: C.goldBg, borderColor: C.borderLight, borderWidth: 0.5 });
-
+  // ═══════════════════════════════════════════════════════
+  needPage(90);
   const totalDisc = Number(q.total_discounts) || 0;
-  const finItems: Array<{ l: string; v: string; c: ReturnType<typeof rgb> }> = [];
+  const bonuses = (q.bonuses as Array<{ label: string; amount: number }>) || [];
+  const totalAbonos = bonuses.reduce((s, b) => s + (b.amount || 0), 0);
+
+  const finItems: Array<{ l: string; v: string; c: Color; bold?: boolean }> = [];
   if (totalDisc > 0) {
     finItems.push({ l: 'SUBTOTAL', v: fmt(q.subtotal), c: C.navy });
     finItems.push({ l: 'DESCUENTOS', v: `-${fmt(totalDisc)}`, c: C.red });
-    finItems.push({ l: 'VALOR NETO', v: fmt(q.net_value), c: C.gold });
-  } else {
-    finItems.push({ l: 'VALOR TOTAL', v: fmt(q.net_value), c: C.gold });
   }
+  finItems.push({ l: totalDisc > 0 ? 'VALOR NETO' : 'VALOR TOTAL', v: fmt(q.net_value), c: C.gold, bold: true });
   finItems.push({ l: 'SEPARACIÓN', v: fmt(q.separation_amount), c: C.navy });
-  finItems.push({ l: `CI (${Number(q.initial_payment_pct)}%)`, v: fmt(q.initial_payment_amount), c: C.navy });
+  finItems.push({ l: `CI (${Number(q.initial_payment_pct)}%)`, v: fmt(q.initial_payment_amount), c: C.navy, bold: true });
   finItems.push({ l: `${q.num_installments} CUOTAS DE`, v: fmt(q.installment_amount), c: C.navy });
-  finItems.push({ l: `FINANC. (${Number(q.financed_pct)}%)`, v: fmt(q.financed_amount), c: C.navy });
+  finItems.push({ l: `FINANCIACIÓN (${Number(q.financed_pct)}%)`, v: fmt(q.financed_amount), c: C.navy });
+  if (totalAbonos > 0) {
+    finItems.push({ l: 'CUOTAS EXTRA', v: fmt(totalAbonos), c: C.green });
+  }
 
-  const iw = W / finItems.length;
+  // Adaptive sizing: if many columns, reduce font
+  const valSize = finItems.length > 6 ? 11.5 : 13;
+  const boxH = finItems.length > 6 ? 64 : 72;
+
+  roundRect(page, MG, y, W, boxH, 8, C.goldBg, C.goldBorder, 0.6);
+
+  const cellW = W / finItems.length;
   finItems.forEach((item, i) => {
-    const ix = M + i * iw;
-    const lw = hv.widthOfTextAtSize(item.l, 7);
-    page.drawText(item.l, { x: ix + (iw - lw) / 2, y: y - 18, size: 7, font: bd, color: C.textSec });
-    const vw = bd.widthOfTextAtSize(item.v, 13);
-    page.drawText(item.v, { x: ix + (iw - vw) / 2, y: y - 38, size: 13, font: bd, color: item.c });
+    const cx = MG + i * cellW + cellW / 2;
+    // Label
+    drawCenter(page, item.l, B, 7.5, cx, y - 22, C.textSec);
+    // Value
+    drawCenter(page, item.v, item.bold ? B : R, valSize, cx, y - (boxH > 68 ? 48 : 44), item.c);
   });
 
-  y -= boxH + 18;
+  y -= boxH + 22;
 
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   // PAYMENT TABLE
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   const plan = (q.payment_plan as Array<{ concepto: string; mes: string; pago: number; tipo: string }>) || [];
 
-  newPageIfNeeded(36);
-  page.drawText('PLAN DE PAGOS', { x: M, y, size: 8, font: bd, color: C.gold });
-  drawRight(page, `${plan.length} conceptos`, hv, 8, RE, y, C.textTer);
-  y -= 14;
+  needPage(44);
+  page.drawText('PLAN DE PAGOS', { x: MG, y, size: 8.5, font: B, color: C.gold });
+  drawRight(page, `${plan.length} conceptos`, R, 8.5, RE, y, C.textTer);
+  y -= 18;
 
-  // Header row
-  const rh = 18;
-  page.drawRectangle({ x: M, y: y - rh, width: W, height: rh, color: C.goldBg });
-  page.drawLine({ start: { x: M, y: y - rh }, end: { x: RE, y: y - rh }, thickness: 1.5, color: C.borderLight });
-  const tc = { n: 30, c: W - 230, m: 120, v: 80 };
-  page.drawText('#', { x: M + 8, y: y - 13, size: 8, font: bd, color: C.textSec });
-  page.drawText('CONCEPTO', { x: M + tc.n + 8, y: y - 13, size: 8, font: bd, color: C.textSec });
-  page.drawText('MES', { x: M + tc.n + tc.c + 8, y: y - 13, size: 8, font: bd, color: C.textSec });
-  drawRight(page, 'VALOR', bd, 8, RE - 6, y - 13, C.textSec);
+  // Table header
+  const rh = 24;
+  roundRect(page, MG, y, W, rh, 0, C.goldBg);
+  page.drawLine({ start: { x: MG, y: y - rh }, end: { x: RE, y: y - rh }, thickness: 1.5, color: C.goldBorder });
+
+  const tc = { num: 34, con: W - 250, mes: 126, val: 90 };
+  page.drawText('#', { x: MG + 12, y: y - 16, size: 8, font: B, color: C.textSec });
+  page.drawText('CONCEPTO', { x: MG + tc.num + 12, y: y - 16, size: 8, font: B, color: C.textSec });
+  page.drawText('MES', { x: MG + tc.num + tc.con + 12, y: y - 16, size: 8, font: B, color: C.textSec });
+  drawRight(page, 'VALOR', B, 8, RE - 10, y - 16, C.textSec);
   y -= rh;
 
+  // Table rows
   for (let i = 0; i < plan.length; i++) {
-    newPageIfNeeded(rh + 4);
-    const r = plan[i];
-    const isSep = r.concepto === 'Separación';
-    const isSaldo = r.concepto?.includes('Saldo');
-    const isTotal = r.tipo === 'total';
-    const isAbono = r.tipo === 'abono';
+    needPage(rh + 6);
+    const row = plan[i];
+    const isSep = row.concepto === 'Separación';
+    const isSaldo = row.concepto?.includes('Saldo');
+    const isTotal = row.tipo === 'total';
+    const isAbono = row.tipo === 'abono';
     const isHL = isSep || isSaldo || isTotal;
 
     const bg = isHL ? C.goldBg : isAbono ? C.greenBg : i % 2 === 0 ? C.white : C.altRow;
-    page.drawRectangle({ x: M, y: y - rh, width: W, height: rh, color: bg });
-    page.drawLine({ start: { x: M, y: y - rh }, end: { x: RE, y: y - rh }, thickness: 0.5, color: C.borderLight });
+    page.drawRectangle({ x: MG, y: y - rh, width: W, height: rh, color: bg });
+    page.drawLine({ start: { x: MG, y: y - rh }, end: { x: RE, y: y - rh }, thickness: 0.5, color: C.borderLight });
 
-    page.drawText(String(i + 1), { x: M + 8, y: y - 13, size: 9, font: hv, color: C.textTer });
+    const ry = y - 16; // text baseline within row
 
+    // #
+    page.drawText(String(i + 1), { x: MG + 12, y: ry, size: 9, font: R, color: C.textTer });
+
+    // Concepto
     const cc = isSep ? C.gold : isAbono ? C.green : isHL ? C.navy : C.midnight;
-    page.drawText(truncate(r.concepto || '', isHL ? bd : hv, 10, tc.c - 10), { x: M + tc.n + 8, y: y - 13, size: 10, font: isHL ? bd : hv, color: cc });
+    const cf = isHL ? B : R;
+    page.drawText(truncate(row.concepto || '', cf, 10.5, tc.con - 16), {
+      x: MG + tc.num + 12, y: ry, size: 10.5, font: cf, color: cc,
+    });
 
-    page.drawText(r.mes || '', { x: M + tc.n + tc.c + 8, y: y - 13, size: 9, font: hv, color: C.textSec });
+    // Mes
+    page.drawText(row.mes || '', { x: MG + tc.num + tc.con + 12, y: ry, size: 9, font: R, color: C.textSec });
 
+    // Valor
     const vc = isSep ? C.gold : isAbono ? C.green : C.navy;
-    drawRight(page, fmt(r.pago), isHL ? bd : hv, 10, RE - 6, y - 13, vc);
+    drawRight(page, fmt(row.pago), isHL ? B : R, 10.5, RE - 10, ry, vc);
 
     y -= rh;
   }
 
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   // LEGAL
-  // ═══════════════════════════════════════════════════
-  newPageIfNeeded(60);
-  y -= 12;
-  page.drawLine({ start: { x: M, y }, end: { x: RE, y }, thickness: 0.5, color: C.border });
-  y -= 14;
+  // ═══════════════════════════════════════════════════════
+  needPage(75);
+  y -= 16;
+  page.drawLine({ start: { x: MG, y }, end: { x: RE, y }, thickness: 0.5, color: C.border });
+  y -= 16;
 
   const legal = '* El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta.';
-  for (const line of wrapText(legal, hv, 8, W)) {
-    page.drawText(line, { x: M, y, size: 8, font: hv, color: C.textTer });
-    y -= 11;
+  for (const line of wrapText(legal, R, 8, W)) {
+    page.drawText(line, { x: MG, y, size: 8, font: R, color: C.textTer });
+    y -= 12;
   }
-  y -= 2;
-  page.drawText(`Vigencia de esta cotización: ${vigencia} días calendario a partir de la fecha de emisión.`, { x: M, y, size: 8, font: bd, color: C.textSec });
+  y -= 4;
+  page.drawText(`Vigencia de esta cotización: ${vigencia} días calendario a partir de la fecha de emisión.`, {
+    x: MG, y, size: 8.5, font: B, color: C.textSec,
+  });
 
-  // ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
   // FOOTER
-  // ═══════════════════════════════════════════════════
-  y -= 20;
-  page.drawLine({ start: { x: M, y }, end: { x: RE, y }, thickness: 0.5, color: C.borderLight });
-  y -= 12;
-  page.drawText(`Generado por FocuxAI Engine™ · ${new Date().toLocaleString('es-CO')}`, { x: M, y, size: 8, font: hv, color: C.textTer });
-  drawRight(page, String(q.cot_number), hv, 8, RE, y, C.textTer);
+  // ═══════════════════════════════════════════════════════
+  y -= 24;
+  page.drawLine({ start: { x: MG, y }, end: { x: RE, y }, thickness: 0.5, color: C.borderLight });
+  y -= 14;
+  page.drawText(`Generado por FocuxAI Engine™ · ${new Date().toLocaleString('es-CO')}`, {
+    x: MG, y, size: 8, font: R, color: C.textTer,
+  });
+  drawRight(page, String(q.cot_number), R, 8, RE, y, C.textTer);
 
-  y -= 16;
+  y -= 22;
   const brand = 'POWERED BY FOCUXAI ENGINE™ · FOCUX DIGITAL GROUP S.A.S.';
-  const bw = bd.widthOfTextAtSize(brand, 7);
-  page.drawText(brand, { x: M + (W - bw) / 2, y, size: 7, font: bd, color: C.gold });
+  drawCenter(page, brand, B, 7.5, MG + W / 2, y, C.gold);
 
-  return await pdfDoc.save();
+  return await doc.save();
 }
