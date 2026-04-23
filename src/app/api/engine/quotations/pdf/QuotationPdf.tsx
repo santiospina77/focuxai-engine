@@ -108,12 +108,8 @@ function vigenciaDays(config: Record<string, unknown>): number {
   return (config?.vigenciaDias as number) ?? 7;
 }
 
-// ── Component ──
-interface Props {
-  quotation: QuotationRow;
-}
-
-export function QuotationPdf({ quotation: q }: Props) {
+// ── Builder function (returns Document element, not a React component) ──
+export function buildQuotationPdf(q: QuotationRow) {
   const paymentPlan = (q.payment_plan as Array<{ concepto: string; mes: string; pago: number; tipo: string }>) || [];
   const config = q.config_snapshot || {};
 
