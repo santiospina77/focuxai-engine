@@ -1,13 +1,15 @@
 /**
  * POST /api/engine/quotations/deal — Crear Deal en HubSpot desde cotización persistida.
  *
- * Recibe { clientId, cotNumber } → busca en DB → crea Deal en HubSpot → asocia contacto → actualiza DB.
- *
- * Deal se crea en etapa "Cotización Enviada" (20%), amount $0 (no infla forecast).
- * Las propiedades custom _fx se mapean desde los datos de la cotización.
+ * Pipeline completo:
+ *   1. Buscar cotización en DB
+ *   2. Buscar contacto por email en HubSpot → si no existe, CREARLO
+ *   3. Crear Deal con propiedades _fx del v17
+ *   4. Asociar Deal ↔ Contacto
+ *   5. Actualizar cotización en DB (hubspot_deal_id, hubspot_contact_id, status)
  *
  * Responses:
- *   201 → { success: true, deal: { hubspotDealId, dealUrl } }
+ *   201 → { success: true, deal: { hubspotDealId, dealUrl, contactId } }
  *   400 → datos faltantes
  *   404 → cotización no encontrada
  *   409 → deal ya fue creado para esta cotización
@@ -21,22 +23,21 @@ import { getDb } from '@/engine/core/db/neon';
 import type { QuotationRow, ErrorResponse } from '../types';
 
 // ═══════════════════════════════════════════════════════════
-// Client config — mismo patrón que contacts/search
+// Client config
 // ═══════════════════════════════════════════════════════════
 
 interface ClientDealConfig {
   readonly hubspotTokenEnvVar: string;
-  readonly pipelineId: string;           // Pipeline de ventas
-  readonly stageIdCotizacion: string;    // Etapa "Cotización Enviada"
-  readonly hubspotPortalId: string;      // Para generar URL del deal
+  readonly pipelineId: string;
+  readonly stageIdCotizacion: string;
+  readonly hubspotPortalId: string;
 }
 
-// IDs reales del portal 51256354 — obtenidos via GET /crm/v3/pipelines/deals (22-abril-2026)
 const CLIENT_REGISTRY: Record<string, ClientDealConfig> = {
   jimenez_demo: {
     hubspotTokenEnvVar: 'HUBSPOT_JIMENEZ_DEMO_PRIVATE_APP_TOKEN',
-    pipelineId: '889311333',                   // "Ventas Constructora Jimenez"
-    stageIdCotizacion: '1338267783',           // "Cotización Enviada" (20%)
+    pipelineId: '889311333',
+    stageIdCotizacion: '1338267783',
     hubspotPortalId: '51256354',
   },
 };
@@ -52,7 +53,6 @@ function errorResponse(status: number, error: string, message: string): NextResp
   );
 }
 
-/** HubSpot date properties require midnight UTC epoch ms */
 function toMidnightUtc(val: string | Date | number): number {
   const d = new Date(val);
   d.setUTCHours(0, 0, 0, 0);
@@ -65,8 +65,103 @@ function getBaseUrl(): string {
 }
 
 // ═══════════════════════════════════════════════════════════
+// HubSpot Contact — Search or Create
+// ═══════════════════════════════════════════════════════════
+
+async function findOrCreateContact(
+  token: string,
+  q: QuotationRow,
+  macroName: string,
+): Promise<{ contactId: string; created: boolean }> {
+  const email = String(q.buyer_email).trim().toLowerCase();
+
+  // ── Step 1: Search by email ──
+  const searchRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({
+      filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: email }] }],
+      properties: ['email', 'firstname', 'lastname', 'lista_proyectos_fx', 'proyecto_activo_fx', 'canal_atribucion_fx'],
+      limit: 1,
+    }),
+  });
+
+  if (!searchRes.ok) {
+    throw new Error(`HubSpot contact search failed: ${searchRes.status}`);
+  }
+
+  const searchData = await searchRes.json();
+
+  // ── Contact found → update proyecto_activo + append lista_proyectos ──
+  if (searchData.results?.length > 0) {
+    const existing = searchData.results[0];
+    const contactId = existing.id;
+    const props = existing.properties ?? {};
+
+    // Append macro to lista_proyectos if not already there
+    const currentList = props.lista_proyectos_fx || '';
+    const projectsSet = new Set(currentList.split(';').map((s: string) => s.trim()).filter(Boolean));
+    projectsSet.add(macroName);
+
+    const updateProps: Record<string, string> = {
+      proyecto_activo_fx: macroName,
+      lista_proyectos_fx: [...projectsSet].join(';'),
+    };
+
+    // canal_atribucion_fx — NUNCA se pisa si ya tiene valor (regla v17)
+    if (!props.canal_atribucion_fx) {
+      updateProps.canal_atribucion_fx = 'Sala de Ventas Física';
+    }
+
+    // cedula_fx — llenar si vacío
+    if (!props.cedula_fx && q.buyer_doc_number) {
+      updateProps.cedula_fx = String(q.buyer_doc_number);
+    }
+
+    try {
+      await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ properties: updateProps }),
+      });
+    } catch {
+      console.warn(`[deal] Contact update failed (non-fatal) for ${contactId}`);
+    }
+
+    return { contactId, created: false };
+  }
+
+  // ── Contact not found → create ──
+  const createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({
+      properties: {
+        email,
+        firstname: q.buyer_name || '',
+        lastname: q.buyer_lastname || '',
+        phone: q.buyer_phone ? `${q.buyer_phone_cc || '+57'}${q.buyer_phone}` : '',
+        cedula_fx: String(q.buyer_doc_number || ''),
+        tipo_documento_fx: String(q.buyer_doc_type || 'CC'),
+        proyecto_activo_fx: macroName,
+        lista_proyectos_fx: macroName,
+        canal_atribucion_fx: 'Sala de Ventas Física',
+      },
+    }),
+  });
+
+  if (!createRes.ok) {
+    const errBody = await createRes.text();
+    throw new Error(`HubSpot contact create failed: ${createRes.status} — ${errBody}`);
+  }
+
+  const createData = await createRes.json();
+  return { contactId: createData.id, created: true };
+}
+
+// ═══════════════════════════════════════════════════════════
 // POST handler
-// ══��════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: { clientId: string; cotNumber: string };
@@ -80,7 +175,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!clientId?.trim()) return errorResponse(400, 'MISSING_CLIENT_ID', 'clientId es obligatorio.');
   if (!cotNumber?.trim()) return errorResponse(400, 'MISSING_COT_NUMBER', 'cotNumber es obligatorio.');
 
-  // ── Client config ──
   const clientConfig = CLIENT_REGISTRY[clientId];
   if (!clientConfig) {
     return errorResponse(404, 'CLIENT_NOT_FOUND', `clientId="${clientId}" no está configurado.`);
@@ -91,7 +185,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return errorResponse(500, 'MISSING_TOKEN', `Env var ${clientConfig.hubspotTokenEnvVar} no configurada.`);
   }
 
-  // ── Buscar cotización ──
+  // ── 1. Buscar cotización ──
   const sql = getDb();
   let quotation: QuotationRow;
   try {
@@ -105,22 +199,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     quotation = rows[0] as QuotationRow;
   } catch (err) {
-    console.error(`[quotations/deal] DB read error: ${err instanceof Error ? err.message : err}`);
+    console.error(`[deal] DB read error: ${err instanceof Error ? err.message : err}`);
     return errorResponse(500, 'DB_ERROR', 'Error leyendo cotización.');
   }
 
-  // ── Check si ya tiene deal ──
   if (quotation.hubspot_deal_id) {
     return errorResponse(409, 'DEAL_ALREADY_EXISTS', `Cotización ${cotNumber} ya tiene deal: ${quotation.hubspot_deal_id}.`);
   }
 
-  // ── Crear Deal en HubSpot ──
+  // ── 2. Find or create contact ──
+  let contactId: string | null = quotation.hubspot_contact_id || null;
+  let contactCreated = false;
+
+  if (!contactId && quotation.buyer_email) {
+    try {
+      const result = await findOrCreateContact(token, quotation, String(quotation.macro_name));
+      contactId = result.contactId;
+      contactCreated = result.created;
+
+      // Persist contact ID back to quotation
+      await sql`UPDATE quotations SET hubspot_contact_id = ${contactId} WHERE id = ${quotation.id}`;
+    } catch (err) {
+      // Contact failure is non-fatal — Deal still gets created
+      console.warn(`[deal] Contact find/create failed (non-fatal): ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // ── 3. Build deal properties ──
   const baseUrl = getBaseUrl();
-  const cotizacionUrl = `${baseUrl}/cotizacion/${cotNumber}`;
-  // v17: tipo_venta_fx es enumeration con values "0","1","3"
   const saleTypeValue = String(quotation.sale_type ?? 0);
 
-  // ── Deal properties — nombres exactos del JSON v17 ──
   const bonuses = (quotation.bonuses as Array<{ label: string; amount: number; sincoId?: number; cuota?: number }>) || [];
   const cesantias = bonuses.find(b => b.label?.toLowerCase().includes('cesant'))?.amount ?? 0;
   const subsidio = bonuses.find(b => b.label?.toLowerCase().includes('subsid'))?.amount ?? 0;
@@ -135,12 +243,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     dealname: `${quotation.macro_name} — APT ${quotation.unit_number} — ${quotation.buyer_name} ${quotation.buyer_lastname}`,
     pipeline: clientConfig.pipelineId,
     dealstage: clientConfig.stageIdCotizacion,
-    amount: 0,  // $0 hasta separación — WF-D2 copia valor_total_neto_fx → amount
+    amount: 0,
 
-    // ── Propiedad principal
     nombre_agrupacion_fx: `${quotation.torre_name} APT-${quotation.unit_number}`,
 
-    // ── Valores
     valor_apartamento_fx: quotation.unit_price,
     valor_parqueadero_fx: parkingArr.reduce((s, p) => s + (p.price || 0), 0),
     valor_deposito_fx: storageArr.reduce((s, d) => s + (d.price || 0), 0),
@@ -148,9 +254,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     valor_descuento_fx: quotation.discount_commercial,
     valor_descuento_financiero_fx: quotation.discount_financial,
     valor_total_neto_fx: quotation.net_value,
-    precio_cotizado_fx: quotation.net_value,  // Snapshot — no cambia
+    precio_cotizado_fx: quotation.net_value,
 
-    // ── Plan de pagos
     valor_separacion_fx: quotation.separation_amount,
     porcentaje_cuota_inicial_fx: Number(quotation.initial_payment_pct),
     cuota_inicial_fx: quotation.initial_payment_amount,
@@ -159,7 +264,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     valor_credito_fx: quotation.financed_amount,
     porcentaje_financiacion_fx: Number(quotation.financed_pct),
 
-    // ── Abonos
     valor_cesantias_fx: cesantias,
     valor_subsidio_fx: subsidio,
     valor_ahorro_programado_fx: ahorroProg,
@@ -167,11 +271,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     valor_confirmacion_fx: confirmacion,
     plan_abonos_fx: JSON.stringify(bonuses),
 
-    // ── Meta
     tipo_venta_fx: saleTypeValue,
     numero_documento_fx: quotation.buyer_doc_number,
     origen_fx: 'cotizador',
-    pdf_cotizacion_url_fx: cotizacionUrl,
+    pdf_cotizacion_url_fx: `${baseUrl}/api/engine/quotations/pdf?clientId=${clientId}&cotNumber=${cotNumber}`,
     fecha_creacion_cotizacion_fx: toMidnightUtc(quotation.created_at),
     vigencia_cotizacion_fx: toMidnightUtc(quotation.expires_at),
     incluye_parqueadero_fx: quotation.includes_parking ? 'true' : 'false',
@@ -179,15 +282,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     porcentaje_descuento_fx: quotation.subtotal > 0 ? Math.round((quotation.discount_commercial / quotation.subtotal) * 10000) / 100 : 0,
     porcentaje_descuento_fin_fx: quotation.subtotal > 0 ? Math.round((quotation.discount_financial / quotation.subtotal) * 10000) / 100 : 0,
 
-    // ── Sinco write-back (se llenan después)
-    // id_agrupacion_sinco_fx, id_sinco_comprador_fx, id_venta_sinco_fx → write-back #1/#2
     writeback_status_fx: 'pendiente',
 
-    // ── Fase 2 (defaults en 0)
     valor_adicionales_fx: 0,
     valor_exclusiones_fx: 0,
   };
 
+  // ── 4. Create Deal ──
   let hubspotDealId: string;
   try {
     const hsResponse = await fetch('https://api.hubapi.com/crm/v3/objects/deals', {
@@ -201,48 +302,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!hsResponse.ok) {
       const errBody = await hsResponse.text();
-      console.error(`[quotations/deal] HubSpot create deal error: ${hsResponse.status} — ${errBody}`);
+      console.error(`[deal] HubSpot create deal error: ${hsResponse.status} — ${errBody}`);
       return errorResponse(502, 'HUBSPOT_DEAL_CREATE_ERROR', `HubSpot ${hsResponse.status}: ${errBody}`);
     }
 
     const hsData = await hsResponse.json();
     hubspotDealId = hsData.id;
   } catch (err) {
-    console.error(`[quotations/deal] HubSpot network error: ${err instanceof Error ? err.message : err}`);
+    console.error(`[deal] HubSpot network error: ${err instanceof Error ? err.message : err}`);
     return errorResponse(502, 'HUBSPOT_NETWORK_ERROR', 'Error de red comunicándose con HubSpot.');
   }
 
-  // ── Asociar contacto si existe ──
-  if (quotation.hubspot_contact_id) {
+  // ── 5. Associate Deal ↔ Contact ──
+  if (contactId) {
     try {
       await fetch(
-        `https://api.hubapi.com/crm/v4/objects/deals/${hubspotDealId}/associations/default/contacts/${quotation.hubspot_contact_id}`,
-        {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${token}` },
-        },
+        `https://api.hubapi.com/crm/v4/objects/deals/${hubspotDealId}/associations/default/contacts/${contactId}`,
+        { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } },
       );
     } catch (err) {
-      // Association failure is non-fatal — log and continue
-      console.warn(`[quotations/deal] Association failed (non-fatal): ${err instanceof Error ? err.message : err}`);
+      console.warn(`[deal] Association failed (non-fatal): ${err instanceof Error ? err.message : err}`);
     }
   }
 
-  // ── Actualizar cotización en DB con deal ID ──
+  // ── 6. Update quotation in DB ──
   try {
     await sql`
       UPDATE quotations
       SET hubspot_deal_id = ${hubspotDealId},
+          hubspot_contact_id = COALESCE(hubspot_contact_id, ${contactId}),
           deal_created_at = NOW(),
           status = 'deal_created'
       WHERE id = ${quotation.id}
     `;
   } catch (err) {
-    console.error(`[quotations/deal] DB update error: ${err instanceof Error ? err.message : err}`);
-    // Deal was created — don't fail, just log
+    console.error(`[deal] DB update error: ${err instanceof Error ? err.message : err}`);
   }
 
-  // ── Response ──
+  // ── 7. Response ──
   const dealUrl = `https://app.hubspot.com/contacts/${clientConfig.hubspotPortalId}/deal/${hubspotDealId}`;
 
   return NextResponse.json(
@@ -251,6 +348,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       deal: {
         hubspotDealId,
         dealUrl,
+        contactId,
+        contactCreated,
         cotNumber,
         dealName: dealProperties.dealname,
       },

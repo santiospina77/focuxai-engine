@@ -1,7 +1,8 @@
 /**
- * POST /api/engine/quotations/pdf — Generar PDF server-side de una cotización.
+ * POST & GET /api/engine/quotations/pdf — Generar PDF server-side de una cotización.
  *
- * Recibe { clientId, cotNumber } → busca en DB → genera PDF con PDFKit → retorna binary.
+ * POST: { clientId, cotNumber } en body (usado por el frontend)
+ * GET:  ?clientId=X&cotNumber=Y en query params (link directo desde HubSpot/email)
  *
  * FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
  */
@@ -18,15 +19,7 @@ function errorResponse(status: number, error: string, message: string) {
   );
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  let body: { clientId: string; cotNumber: string };
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse(400, 'INVALID_BODY', 'Body debe ser JSON con { clientId, cotNumber }.');
-  }
-
-  const { clientId, cotNumber } = body;
+async function generatePdf(clientId: string, cotNumber: string): Promise<NextResponse> {
   if (!clientId?.trim()) return errorResponse(400, 'MISSING_CLIENT_ID', 'clientId es obligatorio.');
   if (!cotNumber?.trim()) return errorResponse(400, 'MISSING_COT_NUMBER', 'cotNumber es obligatorio.');
 
@@ -43,11 +36,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const quotation = rows[0] as QuotationRow;
-
-    // ── Generar PDF con PDFKit ──
     const pdfBuffer = await buildPdfBuffer(quotation);
 
-    // ── Actualizar pdf_generated_at ──
     await sql`
       UPDATE quotations SET pdf_generated_at = NOW() WHERE id = ${quotation.id}
     `;
@@ -65,4 +55,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error(`[quotations/pdf] Error: ${message}`);
     return errorResponse(500, 'PDF_GENERATION_ERROR', 'Error generando PDF. Revisar logs.');
   }
+}
+
+// ── POST (frontend) ──
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  let body: { clientId: string; cotNumber: string };
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse(400, 'INVALID_BODY', 'Body debe ser JSON con { clientId, cotNumber }.');
+  }
+  return generatePdf(body.clientId, body.cotNumber);
+}
+
+// ── GET (link directo desde HubSpot / email) ──
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const clientId = searchParams.get('clientId') || '';
+  const cotNumber = searchParams.get('cotNumber') || '';
+  return generatePdf(clientId, cotNumber);
 }
