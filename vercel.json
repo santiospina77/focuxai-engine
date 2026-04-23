@@ -20,7 +20,7 @@
       "maxDuration": 60
     },
     "src/app/api/engine/quotations/pdf/route.ts": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
     "src/app/api/engine/quotations/deal/route.ts": {
       "maxDuration": 30

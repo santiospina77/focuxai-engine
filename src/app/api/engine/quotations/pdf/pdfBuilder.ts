@@ -1,50 +1,15 @@
 /**
- * pdfBuilder — Genera PDF de cotización con pdf-lib.
+ * pdfBuilder — Genera PDF de cotización con Puppeteer + @sparticuz/chromium.
  *
- * Replica fielmente el diseño del QuoterClient Step 6 (Bluebox brand):
- * - Header con logos Jiménez + sello 40 años + slogan
- * - 3 columnas: comprador, inmueble, asesor
- * - Grid 2 columnas: render + plano (por tipología, si existen)
- * - Resumen financiero en caja dorada
- * - Tabla plan de pagos con colores alternados
- * - Legal + footer FocuxAI Engine™
- *
- * Imágenes se leen de /public/assets/ via filesystem (disponible en Vercel serverless).
+ * Renderiza HTML completo (mismo diseño que QuoterClient Step 6) como PDF.
+ * Resultado visualmente idéntico al frontend.
  *
  * FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
  */
 
-import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont, PDFImage } from 'pdf-lib';
-import { readFileSync, existsSync } from 'fs';
-import path from 'path';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 import type { QuotationRow } from '../types';
-
-// ── Hex → pdf-lib RGB ──
-function hex(color: string) {
-  return rgb(
-    parseInt(color.slice(1, 3), 16) / 255,
-    parseInt(color.slice(3, 5), 16) / 255,
-    parseInt(color.slice(5, 7), 16) / 255,
-  );
-}
-
-// ── Brand colors ──
-const C = {
-  gold: hex('#C2A360'),
-  navy: hex('#2D4051'),
-  midnight: hex('#182633'),
-  sand: hex('#F4F0E5'),
-  white: hex('#FFFFFF'),
-  textSec: hex('#5A6872'),
-  textTer: hex('#8C9AA4'),
-  border: hex('#E0DCD2'),
-  borderLight: hex('#EAE6DC'),
-  goldBg: hex('#FAF8F2'),
-  green: hex('#16A34A'),
-  greenBg: hex('#F0FDF4'),
-  red: hex('#DC2626'),
-  altRow: hex('#F9F7F2'),
-};
 
 // ── Helpers ──
 function fmt(n: number | string): string {
@@ -58,381 +23,239 @@ function formatDate(val: string | Date): string {
   return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function loadAsset(filename: string): Buffer | null {
-  try {
-    const p = path.join(process.cwd(), 'public', 'assets', filename);
-    if (existsSync(p)) return readFileSync(p);
-  } catch { /* ignore */ }
-  return null;
+function esc(s: string | null | undefined): string {
+  return (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function truncate(text: string, font: PDFFont, size: number, maxW: number): string {
-  if (font.widthOfTextAtSize(text, size) <= maxW) return text;
-  while (text.length > 0 && font.widthOfTextAtSize(text + '…', size) > maxW) {
-    text = text.slice(0, -1);
-  }
-  return text + '…';
-}
-
-function drawTextRight(page: PDFPage, text: string, font: PDFFont, size: number, x: number, y: number, maxW: number, color: ReturnType<typeof rgb>) {
-  const w = font.widthOfTextAtSize(text, size);
-  page.drawText(text, { x: x + maxW - w, y, size, font, color });
-}
-
-// ── Wrap text helper ──
-function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(test, fontSize) > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
-// ══════════════════════════════════════════════════════
-// MAIN BUILDER
-// ══════════════════════════════════════════════════════
-export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.create();
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const PW = 612; // Letter width
-  const PH = 792; // Letter height
-  const M = 40;   // Margin
-  const W = PW - M * 2; // Usable width
-
-  let page = pdfDoc.addPage([PW, PH]);
-  let y = PH - M;
-
-  // Helper to add new page if needed
-  function ensureSpace(needed: number) {
-    if (y - needed < M + 30) {
-      page = pdfDoc.addPage([PW, PH]);
-      y = PH - M;
-    }
-  }
-
-  // ═══════════════════════════════════════════════════
-  // HEADER — logos + empresa + cotización
-  // ═══════════════════════════════════════════════════
-
-  // Try to embed logos
-  let logoImg: PDFImage | null = null;
-  let selloImg: PDFImage | null = null;
-
-  const logoData = loadAsset('logo-jimenez-horizontal.png');
-  if (logoData) {
-    try { logoImg = await pdfDoc.embedPng(logoData); } catch { /* skip */ }
-  }
-  const selloData = loadAsset('sello-40-anos.png');
-  if (selloData) {
-    try { selloImg = await pdfDoc.embedPng(selloData); } catch { /* skip */ }
-  }
-
-  // Left side: logos + text
-  let headerX = M;
-  if (logoImg) {
-    const logoH = 36;
-    const logoW = (logoImg.width / logoImg.height) * logoH;
-    page.drawImage(logoImg, { x: headerX, y: y - logoH + 4, width: logoW, height: logoH });
-    headerX += logoW + 10;
-  }
-  if (selloImg) {
-    const sH = 30;
-    const sW = (selloImg.width / selloImg.height) * sH;
-    page.drawImage(selloImg, { x: headerX, y: y - sH + 2, width: sW, height: sH });
-    headerX += sW + 12;
-  }
-
-  page.drawText('CONSTRUCTORA JIMÉNEZ S.A.', { x: headerX, y: y - 4, size: 13, font: bold, color: C.navy });
-  page.drawText('NIT: 802.021.085-1 · Santa Marta, Colombia', { x: headerX, y: y - 17, size: 9, font: helvetica, color: C.textSec });
-  page.drawText('LO HACEMOS REALIDAD', { x: headerX, y: y - 28, size: 8, font: bold, color: C.gold });
-
-  // Right side: cotización info
-  const cotStr = String(q.cot_number);
-  const rightX = M;
-  const rightW = W;
-
-  drawTextRight(page, 'COTIZACIÓN', bold, 8, rightX, y - 2, rightW, C.gold);
-  drawTextRight(page, cotStr, helvetica, 18, rightX, y - 20, rightW, C.navy);
-  drawTextRight(page, formatDate(q.created_at), helvetica, 9, rightX, y - 34, rightW, C.textSec);
+// ── Build HTML ──
+function buildHtml(q: QuotationRow, baseUrl: string): string {
   const vigencia = ((q.config_snapshot as Record<string, number>)?.vigenciaDias) ?? 7;
-  drawTextRight(page, `Vigencia: ${vigencia} días`, helvetica, 8, rightX, y - 46, rightW, C.textTer);
-
-  // Gold line
-  y -= 52;
-  page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 2, color: C.gold });
-
-  // ═══════════════════════════════════════════════════
-  // 3 COLUMNS — comprador, inmueble, asesor
-  // ═══════════════════════════════════════════════════
-  y -= 20;
-  const colW = (W - 24) / 3;
-
-  // Col 1 — Comprador
-  const c1x = M;
-  let cy = y;
-  page.drawText('COMPRADOR', { x: c1x, y: cy, size: 7, font: bold, color: C.gold });
-  cy -= 14;
-  page.drawText(truncate(`${q.buyer_name} ${q.buyer_lastname}`, bold, 12, colW), { x: c1x, y: cy, size: 12, font: bold, color: C.navy });
-  cy -= 14;
-  page.drawText(`${q.buyer_doc_type} ${q.buyer_doc_number}`, { x: c1x, y: cy, size: 10, font: helvetica, color: C.textSec });
-  cy -= 12;
-  page.drawText(truncate(String(q.buyer_email), helvetica, 10, colW), { x: c1x, y: cy, size: 10, font: helvetica, color: C.textSec });
-  cy -= 12;
-  page.drawText(`${q.buyer_phone_cc} ${q.buyer_phone}`, { x: c1x, y: cy, size: 10, font: helvetica, color: C.textSec });
-
-  // Col 2 — Inmueble
-  const c2x = M + colW + 12;
-  cy = y;
-  page.drawText('INMUEBLE', { x: c2x, y: cy, size: 7, font: bold, color: C.gold });
-  cy -= 14;
-  page.drawText(truncate(`${q.macro_name} — ${q.torre_name}`, bold, 12, colW), { x: c2x, y: cy, size: 12, font: bold, color: C.navy });
-  cy -= 14;
-  let unitLine = `Apto ${q.unit_number}`;
-  if (q.unit_tipologia) unitLine += ` · Tipo ${q.unit_tipologia}`;
-  if (q.unit_piso != null) unitLine += ` · Piso ${q.unit_piso}`;
-  page.drawText(truncate(unitLine, helvetica, 10, colW), { x: c2x, y: cy, size: 10, font: helvetica, color: C.textSec });
-  cy -= 12;
-  let areaLine = `${q.unit_area} m²`;
-  if (q.unit_habs != null) areaLine += ` · ${q.unit_habs} hab`;
-  if (q.unit_banos != null) areaLine += ` · ${q.unit_banos} baños`;
-  page.drawText(truncate(areaLine, helvetica, 10, colW), { x: c2x, y: cy, size: 10, font: helvetica, color: C.textSec });
-
-  // Parking/Storage
+  const totalDisc = Number(q.total_discounts) || 0;
+  const paymentPlan = (q.payment_plan as Array<{ concepto: string; mes: string; pago: number; tipo: string }>) || [];
   const parkingArr = (q.parking as Array<{ numero: string }>) || [];
   const storageArr = (q.storage as Array<{ numero: string }>) || [];
-  if (parkingArr.length > 0) {
-    cy -= 12;
-    page.drawText(`Parq: ${parkingArr.map(p => p.numero).join(', ')}`, { x: c2x, y: cy, size: 10, font: helvetica, color: C.textSec });
-  } else if (q.includes_parking) {
-    cy -= 12;
-    page.drawText('Parqueadero incluido *', { x: c2x, y: cy, size: 10, font: helvetica, color: C.textSec });
-  }
-  if (storageArr.length > 0) {
-    cy -= 12;
-    page.drawText(`Dep: ${storageArr.map(d => d.numero).join(', ')}`, { x: c2x, y: cy, size: 10, font: helvetica, color: C.textSec });
-  } else if (q.includes_storage) {
-    cy -= 12;
-    page.drawText('Depósito incluido *', { x: c2x, y: cy, size: 10, font: helvetica, color: C.textSec });
-  }
-
-  // Col 3 — Asesor
-  const c3x = M + (colW + 12) * 2;
-  cy = y;
-  page.drawText('ASESOR', { x: c3x, y: cy, size: 7, font: bold, color: C.gold });
-  cy -= 14;
-  page.drawText(truncate(String(q.advisor_name), bold, 12, colW), { x: c3x, y: cy, size: 12, font: bold, color: C.navy });
-  cy -= 14;
   const saleLabel = Number(q.sale_type) === 0 ? 'Contado' : Number(q.sale_type) === 1 ? 'Crédito' : 'Leasing';
-  page.drawText(`Tipo venta: ${saleLabel}`, { x: c3x, y: cy, size: 10, font: helvetica, color: C.textSec });
-
-  // ═══════════════════════════════════════════════════
-  // RENDER + PLANO (if exist)
-  // ═══════════════════════════════════════════════════
-  y -= 82;
-
   const tipologia = q.unit_tipologia || '';
-  const renderData = tipologia ? loadAsset(`render-${tipologia}.png`) : null;
-  const planoData = tipologia ? loadAsset(`plano-${tipologia}.png`) : null;
 
-  if (renderData || planoData) {
-    ensureSpace(170);
-    const imgW = (W - 12) / 2;
-    const imgH = 140;
-    const labelH = 16;
+  // Financial items
+  const finItems: Array<{ l: string; v: string; c?: string; bold?: boolean; hide?: boolean }> = [
+    { l: 'Subtotal', v: fmt(q.subtotal), hide: totalDisc === 0 },
+    { l: 'Descuentos', v: `-${fmt(totalDisc)}`, c: '#DC2626', hide: totalDisc === 0 },
+    { l: totalDisc > 0 ? 'Valor Neto' : 'Valor Total', v: fmt(q.net_value), c: '#C2A360', bold: true },
+    { l: 'Separación', v: fmt(q.separation_amount) },
+    { l: `CI (${Number(q.initial_payment_pct)}%)`, v: fmt(q.initial_payment_amount), bold: true },
+    { l: `${q.num_installments} cuotas de`, v: fmt(q.installment_amount) },
+    { l: `Financiación (${Number(q.financed_pct)}%)`, v: fmt(q.financed_amount) },
+  ].filter(m => !m.hide);
 
-    const images: Array<{ label: string; data: Buffer | null }> = [
-      { label: `RENDER — Tipo ${tipologia}`, data: renderData },
-      { label: `PLANO — Tipo ${tipologia}`, data: planoData },
-    ];
-
-    for (let i = 0; i < images.length; i++) {
-      const img = images[i];
-      if (!img.data) continue;
-      const ix = M + i * (imgW + 12);
-
-      // Label bar (gold bg)
-      page.drawRectangle({
-        x: ix, y: y - labelH, width: imgW, height: labelH,
-        color: C.goldBg, borderColor: C.borderLight, borderWidth: 0.5,
-      });
-      page.drawText(img.label, { x: ix + 8, y: y - 12, size: 7, font: bold, color: C.textSec });
-
-      // Image area
-      page.drawRectangle({
-        x: ix, y: y - labelH - imgH, width: imgW, height: imgH,
-        color: C.altRow, borderColor: C.borderLight, borderWidth: 0.5,
-      });
-
-      try {
-        const pdfImg = await pdfDoc.embedPng(img.data);
-        // Scale to fit within imgW x imgH maintaining aspect ratio
-        const scale = Math.min(imgW / pdfImg.width, imgH / pdfImg.height) * 0.9;
-        const drawW = pdfImg.width * scale;
-        const drawH = pdfImg.height * scale;
-        const cx = ix + (imgW - drawW) / 2;
-        const cy2 = (y - labelH - imgH) + (imgH - drawH) / 2;
-        page.drawImage(pdfImg, { x: cx, y: cy2, width: drawW, height: drawH });
-      } catch {
-        // If PNG embedding fails, just show the label
-        page.drawText('Imagen no disponible', {
-          x: ix + imgW / 2 - 35, y: y - labelH - imgH / 2, size: 9, font: helvetica, color: C.textTer,
-        });
-      }
-    }
-
-    y -= labelH + imgH + 14;
-  }
-
-  // ═══════════════════════════════════════════════════
-  // FINANCIAL SUMMARY BOX
-  // ═══════════════════════════════════════════════════
-  ensureSpace(60);
-  const boxH = 52;
-
-  // Gold background box with border
-  page.drawRectangle({
-    x: M, y: y - boxH, width: W, height: boxH,
-    color: C.goldBg, borderColor: C.borderLight, borderWidth: 0.5,
-  });
-
-  const totalDisc = Number(q.total_discounts) || 0;
-  const finItems: Array<{ label: string; value: string; color: ReturnType<typeof rgb> }> = [];
-
-  if (totalDisc > 0) {
-    finItems.push({ label: 'SUBTOTAL', value: fmt(q.subtotal), color: C.navy });
-    finItems.push({ label: 'DESCUENTOS', value: `-${fmt(totalDisc)}`, color: C.red });
-    finItems.push({ label: 'VALOR NETO', value: fmt(q.net_value), color: C.gold });
-  } else {
-    finItems.push({ label: 'VALOR TOTAL', value: fmt(q.net_value), color: C.gold });
-  }
-  finItems.push({ label: 'SEPARACIÓN', value: fmt(q.separation_amount), color: C.navy });
-  finItems.push({ label: `CI (${Number(q.initial_payment_pct)}%)`, value: fmt(q.initial_payment_amount), color: C.navy });
-  finItems.push({ label: `${q.num_installments} CUOTAS DE`, value: fmt(q.installment_amount), color: C.navy });
-  finItems.push({ label: `FINANC. (${Number(q.financed_pct)}%)`, value: fmt(q.financed_amount), color: C.navy });
-
-  const itemW = W / finItems.length;
-  finItems.forEach((item, i) => {
-    const ix = M + i * itemW;
-    // Label centered
-    const labelW = helvetica.widthOfTextAtSize(item.label, 6);
-    page.drawText(item.label, { x: ix + (itemW - labelW) / 2, y: y - 16, size: 6, font: bold, color: C.textSec });
-    // Value centered
-    const valW = bold.widthOfTextAtSize(item.value, 11);
-    page.drawText(item.value, { x: ix + (itemW - valW) / 2, y: y - 34, size: 11, font: bold, color: item.color });
-  });
-
-  y -= boxH + 16;
-
-  // ═══════════════════════════════════════════════════
-  // PAYMENT TABLE
-  // ═══════════════════════════════════════════════════
-  const paymentPlan = (q.payment_plan as Array<{ concepto: string; mes: string; pago: number; tipo: string }>) || [];
-
-  ensureSpace(40);
-  // Title
-  page.drawText('PLAN DE PAGOS', { x: M, y, size: 8, font: bold, color: C.gold });
-  const countStr = `${paymentPlan.length} conceptos`;
-  drawTextRight(page, countStr, helvetica, 8, M, y, W, C.textTer);
-  y -= 14;
-
-  // Table header
-  const rowH = 16;
-  page.drawRectangle({ x: M, y: y - rowH, width: W, height: rowH, color: C.goldBg });
-  page.drawLine({ start: { x: M, y: y - rowH }, end: { x: M + W, y: y - rowH }, thickness: 1.5, color: C.borderLight });
-
-  const tCols = { num: 28, concepto: W - 228, mes: 120, valor: 80 };
-  page.drawText('#', { x: M + 6, y: y - 11, size: 7, font: bold, color: C.textSec });
-  page.drawText('CONCEPTO', { x: M + tCols.num + 6, y: y - 11, size: 7, font: bold, color: C.textSec });
-  page.drawText('MES', { x: M + tCols.num + tCols.concepto + 6, y: y - 11, size: 7, font: bold, color: C.textSec });
-  drawTextRight(page, 'VALOR', bold, 7, M + W - tCols.valor, y - 11, tCols.valor - 6, C.textSec);
-  y -= rowH;
-
-  // Table rows
-  for (let i = 0; i < paymentPlan.length; i++) {
-    ensureSpace(rowH + 2);
-    const r = paymentPlan[i];
+  // Payment rows HTML
+  const paymentRowsHtml = paymentPlan.map((r, i) => {
     const isSep = r.concepto === 'Separación';
     const isSaldo = r.concepto?.includes('Saldo');
     const isTotal = r.tipo === 'total';
     const isAbono = r.tipo === 'abono';
     const isHighlight = isSep || isSaldo || isTotal;
+    const bg = isHighlight ? '#FAF8F2' : isAbono ? '#F0FDF4' : i % 2 === 0 ? '#FFFFFF' : '#F9F7F2';
+    const concColor = isSep ? '#C2A360' : isAbono ? '#16A34A' : isHighlight ? '#2D4051' : '#182633';
+    const valColor = isSep ? '#C2A360' : isAbono ? '#16A34A' : '#2D4051';
+    const fw = isHighlight ? '700' : '400';
+    return `<tr style="background:${bg}">
+      <td style="padding:6px 10px;font-size:11px;color:#8C9AA4;border-bottom:1px solid #EAE6DC">${i + 1}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:${fw};color:${concColor};border-bottom:1px solid #EAE6DC">${esc(r.concepto)}</td>
+      <td style="padding:6px 10px;font-size:11px;color:#5A6872;border-bottom:1px solid #EAE6DC">${esc(r.mes)}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:${isHighlight ? '700' : '500'};color:${valColor};text-align:right;border-bottom:1px solid #EAE6DC">${fmt(r.pago)}</td>
+    </tr>`;
+  }).join('');
 
-    // Row background
-    if (isHighlight) {
-      page.drawRectangle({ x: M, y: y - rowH, width: W, height: rowH, color: C.goldBg });
-    } else if (isAbono) {
-      page.drawRectangle({ x: M, y: y - rowH, width: W, height: rowH, color: C.greenBg });
-    } else if (i % 2 === 0) {
-      page.drawRectangle({ x: M, y: y - rowH, width: W, height: rowH, color: C.white });
-    } else {
-      page.drawRectangle({ x: M, y: y - rowH, width: W, height: rowH, color: C.altRow });
-    }
-
-    // Bottom border
-    page.drawLine({ start: { x: M, y: y - rowH }, end: { x: M + W, y: y - rowH }, thickness: 0.5, color: C.borderLight });
-
-    // Cell: #
-    page.drawText(String(i + 1), { x: M + 6, y: y - 11, size: 9, font: helvetica, color: C.textTer });
-    // Cell: Concepto
-    const concColor = isSep ? C.gold : isAbono ? C.green : isHighlight ? C.navy : C.midnight;
-    page.drawText(truncate(r.concepto || '', isHighlight ? bold : helvetica, 10, tCols.concepto - 8), {
-      x: M + tCols.num + 6, y: y - 11, size: 10, font: isHighlight ? bold : helvetica, color: concColor,
-    });
-    // Cell: Mes
-    page.drawText(r.mes || '', { x: M + tCols.num + tCols.concepto + 6, y: y - 11, size: 9, font: helvetica, color: C.textSec });
-    // Cell: Valor
-    const valColor = isSep ? C.gold : isAbono ? C.green : C.navy;
-    const valStr = fmt(r.pago);
-    drawTextRight(page, valStr, isHighlight ? bold : helvetica, 10, M + W - tCols.valor, y - 11, tCols.valor - 6, valColor);
-
-    y -= rowH;
+  // Parking/storage details
+  let parkingHtml = '';
+  if (parkingArr.length > 0) {
+    parkingHtml = `<div style="font-size:12px;color:#5A6872">Parq: ${parkingArr.map(p => esc(p.numero)).join(', ')}</div>`;
+  } else if (q.includes_parking) {
+    parkingHtml = `<div style="font-size:12px;color:#5A6872">Parqueadero incluido *</div>`;
+  }
+  let storageHtml = '';
+  if (storageArr.length > 0) {
+    storageHtml = `<div style="font-size:12px;color:#5A6872">Dep: ${storageArr.map(d => esc(d.numero)).join(', ')}</div>`;
+  } else if (q.includes_storage) {
+    storageHtml = `<div style="font-size:12px;color:#5A6872">Depósito incluido *</div>`;
   }
 
-  // ═══════════════════════════════════════════════════
-  // LEGAL
-  // ═══════════════════════════════════════════════════
-  ensureSpace(60);
-  y -= 10;
-  page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.5, color: C.border });
-  y -= 12;
+  // Render + Plano images
+  const imgSection = tipologia ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px" id="img-grid">
+      ${['Render', 'Plano'].map(label => `
+        <div class="img-card" style="border-radius:8px;overflow:hidden;border:1px solid #EAE6DC">
+          <div style="padding:8px 12px;background:#FAF8F2;border-bottom:1px solid #EAE6DC">
+            <span style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#5A6872;font-weight:600">${label} — Tipo ${esc(tipologia)}</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;background:#F5F3EE;min-height:180px">
+            <img src="${baseUrl}/assets/${label.toLowerCase()}-${esc(tipologia)}.png" alt="${label} ${esc(tipologia)}"
+              style="width:100%;height:auto;max-height:220px;object-fit:contain;display:block"
+              onerror="this.closest('.img-card').style.display='none'" />
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
 
-  const legalText = '* El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta.';
-  const legalLines = wrapText(legalText, helvetica, 8, W);
-  for (const line of legalLines) {
-    page.drawText(line, { x: M, y, size: 8, font: helvetica, color: C.textTer });
-    y -= 10;
-  }
-  y -= 4;
-  page.drawText(`Vigencia de esta cotización: ${vigencia} días calendario a partir de la fecha de emisión.`, {
-    x: M, y, size: 8, font: bold, color: C.textSec,
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color:#182633; padding:32px 36px; }
+  .header { display:flex; justify-content:space-between; padding-bottom:18px; border-bottom:2px solid #C2A360; margin-bottom:20px; }
+  .header-left { display:flex; align-items:center; gap:14px; }
+  .header-left img { height:40px; width:auto; object-fit:contain; }
+  .sello { height:32px !important; }
+  .company-name { font-size:15px; font-weight:700; letter-spacing:2px; color:#2D4051; }
+  .company-nit { font-size:10px; color:#5A6872; }
+  .slogan { font-size:8px; letter-spacing:2px; color:#C2A360; text-transform:uppercase; font-weight:600; margin-top:2px; }
+  .header-right { text-align:right; }
+  .cot-label { font-size:8px; letter-spacing:1.5px; text-transform:uppercase; color:#C2A360; font-weight:700; }
+  .cot-number { font-size:22px; font-weight:300; color:#2D4051; }
+  .cot-date { font-size:11px; color:#5A6872; }
+  .cot-vigencia { font-size:10px; color:#8C9AA4; }
+  .label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#C2A360; font-weight:700; margin-bottom:6px; }
+  .columns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:20px; }
+  .col-name { font-size:14px; font-weight:600; color:#2D4051; margin-bottom:2px; }
+  .col-detail { font-size:12px; color:#5A6872; line-height:1.5; }
+  .fin-box { background:#FAF8F2; border-radius:8px; padding:16px; margin-bottom:18px; border:1px solid #EAE6DC; }
+  .fin-grid { display:grid; gap:8px; }
+  .fin-item { text-align:center; }
+  .fin-label { font-size:9px; letter-spacing:1px; text-transform:uppercase; color:#5A6872; font-weight:600; margin-bottom:3px; }
+  .fin-value { font-size:14px; font-weight:700; color:#2D4051; }
+  .table-section { margin-bottom:18px; }
+  .table-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; }
+  th { padding:8px 10px; text-align:left; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#5A6872; border-bottom:2px solid #EAE6DC; font-weight:700; background:#FAF8F2; }
+  th:last-child { text-align:right; }
+  .legal { font-size:10px; color:#8C9AA4; line-height:1.6; border-top:1px solid #E0DCD2; padding-top:14px; }
+  .legal-bold { font-weight:600; color:#5A6872; margin-top:6px; }
+  .footer { margin-top:18px; padding-top:12px; border-top:1px solid #EAE6DC; display:flex; justify-content:space-between; align-items:center; }
+  .footer-text { font-size:9px; color:#8C9AA4; letter-spacing:0.5px; }
+  .footer-brand { text-align:center; margin-top:8px; font-size:8px; font-weight:700; color:#C2A360; letter-spacing:1.5px; }
+</style>
+</head>
+<body>
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <img src="${baseUrl}/assets/logo-jimenez-horizontal.png" alt="Jiménez" onerror="this.style.display='none'" />
+      <img src="${baseUrl}/assets/sello-40-anos.png" alt="40 Años" class="sello" onerror="this.style.display='none'" />
+      <div>
+        <div class="company-name">CONSTRUCTORA JIMÉNEZ S.A.</div>
+        <div class="company-nit">NIT: 802.021.085-1 · Santa Marta, Colombia</div>
+        <div class="slogan">Lo hacemos realidad</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="cot-label">Cotización</div>
+      <div class="cot-number">${esc(String(q.cot_number))}</div>
+      <div class="cot-date">${formatDate(q.created_at)}</div>
+      <div class="cot-vigencia">Vigencia: ${vigencia} días</div>
+    </div>
+  </div>
+
+  <!-- 3 COLUMNS -->
+  <div class="columns">
+    <div>
+      <div class="label">Comprador</div>
+      <div class="col-name">${esc(q.buyer_name)} ${esc(q.buyer_lastname)}</div>
+      <div class="col-detail">${esc(q.buyer_doc_type)} ${esc(q.buyer_doc_number)}</div>
+      <div class="col-detail">${esc(q.buyer_email)}</div>
+      <div class="col-detail">${esc(q.buyer_phone_cc)} ${esc(q.buyer_phone)}</div>
+    </div>
+    <div>
+      <div class="label">Inmueble</div>
+      <div class="col-name">${esc(q.macro_name)} — ${esc(q.torre_name)}</div>
+      <div class="col-detail">Apto ${esc(q.unit_number)}${q.unit_tipologia ? ` · Tipo ${esc(q.unit_tipologia)}` : ''}${q.unit_piso != null ? ` · Piso ${q.unit_piso}` : ''}</div>
+      <div class="col-detail">${q.unit_area} m²${q.unit_habs != null ? ` · ${q.unit_habs} hab` : ''}${q.unit_banos != null ? ` · ${q.unit_banos} baños` : ''}</div>
+      ${parkingHtml}
+      ${storageHtml}
+    </div>
+    <div>
+      <div class="label">Asesor</div>
+      <div class="col-name">${esc(q.advisor_name)}</div>
+      <div class="col-detail">Tipo venta: ${saleLabel}</div>
+    </div>
+  </div>
+
+  <!-- RENDER + PLANO -->
+  ${imgSection}
+
+  <!-- FINANCIAL SUMMARY -->
+  <div class="fin-box">
+    <div class="fin-grid" style="grid-template-columns:repeat(${finItems.length},1fr)">
+      ${finItems.map(m => `
+        <div class="fin-item">
+          <div class="fin-label">${esc(m.l)}</div>
+          <div class="fin-value" style="color:${m.c || '#2D4051'}">${m.v}</div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+
+  <!-- PAYMENT TABLE -->
+  <div class="table-section">
+    <div class="table-header">
+      <div class="label" style="color:#C2A360;margin:0">Plan de Pagos</div>
+      <span style="font-size:10px;color:#8C9AA4">${paymentPlan.length} conceptos</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>#</th><th>Concepto</th><th>Mes</th><th>Valor</th>
+      </tr></thead>
+      <tbody>${paymentRowsHtml}</tbody>
+    </table>
+  </div>
+
+  <!-- LEGAL -->
+  <div class="legal">
+    <p>* El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta.</p>
+    <p class="legal-bold">Vigencia de esta cotización: ${vigencia} días calendario a partir de la fecha de emisión.</p>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span class="footer-text">Generado por FocuxAI Engine™ · ${new Date().toLocaleString('es-CO')}</span>
+    <span class="footer-text">${esc(String(q.cot_number))}</span>
+  </div>
+  <div class="footer-brand">POWERED BY FOCUXAI ENGINE™ · FOCUX DIGITAL GROUP S.A.S.</div>
+</body>
+</html>`;
+}
+
+// ══════════════════════════════════════════════════════
+// MAIN — HTML → PDF via Puppeteer
+// ══════════════════════════════════════════════════════
+export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://engine.focux.co');
+
+  const html = buildHtml(q, baseUrl);
+
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath(),
+    headless: true,
   });
 
-  // ═══════════════════════════════════════════════════
-  // FOOTER
-  // ═══════════════════════════════════════════════════
-  y -= 18;
-  page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.5, color: C.border });
-  y -= 10;
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
 
-  const genStr = `Generado por FocuxAI Engine™ · ${new Date().toLocaleString('es-CO')}`;
-  page.drawText(genStr, { x: M, y, size: 7, font: helvetica, color: C.textTer });
-  drawTextRight(page, String(q.cot_number), helvetica, 7, M, y, W, C.textTer);
+    const pdfBuffer = await page.pdf({
+      format: 'letter',
+      printBackground: true,
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+    });
 
-  y -= 14;
-  const brandStr = 'POWERED BY FOCUXAI ENGINE™ · FOCUX DIGITAL GROUP S.A.S.';
-  const brandW = bold.widthOfTextAtSize(brandStr, 7);
-  page.drawText(brandStr, { x: M + (W - brandW) / 2, y, size: 7, font: bold, color: C.gold });
-
-  return await pdfDoc.save();
+    return new Uint8Array(pdfBuffer);
+  } finally {
+    await browser.close();
+  }
 }
