@@ -217,14 +217,17 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   // Company text — adaptive font size to fit available space without truncation
   const maxCompanyW = badgeX - hx - 14;
   const companyName = 'CONSTRUCTORA JIMÉNEZ S.A.';
+  const nitLine = 'NIT: 802.021.085-1 · Santa Marta, Colombia';
+  // Calculate exact font size that fits (binary search between 7 and 13pt)
   let compSize = 13;
-  // Step down font until it fits (13 → 11 → 9.5)
-  for (const sz of [13, 11, 9.5]) {
+  for (const sz of [13, 12, 11, 10, 9.5, 9, 8.5, 8, 7.5]) {
     compSize = sz;
     if (H.widthOfTextAtSize(companyName, sz) <= maxCompanyW) break;
   }
-  page.drawText(truncate(companyName, H, compSize, maxCompanyW), { x: hx, y: y - 4, size: compSize, font: H, color: C.navy });
-  page.drawText(truncate('NIT: 802.021.085-1 · Santa Marta, Colombia', R, 8.5, maxCompanyW), { x: hx, y: y - 18, size: 8.5, font: R, color: C.textSec });
+  page.drawText(companyName, { x: hx, y: y - 4, size: compSize, font: H, color: C.navy });
+  // NIT line — scale proportionally if company name had to shrink
+  const nitSize = Math.min(8.5, compSize * 0.7);
+  page.drawText(truncate(nitLine, R, nitSize, maxCompanyW), { x: hx, y: y - 18, size: nitSize, font: R, color: C.textSec });
   page.drawText('LO HACEMOS REALIDAD', { x: hx, y: y - 31, size: 7.5, font: H, color: C.gold });
   roundRect(page, badgeX, hTop + 4, badgeW, badgeH, 6, C.goldBg, C.goldBorder, 0.6);
 
@@ -251,8 +254,21 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
     let cy = y;
     page.drawText(label, { x, y: cy, size: 7.5, font: B, color: C.gold });
     cy -= 17;
-    page.drawText(truncate(name, B, 12, colW), { x, y: cy, size: 12, font: B, color: C.navy });
-    cy -= 15;
+    // Adaptive name: try 12pt, step down to 10.5pt if too wide, wrap to 2 lines as last resort
+    let nameSize = 12;
+    if (B.widthOfTextAtSize(name, 12) > colW) nameSize = 10.5;
+    if (B.widthOfTextAtSize(name, 10.5) > colW) {
+      // Wrap to 2 lines at 10pt
+      const nameLines = wrapText(name, B, 10, colW);
+      for (const nl of nameLines.slice(0, 2)) {
+        page.drawText(nl, { x, y: cy, size: 10, font: B, color: C.navy });
+        cy -= 13;
+      }
+      cy -= 2;
+    } else {
+      page.drawText(name, { x, y: cy, size: nameSize, font: B, color: C.navy });
+      cy -= 15;
+    }
     for (const line of lines) {
       if (!line) continue;
       page.drawText(truncate(line, R, 9.5, colW), { x, y: cy, size: 9.5, font: R, color: C.textSec });
@@ -347,8 +363,9 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   // ═══════════════════════════════════════════════════════
   needPage(90);
   const totalDisc = Number(q.total_discounts) || 0;
-  const bonuses = (q.bonuses as Array<{ label: string; amount: number }>) || [];
-  const totalAbonos = bonuses.reduce((s, b) => s + (b.amount || 0), 0);
+  // Frontend stores bonuses as { label, valor, cuota } — handle both field names
+  const bonuses = (q.bonuses as Array<{ label: string; amount?: number; valor?: number }>) || [];
+  const totalAbonos = bonuses.reduce((s, b) => s + (b.amount || b.valor || 0), 0);
 
   const finItems: Array<{ l: string; v: string; c: Color; bold?: boolean }> = [];
   if (totalDisc > 0) {

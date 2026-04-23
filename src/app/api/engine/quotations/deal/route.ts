@@ -249,12 +249,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const baseUrl = getBaseUrl();
   const saleTypeValue = String(quotation.sale_type ?? 0);
 
-  const bonuses = (quotation.bonuses as Array<{ label: string; amount: number; sincoId?: number; cuota?: number }>) || [];
-  const cesantias = bonuses.find(b => b.label?.toLowerCase().includes('cesant'))?.amount ?? 0;
-  const subsidio = bonuses.find(b => b.label?.toLowerCase().includes('subsid'))?.amount ?? 0;
-  const ahorroProg = bonuses.find(b => b.label?.toLowerCase().includes('ahorro'))?.amount ?? 0;
-  const bonoCI = bonuses.find(b => b.label?.toLowerCase().includes('bono'))?.amount ?? 0;
-  const confirmacion = bonuses.find(b => b.label?.toLowerCase().includes('confirm'))?.amount ?? 0;
+  // Frontend stores bonuses as { label, valor, cuota } — handle both field names
+  const bonuses = (quotation.bonuses as Array<{ label: string; amount?: number; valor?: number; sincoId?: number; cuota?: number }>) || [];
+  const bVal = (b: { amount?: number; valor?: number }) => b.amount || b.valor || 0;
+  const cesantias = bVal(bonuses.find(b => b.label?.toLowerCase().includes('cesant')) ?? {});
+  const subsidio = bVal(bonuses.find(b => b.label?.toLowerCase().includes('subsid')) ?? {});
+  const ahorroProg = bVal(bonuses.find(b => b.label?.toLowerCase().includes('ahorro')) ?? {});
+  const bonoCI = bVal(bonuses.find(b => b.label?.toLowerCase().includes('bono')) ?? {});
+  const confirmacion = bVal(bonuses.find(b => b.label?.toLowerCase().includes('confirm')) ?? {});
 
   const parkingArr = (quotation.parking as Array<{ numero: string; price: number }>) || [];
   const storageArr = (quotation.storage as Array<{ numero: string; price: number }>) || [];
