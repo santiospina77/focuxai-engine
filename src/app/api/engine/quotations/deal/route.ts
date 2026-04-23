@@ -53,9 +53,8 @@ function errorResponse(status: number, error: string, message: string): NextResp
 }
 
 function getBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'https://engine.focux.co';
+  return process.env.NEXT_PUBLIC_BASE_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://engine.focux.co');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -111,7 +110,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // ── Crear Deal en HubSpot ──
   const baseUrl = getBaseUrl();
   const cotizacionUrl = `${baseUrl}/cotizacion/${cotNumber}`;
-  const saleTypeLabel = quotation.sale_type === 0 ? 'Contado' : quotation.sale_type === 1 ? 'Crédito' : 'Leasing';
+  // v17: tipo_venta_fx es enumeration con values "0","1","3"
+  const saleTypeValue = String(quotation.sale_type ?? 0);
 
   // ── Deal properties — nombres exactos del JSON v17 ──
   const bonuses = (quotation.bonuses as Array<{ label: string; amount: number; sincoId?: number; cuota?: number }>) || [];
@@ -161,14 +161,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     plan_abonos_fx: JSON.stringify(bonuses),
 
     // ── Meta
-    tipo_venta_fx: saleTypeLabel,
+    tipo_venta_fx: saleTypeValue,
     numero_documento_fx: quotation.buyer_doc_number,
-    origen_fx: 'cotizador_focuxai',
+    origen_fx: 'cotizador',
     pdf_cotizacion_url_fx: cotizacionUrl,
     fecha_creacion_cotizacion_fx: quotation.created_at,
     vigencia_cotizacion_fx: quotation.expires_at,
-    incluye_parqueadero_fx: quotation.includes_parking ? 'Sí' : 'No',
-    incluye_deposito_fx: quotation.includes_storage ? 'Sí' : 'No',
+    incluye_parqueadero_fx: quotation.includes_parking ? 'true' : 'false',
+    incluye_deposito_fx: quotation.includes_storage ? 'true' : 'false',
     porcentaje_descuento_fx: quotation.subtotal > 0 ? Math.round((quotation.discount_commercial / quotation.subtotal) * 10000) / 100 : 0,
     porcentaje_descuento_fin_fx: quotation.subtotal > 0 ? Math.round((quotation.discount_financial / quotation.subtotal) * 10000) / 100 : 0,
 
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!hsResponse.ok) {
       const errBody = await hsResponse.text();
       console.error(`[quotations/deal] HubSpot create deal error: ${hsResponse.status} — ${errBody}`);
-      return errorResponse(502, 'HUBSPOT_DEAL_CREATE_ERROR', `HubSpot respondió ${hsResponse.status}.`);
+      return errorResponse(502, 'HUBSPOT_DEAL_CREATE_ERROR', `HubSpot ${hsResponse.status}: ${errBody}`);
     }
 
     const hsData = await hsResponse.json();
