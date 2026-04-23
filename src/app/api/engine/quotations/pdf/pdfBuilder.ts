@@ -250,7 +250,8 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   const colGap = 16;
   const colW = (W - colGap * 2) / 3;
 
-  function drawCol(x: number, label: string, name: string, lines: string[]) {
+  /** Draw a column and return the height consumed (for dynamic spacing) */
+  function drawCol(x: number, label: string, name: string, lines: string[]): number {
     let cy = y;
     page.drawText(label, { x, y: cy, size: 7.5, font: B, color: C.gold });
     cy -= 17;
@@ -274,10 +275,11 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
       page.drawText(truncate(line, R, 9.5, colW), { x, y: cy, size: 9.5, font: R, color: C.textSec });
       cy -= 13;
     }
+    return y - cy; // height consumed
   }
 
   // Comprador
-  drawCol(MG, 'COMPRADOR', `${q.buyer_name} ${q.buyer_lastname}`, [
+  const h1 = drawCol(MG, 'COMPRADOR', `${q.buyer_name} ${q.buyer_lastname}`, [
     `${q.buyer_doc_type} ${q.buyer_doc_number}`,
     String(q.buyer_email),
     `${q.buyer_phone_cc || '+57'} ${q.buyer_phone}`,
@@ -299,16 +301,17 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   else if (q.includes_parking) propLines.push('Parqueadero incluido *');
   if (stoArr.length > 0) propLines.push(`Dep: ${stoArr.map(d => d.numero).join(', ')}`);
   else if (q.includes_storage) propLines.push('Depósito incluido *');
-  drawCol(MG + colW + colGap, 'INMUEBLE', `${q.macro_name} — ${q.torre_name}`, propLines);
+  const h2 = drawCol(MG + colW + colGap, 'INMUEBLE', `${q.macro_name} — ${q.torre_name}`, propLines);
 
   // Asesor
   const saleLabel = Number(q.sale_type) === 0 ? 'Contado' : Number(q.sale_type) === 1 ? 'Crédito' : 'Leasing';
-  drawCol(MG + (colW + colGap) * 2, 'ASESOR', String(q.advisor_name), [
+  const h3 = drawCol(MG + (colW + colGap) * 2, 'ASESOR', String(q.advisor_name), [
     `ID Sinco: ${q.advisor_id}`,
     `Tipo venta: ${saleLabel}`,
   ]);
 
-  y -= 84;
+  // Dynamic spacing: use tallest column + 16pt padding
+  y -= Math.max(h1, h2, h3) + 16;
 
   // ═══════════════════════════════════════════════════════
   // RENDER + PLANO — only show if REAL images exist (skip placeholders < 15KB)
