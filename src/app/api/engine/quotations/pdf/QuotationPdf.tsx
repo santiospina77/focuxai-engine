@@ -1,10 +1,6 @@
 /**
  * QuotationPdf — Componente @react-pdf/renderer para generar PDF de cotización.
  *
- * Reproduce la estructura visual del QuoterClient Step 6 pero en PDF nativo.
- * Colores Bluebox. Tipografías system (Helvetica) como fallback — @react-pdf no soporta
- * @font-face dinámico fácilmente. Se puede registrar fonts después si se quiere pixel-perfect.
- *
  * FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
  */
 
@@ -115,132 +111,22 @@ export function buildQuotationPdf(q: QuotationRow) {
 
   return (
     <Document>
-      <Page size="LETTER" style={styles.page}>
-        {/* ══ HEADER ══ */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.companyName}>CONSTRUCTORA JIMÉNEZ S.A.</Text>
-            <Text style={styles.companyNit}>NIT: 802.021.085-1 · Santa Marta, Colombia</Text>
-            <Text style={styles.slogan}>Lo hacemos realidad</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.cotLabel}>Cotización</Text>
-            <Text style={styles.cotNumber}>{q.cot_number}</Text>
-            <Text style={styles.cotDate}>{formatDate(q.created_at)}</Text>
-            <Text style={styles.cotVigencia}>Vigencia: {vigenciaDays(config)} días</Text>
-          </View>
-        </View>
-
-        {/* ══ 3 COLUMNS ══ */}
-        <View style={styles.columns}>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>Comprador</Text>
-            <Text style={styles.colName}>{q.buyer_name} {q.buyer_lastname}</Text>
-            <Text style={styles.colDetail}>{q.buyer_doc_type} {q.buyer_doc_number}</Text>
-            <Text style={styles.colDetail}>{q.buyer_email}</Text>
-            <Text style={styles.colDetail}>{q.buyer_phone_cc} {q.buyer_phone}</Text>
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>Inmueble</Text>
-            <Text style={styles.colName}>{q.macro_name} — {q.torre_name}</Text>
-            <Text style={styles.colDetail}>Apto {q.unit_number}{q.unit_tipologia ? ` · Tipo ${q.unit_tipologia}` : ''}{q.unit_piso != null ? ` · Piso ${q.unit_piso}` : ''}</Text>
-            <Text style={styles.colDetail}>{q.unit_area} m²{q.unit_habs != null ? ` · ${q.unit_habs} hab` : ''}{q.unit_banos != null ? ` · ${q.unit_banos} baños` : ''}</Text>
-            {q.includes_parking && <Text style={styles.colDetail}>Parqueadero incluido *</Text>}
-            {q.includes_storage && <Text style={styles.colDetail}>Depósito incluido *</Text>}
-          </View>
-          <View style={styles.col}>
-            <Text style={styles.colLabel}>Asesor</Text>
-            <Text style={styles.colName}>{q.advisor_name}</Text>
-            <Text style={styles.colDetail}>ID Sinco: {q.advisor_id}</Text>
-            <Text style={styles.colDetail}>Tipo venta: {q.sale_type === 0 ? 'Contado' : q.sale_type === 1 ? 'Crédito' : 'Leasing'}</Text>
-          </View>
-        </View>
-
-        {/* ══ FINANCIAL SUMMARY ══ */}
-        <View style={styles.finBox}>
-          <View style={styles.finRow}>
-            {q.total_discounts > 0 && (
-              <View style={styles.finItem}>
-                <Text style={styles.finLabel}>Subtotal</Text>
-                <Text style={styles.finValue}>{fmt(q.subtotal)}</Text>
-              </View>
-            )}
-            {q.total_discounts > 0 && (
-              <View style={styles.finItem}>
-                <Text style={styles.finLabel}>Descuentos</Text>
-                <Text style={{ ...styles.finValue, color: C.red }}>-{fmt(q.total_discounts)}</Text>
-              </View>
-            )}
-            <View style={styles.finItem}>
-              <Text style={styles.finLabel}>{q.total_discounts > 0 ? 'Valor Neto' : 'Valor Total'}</Text>
-              <Text style={styles.finValueGold}>{fmt(q.net_value)}</Text>
-            </View>
-            <View style={styles.finItem}>
-              <Text style={styles.finLabel}>Separación</Text>
-              <Text style={styles.finValue}>{fmt(q.separation_amount)}</Text>
-            </View>
-            <View style={styles.finItem}>
-              <Text style={styles.finLabel}>CI ({Number(q.initial_payment_pct)}%)</Text>
-              <Text style={styles.finValue}>{fmt(q.initial_payment_amount)}</Text>
-            </View>
-            <View style={styles.finItem}>
-              <Text style={styles.finLabel}>{q.num_installments} Cuotas de</Text>
-              <Text style={styles.finValue}>{fmt(q.installment_amount)}</Text>
-            </View>
-            <View style={styles.finItem}>
-              <Text style={styles.finLabel}>Financiación ({Number(q.financed_pct)}%)</Text>
-              <Text style={styles.finValue}>{fmt(q.financed_amount)}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ══ PAYMENT TABLE ══ */}
-        <View style={styles.table}>
-          <Text style={{ fontSize: 8, color: C.textSec, marginBottom: 4, fontFamily: 'Helvetica-Bold', letterSpacing: 1 }}>
-            PLAN DE PAGOS — {paymentPlan.length} conceptos
-          </Text>
-          {/* Header */}
-          <View style={styles.tableHeader}>
-            <Text style={styles.thNum}>#</Text>
-            <Text style={styles.thConcepto}>Concepto</Text>
-            <Text style={styles.thMes}>Mes</Text>
-            <Text style={styles.thValor}>Valor</Text>
-          </View>
-          {/* Rows */}
-          {paymentPlan.map((r, i) => {
-            const isSep = r.concepto === 'Separación';
-            const isSaldo = r.concepto.includes('Saldo');
-            const isTotal = r.tipo === 'total';
-            const isHighlight = isSep || isSaldo || isTotal;
-            return (
-              <View
-                key={i}
-                style={[
-                  styles.tableRow,
-                  isHighlight ? styles.tableRowHighlight : i % 2 === 1 ? styles.tableRowAlt : {},
-                ]}
-              >
-                <Text style={styles.tdNum}>{i + 1}</Text>
-                <Text style={isHighlight ? styles.tdConceptoBold : styles.tdConcepto}>{r.concepto}</Text>
-                <Text style={styles.tdMes}>{r.mes}</Text>
-                <Text style={isHighlight ? styles.tdValorBold : styles.tdValor}>{fmt(r.pago)}</Text>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* ══ LEGAL ══ */}
-        <View style={styles.legal}>
-          <Text>* El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta.</Text>
-          <Text style={styles.legalBold}>Vigencia de esta cotización: {vigenciaDays(config)} días calendario a partir de la fecha de emisión.</Text>
-        </View>
-
-        {/* ══ FOOTER ══ */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Generado por FocuxAI Engine™ · {new Date().toLocaleString('es-CO')}</Text>
-          <Text style={styles.footerText}>{q.cot_number}</Text>
-        </View>
-        <Text style={styles.footerBrand}>POWERED BY FOCUXAI ENGINE™ · FOCUX DIGITAL GROUP S.A.S.</Text>
+      <Page size="LETTER" style={{ padding: 40, fontSize: 10, fontFamily: 'Helvetica', color: '#182633' }}>
+        <Text style={{ fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#2D4051' }}>
+          {'CONSTRUCTORA JIMÉNEZ S.A.'}
+        </Text>
+        <Text style={{ fontSize: 10, color: '#5A6872', marginTop: 4 }}>
+          {'Cotización: ' + String(q.cot_number)}
+        </Text>
+        <Text style={{ fontSize: 10, color: '#5A6872', marginTop: 4 }}>
+          {'Comprador: ' + String(q.buyer_name) + ' ' + String(q.buyer_lastname)}
+        </Text>
+        <Text style={{ fontSize: 10, color: '#5A6872', marginTop: 4 }}>
+          {'Valor Total: $ ' + String(q.net_value)}
+        </Text>
+        <Text style={{ fontSize: 8, color: '#8C9AA4', marginTop: 20 }}>
+          {'Generado por FocuxAI Engine — Test mínimo'}
+        </Text>
       </Page>
     </Document>
   );
