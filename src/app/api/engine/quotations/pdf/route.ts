@@ -62,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       UPDATE quotations SET pdf_generated_at = NOW() WHERE id = ${quotation.id}
     `;
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
