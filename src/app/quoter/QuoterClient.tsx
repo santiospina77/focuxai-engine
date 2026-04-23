@@ -8,14 +8,14 @@ import type { UIMacro, UITorre, UIUnit, UIConfig } from "./useInventoryData";
    Powered by GET /api/engine/inventory + POST /api/engine/contacts/search
    ═══════════════════════════════════════════════════════════════ */
 
-// ── DESIGN TOKENS (from constructorajimenez.com) ──
+// ── DESIGN TOKENS (Bluebox Brand System — Agencia Bluebox / Jose Carlos Anaya) ──
 const C = {
-  gold: "#B8963E", goldDark: "#9A7B2F", goldLight: "#D4B96E", goldBg: "#F9F5EC",
-  goldBorder: "#E8D5A8",
-  navy: "#1B2A4A", navyLight: "#2C3E5F",
-  bg: "#FAFAF7", white: "#FFFFFF", card: "#FFFFFF",
-  border: "#E8E5DE", borderLight: "#F0EDE6",
-  text: "#1B2A4A", textSec: "#6B7280", textTer: "#9CA3AF", textGold: "#8B7130",
+  gold: "#C2A360", goldDark: "#A8893E", goldLight: "#D4BE82", goldBg: "#FAF7F0",
+  goldBorder: "#E4D5B4",
+  navy: "#2D4051", navyLight: "#3D5468",
+  bg: "#F4F0E5", white: "#FFFFFF", card: "#FFFFFF",
+  border: "#E0DCD2", borderLight: "#EDE9E0",
+  text: "#182633", textSec: "#5A6872", textTer: "#8C9AA4", textGold: "#A8893E",
   green: "#16A34A", greenBg: "#F0FDF4", greenBorder: "#BBF7D0",
   yellow: "#D97706", yellowBg: "#FFFBEB", yellowBorder: "#FDE68A",
   red: "#DC2626", redBg: "#FEF2F2", redBorder: "#FECACA",
@@ -111,17 +111,17 @@ function SliderInput({ label, value, onChange, min, max, step=1, suffix="", pref
             onChange={e=>setInputVal(e.target.value)}
             onBlur={commit}
             onKeyDown={e=>e.key==="Enter"&&commit()}
-            style={{ width: 80, padding:"4px 8px", border:`1px solid ${C.gold}`, borderRadius:4, fontSize:14, fontWeight:600, color:C.navy, textAlign:"right", fontFamily:"'Montserrat',sans-serif", outline:"none" }}
+            style={{ width: 80, padding:"4px 8px", border:`1px solid ${C.gold}`, borderRadius:4, fontSize:14, fontWeight:600, color:C.navy, textAlign:"right", fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", outline:"none" }}
           />
         ) : (
-          <span onClick={()=>setEditing(true)} style={{ fontSize:15, fontWeight:700, color:C.gold, cursor:"pointer", borderBottom:`1px dashed ${C.goldBorder}`, fontFamily:"'Montserrat',sans-serif" }}>
+          <span onClick={()=>setEditing(true)} style={{ fontSize:15, fontWeight:700, color:C.gold, cursor:"pointer", borderBottom:`1px dashed ${C.goldBorder}`, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
             {prefix}{displayVal}{suffix}
           </span>
         )}
       </div>
       <input type="range" min={min} max={max} step={step} value={value} onChange={e=>onChange(parseFloat(e.target.value))}
         style={{ width:"100%", appearance:"none", height:5, borderRadius:3, background:`linear-gradient(to right, ${C.gold} ${((value-min)/(max-min))*100}%, ${C.border} ${((value-min)/(max-min))*100}%)`, outline:"none", cursor:"pointer" }} />
-      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:2 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:2 }}>
         <span>{prefix}{min}{suffix}</span><span>{prefix}{max}{suffix}</span>
       </div>
     </div>
@@ -130,9 +130,9 @@ function SliderInput({ label, value, onChange, min, max, step=1, suffix="", pref
 
 // ── STYLES ──
 const S: any = {
-  label: { fontSize:11, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:600 },
-  input: { width:"100%", padding:"11px 14px", background:C.white, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:14, fontFamily:"'Montserrat',sans-serif", outline:"none", boxSizing:"border-box", transition:"border 0.2s" },
-  select: { width:"100%", padding:"11px 14px", background:C.white, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:13, fontFamily:"'Montserrat',sans-serif", outline:"none", appearance:"none", cursor:"pointer", boxSizing:"border-box", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7280'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 12px center" },
+  label: { fontSize:11, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:600 },
+  input: { width:"100%", padding:"11px 14px", background:C.white, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:14, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", outline:"none", boxSizing:"border-box", transition:"border 0.2s" },
+  select: { width:"100%", padding:"11px 14px", background:C.white, border:`1px solid ${C.border}`, borderRadius:6, color:C.text, fontSize:13, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", outline:"none", appearance:"none", cursor:"pointer", boxSizing:"border-box", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7280'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 12px center" },
   btn: (variant="primary", disabled=false) => ({
     padding: variant==="sm"?"7px 14px":"12px 24px",
     background: disabled ? "#D4CFC5" : variant==="primary" ? C.gold : "transparent",
@@ -140,15 +140,15 @@ const S: any = {
     border: variant==="outline" ? `1.5px solid ${disabled?C.border:C.gold}` : "none",
     borderRadius:6, cursor:disabled?"not-allowed":"pointer",
     fontSize: variant==="sm"?11:12, fontWeight:700, letterSpacing:"1.5px", textTransform:"uppercase",
-    fontFamily:"'Montserrat',sans-serif", transition:"all 0.2s",
+    fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", transition:"all 0.2s",
   }),
   card: { background:C.card, border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden" },
-  th: { padding:"10px 12px", textAlign:"left", fontSize:10, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textSec, borderBottom:`1px solid ${C.border}`, fontWeight:600, background:C.goldBg, fontFamily:"'Montserrat',sans-serif" },
-  td: { padding:"10px 12px", borderBottom:`1px solid ${C.borderLight}`, color:C.text, fontSize:13, fontFamily:"'Montserrat',sans-serif" },
-  tag: (bg:string, color:string, border:string) => ({ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:20, fontSize:11, fontFamily:"'Montserrat',sans-serif", background:bg, color, border:`1px solid ${border}`, fontWeight:500 }),
+  th: { padding:"10px 12px", textAlign:"left", fontSize:10, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textSec, borderBottom:`1px solid ${C.border}`, fontWeight:600, background:C.goldBg, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" },
+  td: { padding:"10px 12px", borderBottom:`1px solid ${C.borderLight}`, color:C.text, fontSize:13, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" },
+  tag: (bg:string, color:string, border:string) => ({ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 10px", borderRadius:20, fontSize:11, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", background:bg, color, border:`1px solid ${border}`, fontWeight:500 }),
   dot: (color:string) => ({ display:"inline-block", width:8, height:8, borderRadius:"50%", background:color, marginRight:6 }),
-  sectionTitle: { fontSize:26, fontWeight:300, lineHeight:1.3, color:C.navy, fontFamily:"'Cormorant Garamond',Georgia,serif" },
-  sectionSub: { fontSize:13, color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:400 },
+  sectionTitle: { fontSize:26, fontWeight:300, lineHeight:1.3, color:C.navy, fontFamily:"'Carla Sans','AinslieSans',sans-serif" },
+  sectionSub: { fontSize:13, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:400 },
   goldBar: { height:3, background:`linear-gradient(90deg, ${C.gold}, ${C.goldLight}, ${C.gold})`, borderRadius:2 },
 };
 
@@ -358,7 +358,7 @@ export default function QuoterClient() {
     <div>
       <span style={S.label}>{label}</span>
       <div style={{ display:"flex", alignItems:"center", marginTop:4 }}>
-        <span style={{ padding:"11px 10px", background:C.goldBg, border:`1px solid ${C.border}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>$</span>
+        <span style={{ padding:"11px 10px", background:C.goldBg, border:`1px solid ${C.border}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>$</span>
         <input style={{ ...S.input, borderRadius:"0 6px 6px 0", borderLeft:"none" }} placeholder={placeholder||"0"} value={value===0?"":value.toLocaleString("es-CO")}
           onChange={e=>{const v=parseInt(e.target.value.replace(/\D/g,""))||0; onChange(v);}} />
       </div>
@@ -366,10 +366,14 @@ export default function QuoterClient() {
   );
 
   return (
-    <div style={{ fontFamily:"'Montserrat','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
-      <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <div style={{ fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+        @font-face{font-family:'Carla Sans';src:url('/fonts/CarlaSansBold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+        @font-face{font-family:'Carla Sans';src:url('/fonts/CarlaSansSemibold.ttf') format('truetype');font-weight:600;font-style:normal;font-display:swap}
+        @font-face{font-family:'AinslieSans';src:url('/fonts/AinslieSans-NorLig.otf') format('opentype');font-weight:300;font-style:normal;font-display:swap}
+        @font-face{font-family:'AinslieSans';src:url('/fonts/AinslieSans-NorReg.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap}
+        @font-face{font-family:'AinslieSans';src:url('/fonts/AinslieSans-NorMed.otf') format('opentype');font-weight:500;font-style:normal;font-display:swap}
+        @font-face{font-family:'AinslieSans';src:url('/fonts/AinslieSans-NorBol.otf') format('opentype');font-weight:700;font-style:normal;font-display:swap}
         input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:${C.gold};cursor:pointer;border:3px solid ${C.white};box-shadow:0 1px 4px rgba(0,0,0,.2)}
         input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:${C.gold};cursor:pointer;border:3px solid ${C.white};box-shadow:0 1px 4px rgba(0,0,0,.2)}
         ::selection{background:${C.goldBg};color:${C.navy}}
@@ -399,17 +403,17 @@ export default function QuoterClient() {
 
       {/* ══ HEADER ══ */}
       <header className="no-print" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 24px", borderBottom:`1px solid ${C.border}`, background:C.white, position:"sticky", top:0, zIndex:50 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:38, height:38, background:C.gold, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:C.white, fontSize:16, fontFamily:"'Montserrat',sans-serif" }}>CJ</div>
-          <div>
-            <div style={{ fontSize:17, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>Constructora Jiménez</div>
-            <div style={{ fontSize:9, letterSpacing:"3px", color:C.textTer, textTransform:"uppercase", fontFamily:"'Montserrat',sans-serif" }}>40 años construyendo legado</div>
+        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+          <img src="/assets/logo-jimenez-horizontal.png" alt="Constructora Jiménez" style={{ height:40, width:"auto", objectFit:"contain" }} onError={e=>{(e.target as HTMLImageElement).style.display="none"}} />
+          <img src="/assets/sello-40-anos.png" alt="40 Años" style={{ height:36, width:"auto", objectFit:"contain" }} onError={e=>{(e.target as HTMLImageElement).style.display="none"}} />
+          <div style={{ borderLeft:`1px solid ${C.border}`, paddingLeft:12, marginLeft:2 }}>
+            <div style={{ fontSize:10, letterSpacing:"2.5px", color:C.gold, textTransform:"uppercase", fontFamily:"'Carla Sans','AinslieSans',sans-serif", fontWeight:600 }}>Lo hacemos realidad</div>
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", letterSpacing:"1px" }}>ASESOR</div>
-            <div style={{ fontSize:12, color:C.navy, fontWeight:600, fontFamily:"'Montserrat',sans-serif" }}>{asesor.nombre}</div>
+            <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", letterSpacing:"1px" }}>ASESOR</div>
+            <div style={{ fontSize:12, color:C.navy, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{asesor.nombre}</div>
           </div>
           <span style={{ ...S.tag(C.goldBg, C.textGold, C.goldBorder), fontSize:9, letterSpacing:"1.5px" }}>COTIZADOR FOCUXAI</span>
         </div>
@@ -420,7 +424,7 @@ export default function QuoterClient() {
         <div className="no-print step-bar-wrap">
         <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6, padding:"0 2px" }}>
           {steps.map((s,i)=>(
-            <span key={i} style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase", fontFamily:"'Montserrat',sans-serif", color:i===step?C.gold:i<step?C.textSec:C.textTer, fontWeight:i===step?700:400, cursor:i<step?"pointer":"default" }}
+            <span key={i} style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase", fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:i===step?C.gold:i<step?C.textSec:C.textTer, fontWeight:i===step?700:400, cursor:i<step?"pointer":"default" }}
               onClick={()=>i<step&&setStep(i)}>{s}</span>
           ))}
         </div>
@@ -433,16 +437,16 @@ export default function QuoterClient() {
         {invLoading && (
           <div className="fu" style={{ textAlign:"center", padding:"80px 20px" }}>
             <div style={{ width:48, height:48, border:`3px solid ${C.border}`, borderTopColor:C.gold, borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 24px" }} />
-            <div style={{ fontSize:15, color:C.navy, fontFamily:"'Montserrat',sans-serif", fontWeight:500 }}>Cargando inventario desde HubSpot...</div>
-            <div style={{ fontSize:12, color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:6 }}>Conectando con el Engine</div>
+            <div style={{ fontSize:15, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:500 }}>Cargando inventario desde HubSpot...</div>
+            <div style={{ fontSize:12, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:6 }}>Conectando con el Engine</div>
             <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
           </div>
         )}
         {invError && !invLoading && (
           <div className="fu" style={{ textAlign:"center", padding:"60px 20px" }}>
             <div style={{ width:56, height:56, borderRadius:"50%", background:C.redBg, border:`2px solid ${C.red}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:24, color:C.red }}>!</div>
-            <div style={{ fontSize:18, fontWeight:500, color:C.navy, fontFamily:"'Montserrat',sans-serif", marginBottom:8 }}>Error al cargar inventario</div>
-            <div style={{ fontSize:13, color:C.textSec, fontFamily:"'Montserrat',sans-serif", maxWidth:480, margin:"0 auto 20px", lineHeight:1.6 }}>{invError}</div>
+            <div style={{ fontSize:18, fontWeight:500, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginBottom:8 }}>Error al cargar inventario</div>
+            <div style={{ fontSize:13, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", maxWidth:480, margin:"0 auto 20px", lineHeight:1.6 }}>{invError}</div>
             <button style={S.btn("primary")} onClick={()=>window.location.reload()}>Reintentar</button>
           </div>
         )}
@@ -461,10 +465,10 @@ export default function QuoterClient() {
                     style={{ ...S.card, padding:24, cursor:"pointer", borderColor:sel?C.gold:C.border, background:sel?C.goldBg:C.white, transition:"all .2s" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                       <span style={{ ...S.tag(sel?`${C.gold}22`:C.goldBg, C.textGold, C.goldBorder), fontSize:10 }}>{m.estado}</span>
-                      <span style={{ fontSize:11, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>ID: {m.id}</span>
+                      <span style={{ fontSize:11, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>ID: {m.id}</span>
                     </div>
-                    <div style={{ fontSize:22, fontWeight:400, color:C.navy, marginBottom:4, fontFamily:"'Cormorant Garamond',Georgia,serif" }}>{m.nombre}</div>
-                    <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{m.zona}, {m.ciudad}</div>
+                    <div style={{ fontSize:22, fontWeight:400, color:C.navy, marginBottom:4, fontFamily:"'Carla Sans','AinslieSans',sans-serif" }}>{m.nombre}</div>
+                    <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{m.zona}, {m.ciudad}</div>
                     {sel && <div style={{ ...S.goldBar, marginTop:12 }} />}
                   </div>
                 );
@@ -491,8 +495,8 @@ export default function QuoterClient() {
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:24 }}>
               {[{v:allStats.total,l:"Total",c:C.navy},{v:allStats.disp,l:"Disponibles",c:C.green},{v:allStats.bloq,l:"Bloqueadas",c:C.yellow},{v:allStats.vend,l:"Vendidas",c:C.red}].map((m,i)=>(
                 <div key={i} style={{ ...S.card, textAlign:"center", padding:16 }}>
-                  <div style={{ fontSize:26, fontWeight:300, color:m.c, fontFamily:"'Montserrat',sans-serif", fontVariantNumeric:"lining-nums" }}>{m.v}</div>
-                  <div style={{ fontSize:9, letterSpacing:"2px", textTransform:"uppercase", color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:2 }}>{m.l}</div>
+                  <div style={{ fontSize:26, fontWeight:300, color:m.c, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontVariantNumeric:"lining-nums" }}>{m.v}</div>
+                  <div style={{ fontSize:9, letterSpacing:"2px", textTransform:"uppercase", color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:2 }}>{m.l}</div>
                 </div>
               ))}
             </div>
@@ -508,11 +512,11 @@ export default function QuoterClient() {
                 return (
                   <div key={t.id} onClick={()=>{if(!isEmpty){setTorre(t);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);}}}
                     style={{ ...S.card, padding:24, cursor:isEmpty?"not-allowed":"pointer", borderColor:sel?C.gold:C.border, background:sel?C.goldBg:isEmpty?"#F5F3EE":C.white, opacity:isEmpty?.55:1, transition:"all .2s" }}>
-                    <div style={{ fontSize:10, letterSpacing:"2px", textTransform:"uppercase", color:isEmpty?C.textTer:C.gold, fontFamily:"'Montserrat',sans-serif", fontWeight:700, marginBottom:6 }}>{t.codigo}</div>
-                    <div style={{ fontSize:20, fontWeight:400, color:isEmpty?C.textTer:C.navy, marginBottom:4, fontFamily:"'Cormorant Garamond',Georgia,serif" }}>{t.nombre}</div>
-                    <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif", marginBottom:10 }}>{t.tipo} · {t.areaDesde} — {t.areaHasta} m²</div>
+                    <div style={{ fontSize:10, letterSpacing:"2px", textTransform:"uppercase", color:isEmpty?C.textTer:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:700, marginBottom:6 }}>{t.codigo}</div>
+                    <div style={{ fontSize:20, fontWeight:400, color:isEmpty?C.textTer:C.navy, marginBottom:4, fontFamily:"'Carla Sans','AinslieSans',sans-serif" }}>{t.nombre}</div>
+                    <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginBottom:10 }}>{t.tipo} · {t.areaDesde} — {t.areaHasta} m²</div>
                     {isEmpty ? (
-                      <div style={{ padding:"10px 14px", background:C.yellowBg, borderRadius:6, border:`1px solid ${C.yellowBorder}`, fontSize:11, color:C.yellow, fontFamily:"'Montserrat',sans-serif", fontWeight:500, textAlign:"center" }}>
+                      <div style={{ padding:"10px 14px", background:C.yellowBg, borderRadius:6, border:`1px solid ${C.yellowBorder}`, fontSize:11, color:C.yellow, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:500, textAlign:"center" }}>
                         Sin inventario sincronizado
                       </div>
                     ) : (
@@ -520,15 +524,15 @@ export default function QuoterClient() {
                     {/* Absorption bar */}
                     <div style={{ marginBottom:12 }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                        <span style={{ fontSize:11, fontFamily:"'Montserrat',sans-serif", color:C.textSec }}>{vend} vendidas · {disp} disponibles</span>
-                        <span style={{ fontSize:12, fontFamily:"'Montserrat',sans-serif", fontWeight:700, color:pctVend>70?C.red:pctVend>40?C.yellow:C.green }}>{pctVend}%</span>
+                        <span style={{ fontSize:11, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.textSec }}>{vend} vendidas · {disp} disponibles</span>
+                        <span style={{ fontSize:12, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:700, color:pctVend>70?C.red:pctVend>40?C.yellow:C.green }}>{pctVend}%</span>
                       </div>
                       <div style={{ height:6, background:C.borderLight, borderRadius:3, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${pctVend}%`, background:pctVend>70?C.red:pctVend>40?C.gold:C.green, borderRadius:3, transition:"width 0.4s ease" }} />
                       </div>
                     </div>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                      <div><span style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Desde </span><span style={{ fontSize:18, fontWeight:600, color:C.gold, fontFamily:"'Montserrat',sans-serif" }}>{fmtS(t.precioDesde)}</span></div>
+                      <div><span style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Desde </span><span style={{ fontSize:18, fontWeight:600, color:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{fmtS(t.precioDesde)}</span></div>
                       <span style={S.tag(C.greenBg, C.green, C.greenBorder)}>{disp} disp.</span>
                     </div>
                     </Fragment>
@@ -563,8 +567,8 @@ export default function QuoterClient() {
                       <div style={{ height:"100%", width:`${pctV}%`, background:pctV>70?C.red:pctV>40?C.gold:C.green, borderRadius:4, transition:"width 0.4s" }} />
                     </div>
                   </div>
-                  <span style={{ fontSize:13, fontWeight:700, fontFamily:"'Montserrat',sans-serif", color:pctV>70?C.red:pctV>40?C.gold:C.green, whiteSpace:"nowrap" }}>{pctV}% vendido</span>
-                  <span style={{ fontSize:12, fontFamily:"'Montserrat',sans-serif", color:C.textSec, whiteSpace:"nowrap" }}>{torreStats.vend}/{torreStats.total} uds</span>
+                  <span style={{ fontSize:13, fontWeight:700, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:pctV>70?C.red:pctV>40?C.gold:C.green, whiteSpace:"nowrap" }}>{pctV}% vendido</span>
+                  <span style={{ fontSize:12, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.textSec, whiteSpace:"nowrap" }}>{torreStats.vend}/{torreStats.total} uds</span>
                 </div>
               );
             })()}
@@ -573,14 +577,14 @@ export default function QuoterClient() {
               {[["torre","Vista Torre"],["tabla","Vista Tabla"]].map(([v,l])=>(
                 <button key={v} onClick={()=>setInvView(v)} style={{
                   padding:"8px 16px", fontSize:11, fontWeight:700, letterSpacing:"1.5px", textTransform:"uppercase",
-                  fontFamily:"'Montserrat',sans-serif", borderRadius:6, cursor:"pointer", transition:"all 0.2s",
+                  fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", borderRadius:6, cursor:"pointer", transition:"all 0.2s",
                   background: invView===v ? C.gold : "transparent",
                   color: invView===v ? C.white : C.gold,
                   border: invView===v ? "none" : `1.5px solid ${C.gold}`,
                 }}>{l}</button>
               ))}
               <div style={{ flex:1 }} />
-              <span style={{ fontSize:12, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{units.filter(u=>u.estado===ESTADOS.D).length} disponibles · {units.filter(u=>u.estado===ESTADOS.V).length} vendidas</span>
+              <span style={{ fontSize:12, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{units.filter(u=>u.estado===ESTADOS.D).length} disponibles · {units.filter(u=>u.estado===ESTADOS.V).length} vendidas</span>
             </div>
 
             {/* ── TOWER VIEW ── */}
@@ -589,7 +593,7 @@ export default function QuoterClient() {
                 {/* Legend */}
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                   <span style={S.label}>Mapa de Torre — Pisos {Math.min(...pisos)} al {Math.max(...pisos)}</span>
-                  <div style={{ display:"flex", gap:16, fontSize:11, fontFamily:"'Montserrat',sans-serif" }}>
+                  <div style={{ display:"flex", gap:16, fontSize:11, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.greenBg, border:`2px solid ${C.green}` }}/> Disponible</span>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.redBg, border:`2px solid ${C.red}` }}/> Vendida</span>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.borderLight, border:`1px solid ${C.border}` }}/> Sin data</span>
@@ -600,13 +604,13 @@ export default function QuoterClient() {
                     {/* Column headers */}
                     <div style={{ display:"flex", gap:3, marginBottom:6, paddingLeft:46 }}>
                       {TOWER_POSITIONS.map(p=>(
-                        <div key={p} style={{ width:36, textAlign:"center", fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", fontWeight:700 }}>{p}</div>
+                        <div key={p} style={{ width:36, textAlign:"center", fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:700 }}>{p}</div>
                       ))}
                     </div>
                     {/* Floor rows */}
                     {TOWER_FLOORS.map(floor=>(
                       <div key={floor} style={{ display:"flex", gap:3, marginBottom:3, alignItems:"center" }}>
-                        <div style={{ width:42, fontSize:12, color:C.textSec, textAlign:"right", paddingRight:6, fontFamily:"'Montserrat',sans-serif", fontWeight:700 }}>P{floor}</div>
+                        <div style={{ width:42, fontSize:12, color:C.textSec, textAlign:"right", paddingRight:6, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:700 }}>P{floor}</div>
                         {TOWER_POSITIONS.map(pos=>{
                           const key = `${floor}-${pos}`;
                           const unit = unitMap[key];
@@ -649,8 +653,8 @@ export default function QuoterClient() {
                       {l:"ID Sinco", v:hoveredUnit.sincoId||hoveredUnit.id},
                     ].map((d,i)=>(
                       <div key={i}>
-                        <div style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{d.l}</div>
-                        <div style={{ fontSize:d.bold?15:13, fontWeight:d.bold?700:600, color:d.c||C.navy, fontFamily:"'Montserrat',sans-serif" }}>{d.v}</div>
+                        <div style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.l}</div>
+                        <div style={{ fontSize:d.bold?15:13, fontWeight:d.bold?700:600, color:d.c||C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.v}</div>
                       </div>
                     ))}
                     {hoveredUnit.estado===ESTADOS.D && (
@@ -678,7 +682,7 @@ export default function QuoterClient() {
                     </div>
                   ))}
                   <div style={{ flex:1, display:"flex", alignItems:"flex-end", justifyContent:"flex-end" }}>
-                    <span style={{ fontSize:12, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{filtered.length} unidades</span>
+                    <span style={{ fontSize:12, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{filtered.length} unidades</span>
                   </div>
                 </div>
                 <div style={{ ...S.card, maxHeight:440, overflow:"auto" }}>
@@ -719,13 +723,13 @@ export default function QuoterClient() {
               </div>
               <div style={{ padding:"16px 20px", display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))", gap:12 }}>
                 {[{l:"Tipo",v:selectedUnit.tipologia},{l:"Piso",v:selectedUnit.piso},{l:"Área",v:`${selectedUnit.area} m²`},{l:"Hab.",v:selectedUnit.habs},{l:"Baños",v:selectedUnit.banos},{l:"Valor Total",v:fmt(selectedUnit.precio)}].map((d,i)=>(
-                  <div key={i}><div style={{...S.label,marginBottom:2}}>{d.l}</div><div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{d.v}</div></div>
+                  <div key={i}><div style={{...S.label,marginBottom:2}}>{d.l}</div><div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.v}</div></div>
                 ))}
               </div>
               {/* Incluye parq/dep checkboxes */}
               <div style={{ padding:"12px 20px", borderTop:`1px solid ${C.borderLight}`, display:"flex", gap:20 }}>
                 {[{label:"Incluye parqueadero",val:incluyeParq,set:setIncluyeParq},{label:"Incluye depósito",val:incluyeDep,set:setIncluyeDep}].map((ck,i)=>(
-                  <label key={i} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontSize:13, fontFamily:"'Montserrat',sans-serif", color:C.navy }}>
+                  <label key={i} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontSize:13, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>
                     <input type="checkbox" checked={ck.val} onChange={e=>ck.set(e.target.checked)} style={{ accentColor:C.gold, width:16, height:16 }} />
                     <span style={{ fontWeight:ck.val?600:400 }}>{ck.label}</span>
                     {ck.val && <span style={{ fontSize:10, color:C.textTer }}>*</span>}
@@ -733,7 +737,7 @@ export default function QuoterClient() {
                 ))}
               </div>
               {(incluyeParq || incluyeDep) && (
-                <div style={{ padding:"8px 20px 12px", fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", fontStyle:"italic" }}>
+                <div style={{ padding:"8px 20px 12px", fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontStyle:"italic" }}>
                   * {incluyeParq && incluyeDep ? "Incluye parqueadero y depósito." : incluyeParq ? "Incluye parqueadero." : "Incluye depósito."} Asignación de unidad específica sujeta a disponibilidad de inventario.
                 </div>
               )}
@@ -756,8 +760,8 @@ export default function QuoterClient() {
                       }} />
                     <div style={{ display:"none", flexDirection:"column", alignItems:"center", gap:8, padding:32, color:C.textTer }}>
                       <div style={{ width:48, height:48, borderRadius:"50%", background:C.borderLight, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>📷</div>
-                      <span style={{ fontSize:12, fontFamily:"'Montserrat',sans-serif", textAlign:"center" }}>{img.label} no disponible para tipo {selectedUnit.tipologia}</span>
-                      <span style={{ fontSize:10, fontFamily:"'Montserrat',sans-serif", color:C.textTer }}>Se cargará desde HubSpot File Manager</span>
+                      <span style={{ fontSize:12, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", textAlign:"center" }}>{img.label} no disponible para tipo {selectedUnit.tipologia}</span>
+                      <span style={{ fontSize:10, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.textTer }}>Se cargará desde HubSpot File Manager</span>
                     </div>
                   </div>
                 </div>
@@ -776,8 +780,8 @@ export default function QuoterClient() {
                     return (
                       <div key={p.id} onClick={()=>sec.setSel(prev=>s?prev.filter(x=>x.id!==p.id):[...prev,p])}
                         style={{ padding:"8px 14px", border:`1.5px solid ${s?C.gold:C.border}`, borderRadius:8, cursor:"pointer", background:s?C.goldBg:C.white, transition:"all .2s", textAlign:"center", minWidth:90 }}>
-                        <div style={{ fontSize:13, fontWeight:600, color:s?C.gold:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{p.numero}</div>
-                        <div style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{fmtS(p.precio)}</div>
+                        <div style={{ fontSize:13, fontWeight:600, color:s?C.gold:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{p.numero}</div>
+                        <div style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{fmtS(p.precio)}</div>
                       </div>
                     );
                   })}
@@ -788,7 +792,7 @@ export default function QuoterClient() {
             <div style={{ ...S.card, padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", background:C.goldBg, borderColor:C.goldBorder }}>
               <div>
                 <div style={S.label}>Valor total agrupación</div>
-                <div style={{ fontSize:26, fontWeight:400, color:C.gold, fontFamily:"'Montserrat',sans-serif" }}>{fmt(subtotal)}</div>
+                <div style={{ fontSize:26, fontWeight:400, color:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{fmt(subtotal)}</div>
               </div>
               <button style={S.btn("primary")} onClick={()=>setStep(4)}>Continuar →</button>
             </div>
@@ -863,17 +867,17 @@ export default function QuoterClient() {
                         {contactLoading ? "..." : "Buscar"}
                       </button>
                     </div>
-                    {emailError && <div style={{ fontSize:10, color:C.red, fontFamily:"'Montserrat',sans-serif", marginTop:2 }}>{emailError}</div>}
+                    {emailError && <div style={{ fontSize:10, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:2 }}>{emailError}</div>}
                     {/* Search error */}
-                    {contactError && <div style={{ marginTop:6, fontSize:10, color:C.red, fontFamily:"'Montserrat',sans-serif", padding:"6px 10px", background:C.redBg, borderRadius:4, border:`1px solid ${C.redBorder}` }}>⚠ {contactError}</div>}
+                    {contactError && <div style={{ marginTop:6, fontSize:10, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", padding:"6px 10px", background:C.redBg, borderRadius:4, border:`1px solid ${C.redBorder}` }}>⚠ {contactError}</div>}
                     {/* Lookup result — only shown after a real search attempt */}
                     {contactSearched && !contactLoading && !contactError && (
                       <div style={{ marginTop:8, padding:"10px 14px", borderRadius:6, background:contactExists?C.greenBg:C.yellowBg, border:`1px solid ${contactExists?C.greenBorder:C.yellowBorder}` }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontFamily:"'Montserrat',sans-serif", color:contactExists?C.green:C.yellow, fontWeight:600 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:contactExists?C.green:C.yellow, fontWeight:600 }}>
                           <span>{contactExists?"✓":"⚠"}</span>
                           <span>{contactExists ? "Contacto encontrado en HubSpot" : "Contacto no encontrado — se creará al enviar cotización"}</span>
                         </div>
-                        <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:4 }}>
+                        <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:4 }}>
                           {contactExists
                             ? `Se agregará "${macro?.nombre}" a lista_proyectos_fx (append). ${contactData?.canal ? `Canal existente: ${contactData.canal} (no se toca).` : "Canal vacío — se llenará con el seleccionado abajo."}`
                             : `Se creará con datos del formulario + proyecto_activo_fx = "${macro?.nombre}" + lista_proyectos_fx = "${macro?.nombre}"`
@@ -908,14 +912,14 @@ export default function QuoterClient() {
                     <div style={{ display:"flex", position:"relative" }}>
                       <div onClick={()=>setShowCcDrop(!showCcDrop)}
                         style={{ display:"flex", alignItems:"center", gap:4, padding:"11px 10px", background:C.goldBg, border:`1px solid ${C.border}`, borderRight:"none", borderRadius:"6px 0 0 6px", cursor:"pointer", fontSize:13, userSelect:"none", whiteSpace:"nowrap" }}>
-                        <span>{phoneCc.flag}</span><span style={{ fontFamily:"'Montserrat',sans-serif", fontSize:12, fontWeight:500 }}>{phoneCc.code}</span>
+                        <span>{phoneCc.flag}</span><span style={{ fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontSize:12, fontWeight:500 }}>{phoneCc.code}</span>
                         <span style={{ fontSize:8, color:C.textTer }}>▼</span>
                       </div>
                       {showCcDrop && (
                         <div style={{ position:"absolute", top:"100%", left:0, background:C.white, border:`1px solid ${C.border}`, borderRadius:6, boxShadow:"0 4px 12px rgba(0,0,0,.1)", zIndex:20, maxHeight:200, overflow:"auto", width:220 }}>
                           {COUNTRIES.map(cc=>(
                             <div key={cc.code} onClick={()=>{setPhoneCc(cc);setShowCcDrop(false);}} className="rh"
-                              style={{ padding:"8px 12px", cursor:"pointer", display:"flex", gap:8, alignItems:"center", fontSize:12, fontFamily:"'Montserrat',sans-serif" }}>
+                              style={{ padding:"8px 12px", cursor:"pointer", display:"flex", gap:8, alignItems:"center", fontSize:12, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
                               <span>{cc.flag}</span><span style={{fontWeight:500}}>{cc.code}</span><span style={{color:C.textSec}}>{cc.name}</span>
                             </div>
                           ))}
@@ -929,7 +933,7 @@ export default function QuoterClient() {
                           setPhoneError(v.length>0&&v.length!==phoneCc.len?`Debe tener ${phoneCc.len} dígitos`:"");
                         }} />
                     </div>
-                    {phoneError && <div style={{ fontSize:10, color:C.red, fontFamily:"'Montserrat',sans-serif", marginTop:2 }}>{phoneError}</div>}
+                    {phoneError && <div style={{ fontSize:10, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:2 }}>{phoneError}</div>}
                   </div>
                   {/* Canal de atribución — only shown if contact doesn't exist or has no canal */}
                   {(!contactExists || (contactExists && !contactData?.canal)) && (
@@ -947,28 +951,28 @@ export default function QuoterClient() {
                 <div style={{ ...S.label, marginBottom:16, fontSize:12, color:C.gold }}>Asesor que Cotiza</div>
                 <div style={{ padding:"16px 18px", background:C.goldBg, borderRadius:8, border:`1px solid ${C.goldBorder}` }}>
                   <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
-                    <div style={{ width:40, height:40, borderRadius:"50%", background:C.gold, display:"flex", alignItems:"center", justifyContent:"center", color:C.white, fontWeight:700, fontSize:15, fontFamily:"'Montserrat',sans-serif" }}>
+                    <div style={{ width:40, height:40, borderRadius:"50%", background:C.gold, display:"flex", alignItems:"center", justifyContent:"center", color:C.white, fontWeight:700, fontSize:15, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
                       {asesor.nombre.split(" ").map(n=>n[0]).slice(0,2).join("")}
                     </div>
                     <div>
-                      <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{asesor.nombre}</div>
-                      <div style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Sesión activa via HubSpot OAuth</div>
+                      <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{asesor.nombre}</div>
+                      <div style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Sesión activa via HubSpot OAuth</div>
                     </div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                    <div><span style={{...S.label,fontSize:9}}>ID SINCO</span><div style={{fontSize:12,fontWeight:600,fontFamily:"'Montserrat',sans-serif",color:C.navy}}>{asesor.id}</div></div>
-                    <div><span style={{...S.label,fontSize:9}}>HUBSPOT OWNER</span><div style={{fontSize:12,fontWeight:600,fontFamily:"'Montserrat',sans-serif",color:C.navy}}>owner_{asesor.id}</div></div>
+                    <div><span style={{...S.label,fontSize:9}}>ID SINCO</span><div style={{fontSize:12,fontWeight:600,fontFamily:"'AinslieSans','Helvetica Neue',sans-serif",color:C.navy}}>{asesor.id}</div></div>
+                    <div><span style={{...S.label,fontSize:9}}>HUBSPOT OWNER</span><div style={{fontSize:12,fontWeight:600,fontFamily:"'AinslieSans','Helvetica Neue',sans-serif",color:C.navy}}>owner_{asesor.id}</div></div>
                   </div>
-                  <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:8, borderTop:`1px solid ${C.goldBorder}`, paddingTop:8 }}>
+                  <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:8, borderTop:`1px solid ${C.goldBorder}`, paddingTop:8 }}>
                     Precargado del login. El Deal se asignará a este asesor como owner + id_vendedor_sinco_fx para write-back.
                   </div>
                 </div>
                 <div style={{ ...S.card, marginTop:16, padding:16, background:C.white }}>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                    <div><div style={S.label}>Proyecto</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'Montserrat',sans-serif", color:C.navy }}>{macro?.nombre} — {torre?.nombre}</div></div>
-                    <div><div style={S.label}>Unidad</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'Montserrat',sans-serif", color:C.navy }}>APT {selectedUnit?.numero} · {selectedUnit?.tipologia}</div></div>
-                    <div><div style={S.label}>Valor</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'Montserrat',sans-serif", color:C.gold }}>{fmt(subtotal)}</div></div>
-                    <div><div style={S.label}>Complementos</div><div style={{ fontSize:13, fontFamily:"'Montserrat',sans-serif", color:C.navy }}>{selectedParking.length>0?`${selectedParking.length} parq seleccionado${selectedParking.length>1?"s":""}`:incluyeParq?"Parq. incluido *":"Sin parq."} · {selectedStorage.length>0?`${selectedStorage.length} dep seleccionado${selectedStorage.length>1?"s":""}`:incluyeDep?"Dep. incluido *":"Sin dep."}</div></div>
+                    <div><div style={S.label}>Proyecto</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{macro?.nombre} — {torre?.nombre}</div></div>
+                    <div><div style={S.label}>Unidad</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>APT {selectedUnit?.numero} · {selectedUnit?.tipologia}</div></div>
+                    <div><div style={S.label}>Valor</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.gold }}>{fmt(subtotal)}</div></div>
+                    <div><div style={S.label}>Complementos</div><div style={{ fontSize:13, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{selectedParking.length>0?`${selectedParking.length} parq seleccionado${selectedParking.length>1?"s":""}`:incluyeParq?"Parq. incluido *":"Sin parq."} · {selectedStorage.length>0?`${selectedStorage.length} dep seleccionado${selectedStorage.length>1?"s":""}`:incluyeDep?"Dep. incluido *":"Sin dep."}</div></div>
                   </div>
                 </div>
                 <div style={{ marginTop:16 }}>
@@ -1004,7 +1008,7 @@ export default function QuoterClient() {
                       <div style={{ display:"flex", gap:0, borderRadius:6, overflow:"hidden", border:`1.5px solid ${C.gold}` }}>
                         {(["%","$"] as const).map(m=>(
                           <button key={m} onClick={()=>setSeparacionMode(m)} style={{
-                            padding:"4px 14px", fontSize:12, fontWeight:700, fontFamily:"'Montserrat',sans-serif",
+                            padding:"4px 14px", fontSize:12, fontWeight:700, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif",
                             background:separacionMode===m?C.gold:"transparent", color:separacionMode===m?C.white:C.gold,
                             border:"none", cursor:"pointer", transition:"all .2s"
                           }}>{m}</button>
@@ -1015,21 +1019,21 @@ export default function QuoterClient() {
                       <SliderInput label="" value={separacionPct} onChange={setSeparacionPct} min={0} max={15} step={0.5} suffix="%" />
                     ) : (
                       <div style={{ display:"flex", alignItems:"center" }}>
-                        <span style={{ padding:"11px 10px", background:C.goldBg, border:`1px solid ${C.goldBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.gold, fontFamily:"'Montserrat',sans-serif", fontWeight:700 }}>$</span>
+                        <span style={{ padding:"11px 10px", background:C.goldBg, border:`1px solid ${C.goldBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:700 }}>$</span>
                         <input style={{ ...S.input, borderRadius:"0 6px 6px 0", borderLeft:"none", fontSize:16, fontWeight:600, color:C.gold }} 
                           value={separacionFijo===0?"":separacionFijo.toLocaleString("es-CO")}
                           onChange={e=>{const v=parseInt(e.target.value.replace(/\D/g,""))||0; setSeparacionFijo(v);}} />
                       </div>
                     )}
-                    <div style={{ fontSize:11, color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:4 }}>
+                    <div style={{ fontSize:11, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:4 }}>
                       {separacionMode==="$" ? `= ${valorNeto>0?(separacionFijo/valorNeto*100).toFixed(1):"0"}% del valor neto` : `= ${fmt(separacion)}`}
                     </div>
                   </div>
                   <SliderInput label="Cuota Inicial Total" value={ciPct} onChange={setCiPct} min={0} max={100} step={0.5} suffix="%" />
                   <SliderInput label="Número de Cuotas" value={numCuotas} onChange={setNumCuotas} min={1} max={60} />
                   <div style={{ padding:"10px 14px", background:C.goldBg, borderRadius:6, border:`1px solid ${C.goldBorder}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    <span style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Cuota mensual</span>
-                    <span style={{ fontSize:18, fontWeight:600, color:C.gold, fontFamily:"'Montserrat',sans-serif" }}>{fmt(valorCuota)}</span>
+                    <span style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Cuota mensual</span>
+                    <span style={{ fontSize:18, fontWeight:600, color:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{fmt(valorCuota)}</span>
                   </div>
                 </div>
 
@@ -1038,14 +1042,14 @@ export default function QuoterClient() {
                   <div onClick={()=>setShowDescuentos(true)}
                     style={{ ...S.card, padding:"14px 20px", cursor:"pointer", display:"flex", alignItems:"center", gap:8, borderStyle:"dashed", borderColor:C.border }}>
                     <span style={{ width:22, height:22, borderRadius:"50%", background:C.redBg, border:`1px solid ${C.redBorder}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, color:C.red, fontWeight:600 }}>+</span>
-                    <span style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:500 }}>Agregar descuento</span>
+                    <span style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:500 }}>Agregar descuento</span>
                   </div>
                 ) : (
                 <div style={{ ...S.card, padding:20 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                     <span style={{ ...S.label, fontSize:12, color:C.red, margin:0 }}>Descuentos</span>
                     <span onClick={()=>{setShowDescuentos(false);setDtoComercial(0);setDtoFinanciero(0);}}
-                      style={{ fontSize:11, color:C.textTer, cursor:"pointer", fontFamily:"'Montserrat',sans-serif" }}>✕ Quitar</span>
+                      style={{ fontSize:11, color:C.textTer, cursor:"pointer", fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>✕ Quitar</span>
                   </div>
                   {/* Dto Comercial — % and $ synced */}
                   <div style={{ marginBottom:12 }}>
@@ -1054,10 +1058,10 @@ export default function QuoterClient() {
                       <div style={{ display:"flex", alignItems:"center" }}>
                         <input style={{...S.input, textAlign:"right", paddingRight:4}} placeholder="0" value={subtotal>0?Math.round(dtoComercial/subtotal*1000)/10||"":""}
                           onChange={e=>{const pct=parseFloat(e.target.value)||0; setDtoComercial(Math.round(subtotal*pct/100));}} />
-                        <span style={{ padding:"11px 6px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderLeft:"none", borderRadius:"0 6px 6px 0", fontSize:12, color:C.red, fontFamily:"'Montserrat',sans-serif" }}>%</span>
+                        <span style={{ padding:"11px 6px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderLeft:"none", borderRadius:"0 6px 6px 0", fontSize:12, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>%</span>
                       </div>
                       <div style={{ display:"flex", alignItems:"center" }}>
-                        <span style={{ padding:"11px 10px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.red, fontFamily:"'Montserrat',sans-serif" }}>$</span>
+                        <span style={{ padding:"11px 10px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>$</span>
                         <input style={{...S.input, borderRadius:"0 6px 6px 0", borderLeft:"none"}} placeholder="0" value={dtoComercial===0?"":dtoComercial.toLocaleString("es-CO")}
                           onChange={e=>{const v=parseInt(e.target.value.replace(/\D/g,""))||0; setDtoComercial(v);}} />
                       </div>
@@ -1070,10 +1074,10 @@ export default function QuoterClient() {
                       <div style={{ display:"flex", alignItems:"center" }}>
                         <input style={{...S.input, textAlign:"right", paddingRight:4}} placeholder="0" value={subtotal>0?Math.round(dtoFinanciero/subtotal*1000)/10||"":""}
                           onChange={e=>{const pct=parseFloat(e.target.value)||0; setDtoFinanciero(Math.round(subtotal*pct/100));}} />
-                        <span style={{ padding:"11px 6px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderLeft:"none", borderRadius:"0 6px 6px 0", fontSize:12, color:C.red, fontFamily:"'Montserrat',sans-serif" }}>%</span>
+                        <span style={{ padding:"11px 6px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderLeft:"none", borderRadius:"0 6px 6px 0", fontSize:12, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>%</span>
                       </div>
                       <div style={{ display:"flex", alignItems:"center" }}>
-                        <span style={{ padding:"11px 10px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.red, fontFamily:"'Montserrat',sans-serif" }}>$</span>
+                        <span style={{ padding:"11px 10px", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>$</span>
                         <input style={{...S.input, borderRadius:"0 6px 6px 0", borderLeft:"none"}} placeholder="0" value={dtoFinanciero===0?"":dtoFinanciero.toLocaleString("es-CO")}
                           onChange={e=>{const v=parseInt(e.target.value.replace(/\D/g,""))||0; setDtoFinanciero(v);}} />
                       </div>
@@ -1081,8 +1085,8 @@ export default function QuoterClient() {
                   </div>
                   {totalDescuentos > 0 && (
                     <div style={{ marginTop:10, padding:"8px 12px", background:C.redBg, borderRadius:6, border:`1px solid ${C.redBorder}`, display:"flex", justifyContent:"space-between" }}>
-                      <span style={{ fontSize:12, color:C.red, fontFamily:"'Montserrat',sans-serif" }}>Total descuentos</span>
-                      <span style={{ fontSize:14, fontWeight:700, color:C.red, fontFamily:"'Montserrat',sans-serif" }}>-{fmt(totalDescuentos)}</span>
+                      <span style={{ fontSize:12, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Total descuentos</span>
+                      <span style={{ fontSize:14, fontWeight:700, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>-{fmt(totalDescuentos)}</span>
                     </div>
                   )}
                 </div>
@@ -1092,14 +1096,14 @@ export default function QuoterClient() {
                 <div style={{ ...S.card, padding:20 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:abonos.length>0?12:0 }}>
                     <span style={{ ...S.label, fontSize:12, color:C.green, margin:0 }}>Cuotas Extraordinarias</span>
-                    {abonos.length>0 && <span style={{ fontSize:12, fontWeight:700, color:C.green, fontFamily:"'Montserrat',sans-serif" }}>+{fmt(totalAbonos)}</span>}
+                    {abonos.length>0 && <span style={{ fontSize:12, fontWeight:700, color:C.green, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>+{fmt(totalAbonos)}</span>}
                   </div>
                   {abonos.map(a=>(
                     <div key={a.id} style={{ display:"grid", gridTemplateColumns:"1fr 120px 90px 32px", gap:8, alignItems:"end", marginBottom:8 }}>
                       <div>
                         <span style={{...S.label, display:"block", marginBottom:4}}>{a.label} (id:{a.sincoId})</span>
                         <div style={{ display:"flex", alignItems:"center" }}>
-                          <span style={{ padding:"11px 10px", background:C.greenBg, border:`1px solid ${C.greenBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.green, fontFamily:"'Montserrat',sans-serif" }}>$</span>
+                          <span style={{ padding:"11px 10px", background:C.greenBg, border:`1px solid ${C.greenBorder}`, borderRight:"none", borderRadius:"6px 0 0 6px", fontSize:13, color:C.green, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>$</span>
                           <input style={{ ...S.input, borderRadius:"0 6px 6px 0", borderLeft:"none" }} placeholder="0" value={a.valor===0?"":a.valor.toLocaleString("es-CO")}
                             onChange={e=>{const v=parseInt(e.target.value.replace(/\D/g,""))||0; updateAbono(a.id,"valor",v);}} />
                         </div>
@@ -1107,7 +1111,7 @@ export default function QuoterClient() {
                       <div>
                         <span style={{...S.label, display:"block", marginBottom:4}}>Cuota</span>
                         {a.fixedMes ? (
-                          <div style={{ padding:"11px 8px", background:C.borderLight, borderRadius:6, fontSize:12, color:C.textTer, fontFamily:"'Montserrat',sans-serif", textAlign:"center" }}>Hoy</div>
+                          <div style={{ padding:"11px 8px", background:C.borderLight, borderRadius:6, fontSize:12, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", textAlign:"center" }}>Hoy</div>
                         ) : (
                           <select style={{...S.select, padding:"11px 8px"}} value={a.cuota} onChange={e=>updateAbono(a.id,"cuota",+e.target.value)}>
                             {Array.from({length:numCuotas},(_,i)=>i+1).map(m=><option key={m} value={m}>Cuota {m}</option>)}
@@ -1116,7 +1120,7 @@ export default function QuoterClient() {
                       </div>
                       <div>
                         <span style={{...S.label, display:"block", marginBottom:4}}>Mes</span>
-                        <div style={{ padding:"11px 8px", background:C.borderLight, borderRadius:6, fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif", textAlign:"center" }}>{a.fixedMes?"0":a.cuota}</div>
+                        <div style={{ padding:"11px 8px", background:C.borderLight, borderRadius:6, fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", textAlign:"center" }}>{a.fixedMes?"0":a.cuota}</div>
                       </div>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", paddingBottom:2 }}>
                         <span onClick={()=>removeAbono(a.id)} style={{ cursor:"pointer", color:C.red, fontSize:16, fontWeight:700, lineHeight:1 }}>×</span>
@@ -1127,7 +1131,7 @@ export default function QuoterClient() {
                   <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:abonos.length>0?8:0 }}>
                     {ABONO_TIPOS.map(t=>(
                       <div key={t.sincoId} onClick={()=>addAbono(t)}
-                        style={{ padding:"6px 12px", borderRadius:6, border:`1px dashed ${C.greenBorder}`, background:C.greenBg, cursor:"pointer", fontSize:11, color:C.green, fontFamily:"'Montserrat',sans-serif", fontWeight:500, transition:"all .2s" }}>
+                        style={{ padding:"6px 12px", borderRadius:6, border:`1px dashed ${C.greenBorder}`, background:C.greenBg, cursor:"pointer", fontSize:11, color:C.green, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:500, transition:"all .2s" }}>
                         + {t.label}
                       </div>
                     ))}
@@ -1155,14 +1159,14 @@ export default function QuoterClient() {
                   <div key={i}>
                     {r.sep && <div style={{ borderTop:`2px solid ${C.goldBorder}`, margin:"8px 0" }} />}
                     <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", alignItems:"center" }}>
-                      <span style={{ fontSize:12, color:r.gold?C.gold:r.red?C.red:r.green?C.green:C.textSec, fontWeight:r.bold?600:400, fontFamily:"'Montserrat',sans-serif" }}>{r.l}</span>
-                      <span style={{ fontSize:r.bold?16:14, fontWeight:r.bold?700:500, color:r.gold?C.gold:r.red?C.red:r.green?C.green:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{r.neg?`-${fmt(r.v)}`:fmt(r.v)}</span>
+                      <span style={{ fontSize:12, color:r.gold?C.gold:r.red?C.red:r.green?C.green:C.textSec, fontWeight:r.bold?600:400, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{r.l}</span>
+                      <span style={{ fontSize:r.bold?16:14, fontWeight:r.bold?700:500, color:r.gold?C.gold:r.red?C.red:r.green?C.green:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{r.neg?`-${fmt(r.v)}`:fmt(r.v)}</span>
                     </div>
                   </div>
                 ))}
                 {/* Incluye parq/dep note */}
                 {(incluyeParq || incluyeDep) && selectedParking.length===0 && selectedStorage.length===0 && (
-                  <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", fontStyle:"italic", marginTop:4 }}>
+                  <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontStyle:"italic", marginTop:4 }}>
                     * Valor {incluyeParq&&incluyeDep?"incluye parqueadero y depósito":incluyeParq?"incluye parqueadero":"incluye depósito"}. Asignación sujeta a disponibilidad.
                   </div>
                 )}
@@ -1177,7 +1181,7 @@ export default function QuoterClient() {
               <div style={S.card} className="fu">
                 <div style={{ padding:"14px 20px", borderBottom:`1px solid ${C.borderLight}`, background:C.goldBg, display:"flex", justifyContent:"space-between" }}>
                   <span style={S.label}>Plan de Pagos Detallado</span>
-                  <span style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{planRows.length} líneas · Mapeo ConceptoPlanDePagos Sinco</span>
+                  <span style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{planRows.length} líneas · Mapeo ConceptoPlanDePagos Sinco</span>
                 </div>
                 <div style={{ maxHeight:360, overflow:"auto" }}>
                   <table style={{ width:"100%", borderCollapse:"collapse" }}>
@@ -1210,44 +1214,47 @@ export default function QuoterClient() {
               {/* Header */}
               <div style={{ display:"flex", justifyContent:"space-between", paddingBottom:18, borderBottom:`2px solid ${C.goldBorder}`, marginBottom:20 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                  <img src="/assets/logo-constructora.png" alt="Logo" style={{ height:48, width:"auto", objectFit:"contain" }}
+                  <img src="/assets/logo-jimenez-horizontal.png" alt="Constructora Jiménez" style={{ height:44, width:"auto", objectFit:"contain" }}
+                    onError={e=>{(e.target as HTMLImageElement).style.display="none"}} />
+                  <img src="/assets/sello-40-anos.png" alt="40 Años" style={{ height:36, width:"auto", objectFit:"contain" }}
                     onError={e=>{(e.target as HTMLImageElement).style.display="none"}} />
                   <div>
-                    <div style={{ fontSize:18, fontWeight:700, letterSpacing:"2px", color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>CONSTRUCTORA JIMÉNEZ S.A.</div>
-                    <div style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>NIT: 802.021.085-1 · Santa Marta, Colombia</div>
+                    <div style={{ fontSize:16, fontWeight:700, letterSpacing:"2px", color:C.navy, fontFamily:"'Carla Sans','AinslieSans',sans-serif" }}>CONSTRUCTORA JIMÉNEZ S.A.</div>
+                    <div style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>NIT: 802.021.085-1 · Santa Marta, Colombia</div>
+                    <div style={{ fontSize:9, letterSpacing:"2px", color:C.gold, textTransform:"uppercase", fontFamily:"'Carla Sans','AinslieSans',sans-serif", fontWeight:600, marginTop:2 }}>Lo hacemos realidad</div>
                   </div>
                 </div>
                 <div style={{ textAlign:"right" }}>
                   <div style={{ ...S.label, color:C.gold }}>Cotización</div>
-                  <div style={{ fontSize:22, fontWeight:300, color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{cotNum}</div>
-                  <div style={{ fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{new Date().toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})}</div>
-                  <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>Vigencia: {CONFIG.vigencia_cotizacion} días</div>
+                  <div style={{ fontSize:22, fontWeight:300, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{cotNum}</div>
+                  <div style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{new Date().toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})}</div>
+                  <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Vigencia: {CONFIG.vigencia_cotizacion} días</div>
                 </div>
               </div>
               {/* 3 columns: buyer, property, advisor */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:20, marginBottom:20 }}>
                 <div>
                   <div style={{ ...S.label, marginBottom:8, color:C.gold }}>Comprador</div>
-                  <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{nombre} {apellido}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{tipoDoc} {cedula}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{email}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{phoneCc.flag} {phoneCc.code} {phone}</div>
+                  <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{nombre} {apellido}</div>
+                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{tipoDoc} {cedula}</div>
+                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{email}</div>
+                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{phoneCc.flag} {phoneCc.code} {phone}</div>
                 </div>
                 <div>
                   <div style={{ ...S.label, marginBottom:8, color:C.gold }}>Inmueble</div>
-                  <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{macro?.nombre} — {torre?.nombre}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Apto {selectedUnit?.numero} · Tipo {selectedUnit?.tipologia} · Piso {selectedUnit?.piso}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>{selectedUnit?.area} m² · {selectedUnit?.habs} hab · {selectedUnit?.banos} baños</div>
-                  {selectedParking.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Parq: {selectedParking.map((p:any)=>p.numero).join(", ")}</div>}
-                  {selectedStorage.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Dep: {selectedStorage.map((d:any)=>d.numero).join(", ")}</div>}
-                  {selectedParking.length===0&&incluyeParq&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Parqueadero incluido *</div>}
-                  {selectedStorage.length===0&&incluyeDep&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Depósito incluido *</div>}
+                  <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{macro?.nombre} — {torre?.nombre}</div>
+                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Apto {selectedUnit?.numero} · Tipo {selectedUnit?.tipologia} · Piso {selectedUnit?.piso}</div>
+                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{selectedUnit?.area} m² · {selectedUnit?.habs} hab · {selectedUnit?.banos} baños</div>
+                  {selectedParking.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Parq: {selectedParking.map((p:any)=>p.numero).join(", ")}</div>}
+                  {selectedStorage.length>0&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Dep: {selectedStorage.map((d:any)=>d.numero).join(", ")}</div>}
+                  {selectedParking.length===0&&incluyeParq&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Parqueadero incluido *</div>}
+                  {selectedStorage.length===0&&incluyeDep&&<div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Depósito incluido *</div>}
                 </div>
                 <div>
                   <div style={{ ...S.label, marginBottom:8, color:C.gold }}>Asesor</div>
-                  <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'Montserrat',sans-serif" }}>{asesor.nombre}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>ID Sinco: {asesor.id}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif" }}>Tipo venta: {tipoVenta===0?"Contado":tipoVenta===1?"Crédito":"Leasing"}</div>
+                  <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{asesor.nombre}</div>
+                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>ID Sinco: {asesor.id}</div>
+                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Tipo venta: {tipoVenta===0?"Contado":tipoVenta===1?"Crédito":"Leasing"}</div>
                 </div>
               </div>
               {/* Render + Plano por tipología */}
@@ -1255,7 +1262,7 @@ export default function QuoterClient() {
                 {[{label:"Render",file:`render-${selectedUnit?.tipologia}`},{label:"Plano",file:`plano-${selectedUnit?.tipologia}`}].map((img,idx)=>(
                   <div key={idx} data-img-pdf style={{ borderRadius:8, overflow:"hidden", border:`1px solid ${C.borderLight}` }}>
                     <div style={{ padding:"8px 12px", background:C.goldBg, borderBottom:`1px solid ${C.borderLight}` }}>
-                      <span style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase" as const, color:C.textSec, fontFamily:"'Montserrat',sans-serif", fontWeight:600 }}>{img.label} — Tipo {selectedUnit?.tipologia}</span>
+                      <span style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase" as const, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:600 }}>{img.label} — Tipo {selectedUnit?.tipologia}</span>
                     </div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", background:"#F5F3EE" }}>
                       <img src={`/assets/${img.file}.png`} alt={`${img.label} ${selectedUnit?.tipologia}`}
@@ -1285,7 +1292,7 @@ export default function QuoterClient() {
                   ].filter((m:any)=>!m.hide).map((m:any,i:number)=>(
                     <div key={i} style={{ textAlign:"center" }}>
                       <div style={{ ...S.label, fontSize:9, marginBottom:2 }}>{m.l}</div>
-                      <div style={{ fontSize:15, fontWeight:m.bold?700:600, color:m.c||C.navy, fontFamily:"'Montserrat',sans-serif" }}>{m.v}</div>
+                      <div style={{ fontSize:15, fontWeight:m.bold?700:600, color:m.c||C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{m.v}</div>
                     </div>
                   ))}
                 </div>
@@ -1295,13 +1302,13 @@ export default function QuoterClient() {
               <div style={{ marginBottom:18 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div style={{ ...S.label, color:C.gold, margin:0 }}>Plan de Pagos</div>
-                  <span style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>{planRows.length} conceptos</span>
+                  <span style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{planRows.length} conceptos</span>
                 </div>
                 <table style={{ width:"100%", borderCollapse:"collapse" }}>
                   <thead>
                     <tr>
                       {["#","Concepto","Mes","Valor"].map((h,i)=>(
-                        <th key={i} style={{ padding:"8px 10px", textAlign:i>=3?"right":"left", fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase" as const, color:C.textSec, borderBottom:`2px solid ${C.goldBorder}`, fontWeight:700, fontFamily:"'Montserrat',sans-serif", background:C.goldBg }}>{h}</th>
+                        <th key={i} style={{ padding:"8px 10px", textAlign:i>=3?"right":"left", fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase" as const, color:C.textSec, borderBottom:`2px solid ${C.goldBorder}`, fontWeight:700, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", background:C.goldBg }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1312,11 +1319,11 @@ export default function QuoterClient() {
                       const isTotal = r.tipo==="total";
                       const isAbono = r.tipo==="abono";
                       return (
-                        <tr key={i} style={{ background: isSep||isSaldo||isTotal ? C.goldBg : isAbono ? C.greenBg : i%2===0 ? C.white : "#FAFAF7" }}>
-                          <td style={{ padding:"6px 10px", fontSize:11, color:C.textTer, fontFamily:"'Montserrat',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{i+1}</td>
-                          <td style={{ padding:"6px 10px", fontSize:12, fontWeight:isSep||isSaldo||isTotal?700:400, color:isSep?C.gold:isAbono?C.green:isSaldo||isTotal?C.navy:C.text, fontFamily:"'Montserrat',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{r.concepto}</td>
-                          <td style={{ padding:"6px 10px", fontSize:11, color:C.textSec, fontFamily:"'Montserrat',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{mesLabel(r.mes)}</td>
-                          <td style={{ padding:"6px 10px", fontSize:12, fontWeight:isSep||isSaldo||isTotal?700:500, color:isSep?C.gold:isAbono?C.green:C.navy, fontFamily:"'Montserrat',sans-serif", textAlign:"right", borderBottom:`1px solid ${C.borderLight}` }}>{fmt(r.pago)}</td>
+                        <tr key={i} style={{ background: isSep||isSaldo||isTotal ? C.goldBg : isAbono ? C.greenBg : i%2===0 ? C.white : C.bg }}>
+                          <td style={{ padding:"6px 10px", fontSize:11, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{i+1}</td>
+                          <td style={{ padding:"6px 10px", fontSize:12, fontWeight:isSep||isSaldo||isTotal?700:400, color:isSep?C.gold:isAbono?C.green:isSaldo||isTotal?C.navy:C.text, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{r.concepto}</td>
+                          <td style={{ padding:"6px 10px", fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", borderBottom:`1px solid ${C.borderLight}` }}>{mesLabel(r.mes)}</td>
+                          <td style={{ padding:"6px 10px", fontSize:12, fontWeight:isSep||isSaldo||isTotal?700:500, color:isSep?C.gold:isAbono?C.green:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", textAlign:"right", borderBottom:`1px solid ${C.borderLight}` }}>{fmt(r.pago)}</td>
                         </tr>
                       );
                     })}
@@ -1325,15 +1332,16 @@ export default function QuoterClient() {
               </div>
 
               {/* Legal note */}
-              <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", lineHeight:1.6, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
-                * El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta. Vigencia: {CONFIG.vigencia_cotizacion} días calendario.
+              <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", lineHeight:1.6, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
+                <p style={{ margin:"0 0 6px" }}>* El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta.</p>
+                <p style={{ margin:0, fontWeight:600, color:C.textSec }}>Vigencia de esta cotización: {CONFIG.vigencia_cotizacion} días calendario a partir de la fecha de emisión.</p>
               </div>
               {/* Footer branding — visible in print */}
               <div style={{ marginTop:18, paddingTop:12, borderTop:`1px solid ${C.borderLight}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <div style={{ fontSize:9, color:C.textTer, fontFamily:"'Montserrat',sans-serif", letterSpacing:"1px" }}>
+                <div style={{ fontSize:9, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", letterSpacing:"1px" }}>
                   Generado por FocuxAI Engine™ · {new Date().toLocaleString("es-CO")}
                 </div>
-                <div style={{ fontSize:9, color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>
+                <div style={{ fontSize:9, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
                   {cotNum}
                 </div>
               </div>
@@ -1351,14 +1359,14 @@ export default function QuoterClient() {
                 {[{n:"Cotización enviada",p:"20%",a:true,amt:"$0"},{n:"Unidad bloqueada",p:"40%",amt:"$0"},{n:"Unidad separada",p:"70%",amt:"→ amount"},{n:"Negocio legalizado",p:"100%"},{n:"En cartera",p:"100%"}].map((s:any,i:number)=>(
                   <Fragment key={i}>
                     {i>0&&<span style={{color:C.textTer}}>→</span>}
-                    <div style={{ padding:"6px 12px", borderRadius:6, background:s.a?C.goldBg:C.borderLight, border:`1px solid ${s.a?C.goldBorder:C.border}`, fontSize:11, fontFamily:"'Montserrat',sans-serif", color:s.a?C.gold:C.textSec }}>
+                    <div style={{ padding:"6px 12px", borderRadius:6, background:s.a?C.goldBg:C.borderLight, border:`1px solid ${s.a?C.goldBorder:C.border}`, fontSize:11, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:s.a?C.gold:C.textSec }}>
                       {s.n} <span style={{opacity:.5}}>({s.p})</span>
                       {s.amt && <span style={{ marginLeft:4, fontSize:9, padding:"1px 5px", borderRadius:3, background:s.amt==="$0"?C.yellowBg:`${C.green}15`, color:s.amt==="$0"?C.yellow:C.green, border:`1px solid ${s.amt==="$0"?C.yellowBorder:C.greenBorder}` }}>{s.amt}</span>}
                     </div>
                   </Fragment>
                 ))}
               </div>
-              <div style={{ fontSize:10, color:C.textTer, fontFamily:"'Montserrat',sans-serif", marginTop:8 }}>
+              <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:8 }}>
                 Amount del Deal = $0 hasta Unidad Separada. Workflow WF-D2 copia valor_total_neto_fx → amount al separar. No infla forecast con cotizaciones.
               </div>
             </div>
@@ -1371,20 +1379,20 @@ export default function QuoterClient() {
         <div style={{ position:"fixed", inset:0, background:"rgba(27,42,74,.85)", backdropFilter:"blur(12px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100 }} onClick={()=>setShowSuccess(false)}>
           <div style={{ textAlign:"center", maxWidth:500, padding:"48px 40px", background:C.white, borderRadius:12, boxShadow:"0 20px 60px rgba(0,0,0,.2)" }} className="fu" onClick={e=>e.stopPropagation()}>
             <div style={{ width:56, height:56, borderRadius:"50%", background:C.greenBg, border:`2px solid ${C.green}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:24, color:C.green }}>✓</div>
-            <h2 style={{ fontSize:24, fontWeight:400, color:C.navy, margin:"0 0 4px", fontFamily:"'Cormorant Garamond',Georgia,serif" }}>Cotización Enviada</h2>
-            <div style={{ fontSize:18, fontWeight:300, color:C.gold, fontFamily:"'Montserrat',sans-serif", marginBottom:16, letterSpacing:"1px" }}>{cotNum}</div>
+            <h2 style={{ fontSize:24, fontWeight:400, color:C.navy, margin:"0 0 4px", fontFamily:"'Carla Sans','AinslieSans',sans-serif" }}>Cotización Enviada</h2>
+            <div style={{ fontSize:18, fontWeight:300, color:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginBottom:16, letterSpacing:"1px" }}>{cotNum}</div>
 
             {/* Resumen inmueble */}
             <div style={{ background:C.goldBg, borderRadius:8, padding:"14px 18px", marginBottom:16, border:`1px solid ${C.goldBorder}`, textAlign:"left" }}>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <div><span style={{...S.label,fontSize:9}}>PROYECTO</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'Montserrat',sans-serif", color:C.navy }}>{torre?.nombre}</div></div>
-                <div><span style={{...S.label,fontSize:9}}>UNIDAD</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'Montserrat',sans-serif", color:C.navy }}>APT {selectedUnit?.numero} · {selectedUnit?.tipologia}</div></div>
-                <div><span style={{...S.label,fontSize:9}}>COMPRADOR</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'Montserrat',sans-serif", color:C.navy }}>{nombre} {apellido}</div></div>
-                <div><span style={{...S.label,fontSize:9}}>VALOR NETO</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'Montserrat',sans-serif", color:C.gold }}>{fmt(valorNeto)}</div></div>
+                <div><span style={{...S.label,fontSize:9}}>PROYECTO</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{torre?.nombre}</div></div>
+                <div><span style={{...S.label,fontSize:9}}>UNIDAD</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>APT {selectedUnit?.numero} · {selectedUnit?.tipologia}</div></div>
+                <div><span style={{...S.label,fontSize:9}}>COMPRADOR</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{nombre} {apellido}</div></div>
+                <div><span style={{...S.label,fontSize:9}}>VALOR NETO</span><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.gold }}>{fmt(valorNeto)}</div></div>
               </div>
             </div>
 
-            <p style={{ fontSize:12, color:C.textSec, fontFamily:"'Montserrat',sans-serif", marginBottom:16, lineHeight:1.6 }}>
+            <p style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginBottom:16, lineHeight:1.6 }}>
               Deal creado en HubSpot · Etapa "Cotización Enviada (20%)" · Amount $0<br/>
               PDF adjunto · Email y WhatsApp enviados · Precio congelado en precio_cotizado_fx
             </p>
@@ -1404,6 +1412,12 @@ export default function QuoterClient() {
               <button style={{...S.btn("outline"), fontSize:10, padding:"8px 16px"}} onClick={handlePrint}>🖨 Imprimir PDF</button>
             </div>
 
+            {/* Mensaje de cierre — Constructora Jiménez */}
+            <div style={{ background:C.bg, borderRadius:8, padding:"14px 18px", marginBottom:16, border:`1px solid ${C.border}`, textAlign:"center" }}>
+              <p style={{ fontSize:13, color:C.navy, fontFamily:"'Carla Sans','AinslieSans',sans-serif", fontWeight:600, margin:"0 0 4px", letterSpacing:"0.5px" }}>Gracias por confiar en Constructora Jiménez</p>
+              <p style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", margin:0, lineHeight:1.5 }}>40 años construyendo legado · Lo hacemos realidad</p>
+            </div>
+
             <button style={{ ...S.btn("primary") }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setContactSearched(false);setContactError("");setCotNum("");setSeparacionMode("$");setSeparacionFijo(3000000);}}>
               Nueva cotización
             </button>
@@ -1413,7 +1427,7 @@ export default function QuoterClient() {
 
       {/* Footer */}
       <div style={{ textAlign:"center", padding:"24px", borderTop:`1px solid ${C.border}` }}>
-        <div style={{ fontSize:9, letterSpacing:"2px", textTransform:"uppercase", color:C.textTer, fontFamily:"'Montserrat',sans-serif" }}>
+        <div style={{ fontSize:9, letterSpacing:"2px", textTransform:"uppercase", color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
           Powered by FocuxAI Engine™ · Focux Digital Group S.A.S.
         </div>
       </div>
