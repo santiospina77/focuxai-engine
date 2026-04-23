@@ -14,6 +14,7 @@
  * FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
  */
 
+import React from 'react';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/engine/core/db/neon';
 import { renderToBuffer } from '@react-pdf/renderer';
@@ -55,8 +56,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const quotation = rows[0] as QuotationRow;
 
     // ── Generar PDF ──
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfBuffer = await renderToBuffer(QuotationPdf({ quotation }) as any);
+    const pdfBuffer = await renderToBuffer(<QuotationPdf quotation={quotation} />);
 
     // ── Actualizar pdf_generated_at ──
     await sql`
