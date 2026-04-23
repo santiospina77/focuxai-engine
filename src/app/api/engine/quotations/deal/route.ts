@@ -52,6 +52,13 @@ function errorResponse(status: number, error: string, message: string): NextResp
   );
 }
 
+/** HubSpot date properties require midnight UTC epoch ms */
+function toMidnightUtc(val: string | Date | number): number {
+  const d = new Date(val);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_BASE_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://engine.focux.co');
@@ -165,8 +172,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     numero_documento_fx: quotation.buyer_doc_number,
     origen_fx: 'cotizador',
     pdf_cotizacion_url_fx: cotizacionUrl,
-    fecha_creacion_cotizacion_fx: quotation.created_at,
-    vigencia_cotizacion_fx: quotation.expires_at,
+    fecha_creacion_cotizacion_fx: toMidnightUtc(quotation.created_at),
+    vigencia_cotizacion_fx: toMidnightUtc(quotation.expires_at),
     incluye_parqueadero_fx: quotation.includes_parking ? 'true' : 'false',
     incluye_deposito_fx: quotation.includes_storage ? 'true' : 'false',
     porcentaje_descuento_fx: quotation.subtotal > 0 ? Math.round((quotation.discount_commercial / quotation.subtotal) * 10000) / 100 : 0,
@@ -174,7 +181,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // ── Sinco write-back (se llenan después)
     // id_agrupacion_sinco_fx, id_sinco_comprador_fx, id_venta_sinco_fx → write-back #1/#2
-    writeback_status_fx: 'pending',
+    writeback_status_fx: 'pendiente',
 
     // ── Fase 2 (defaults en 0)
     valor_adicionales_fx: 0,
