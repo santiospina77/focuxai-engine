@@ -103,8 +103,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ${financial.initialPaymentPct}, ${financial.initialPaymentAmount},
         ${financial.numInstallments}, ${financial.installmentAmount},
         ${financial.financedAmount}, ${financial.financedPct},
-        ${JSON.stringify(financial.paymentPlan)}, ${JSON.stringify(financial.bonuses)},
-        ${JSON.stringify(config)},
+        ${JSON.stringify(financial.paymentPlan ?? [])}, ${JSON.stringify(financial.bonuses ?? [])},
+        ${JSON.stringify(config ?? {})},
         ${expiresAt.toISOString()}
       )
       RETURNING id, cot_number, created_at, expires_at

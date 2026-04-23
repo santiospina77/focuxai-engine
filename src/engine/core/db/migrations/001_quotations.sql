@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS quotations (
   includes_storage BOOLEAN NOT NULL DEFAULT false,
 
   -- Asesor
-  advisor_id      INTEGER NOT NULL,
+  advisor_id      TEXT NOT NULL,
   advisor_name    TEXT NOT NULL,
 
   -- Financiero
