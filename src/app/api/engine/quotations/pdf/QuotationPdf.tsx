@@ -147,8 +147,8 @@ export function QuotationPdf({ quotation: q }: Props) {
           <View style={styles.col}>
             <Text style={styles.colLabel}>Inmueble</Text>
             <Text style={styles.colName}>{q.macro_name} — {q.torre_name}</Text>
-            <Text style={styles.colDetail}>Apto {q.unit_number} · Tipo {q.unit_tipologia} · Piso {q.unit_piso}</Text>
-            <Text style={styles.colDetail}>{q.unit_area} m² · {q.unit_habs} hab · {q.unit_banos} baños</Text>
+            <Text style={styles.colDetail}>Apto {q.unit_number}{q.unit_tipologia ? ` · Tipo ${q.unit_tipologia}` : ''}{q.unit_piso != null ? ` · Piso ${q.unit_piso}` : ''}</Text>
+            <Text style={styles.colDetail}>{q.unit_area} m²{q.unit_habs != null ? ` · ${q.unit_habs} hab` : ''}{q.unit_banos != null ? ` · ${q.unit_banos} baños` : ''}</Text>
             {q.includes_parking && <Text style={styles.colDetail}>Parqueadero incluido *</Text>}
             {q.includes_storage && <Text style={styles.colDetail}>Depósito incluido *</Text>}
           </View>
@@ -184,7 +184,7 @@ export function QuotationPdf({ quotation: q }: Props) {
               <Text style={styles.finValue}>{fmt(q.separation_amount)}</Text>
             </View>
             <View style={styles.finItem}>
-              <Text style={styles.finLabel}>CI ({q.initial_payment_pct}%)</Text>
+              <Text style={styles.finLabel}>CI ({Number(q.initial_payment_pct)}%)</Text>
               <Text style={styles.finValue}>{fmt(q.initial_payment_amount)}</Text>
             </View>
             <View style={styles.finItem}>
@@ -192,7 +192,7 @@ export function QuotationPdf({ quotation: q }: Props) {
               <Text style={styles.finValue}>{fmt(q.installment_amount)}</Text>
             </View>
             <View style={styles.finItem}>
-              <Text style={styles.finLabel}>Financiación ({q.financed_pct}%)</Text>
+              <Text style={styles.finLabel}>Financiación ({Number(q.financed_pct)}%)</Text>
               <Text style={styles.finValue}>{fmt(q.financed_amount)}</Text>
             </View>
           </View>
