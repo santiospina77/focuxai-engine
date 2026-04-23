@@ -18,6 +18,12 @@
     },
     "src/app/api/engine/sale/legalizar/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/engine/quotations/pdf/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/engine/quotations/deal/route.ts": {
+      "maxDuration": 30
     }
   }
 }

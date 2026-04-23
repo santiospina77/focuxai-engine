@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
     "@react-pdf/renderer": "^4.3.2",
     "file-saver": "^2.0.5",
     "next": "^16.2.1",

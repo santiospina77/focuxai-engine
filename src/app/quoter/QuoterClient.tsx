@@ -257,6 +257,10 @@ export default function QuoterClient() {
   const [hoveredUnit, setHoveredUnit] = useState(null);
   const cotRef = useRef(null); // ref for PDF print
   const [cotNum, setCotNum] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [dealResult, setDealResult] = useState<{ hubspotDealId: string; dealUrl: string } | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const units = torre ? getUnits(torre.id) : [];
   const parking = torre ? getParking(torre.id) : [];
@@ -339,6 +343,100 @@ export default function QuoterClient() {
     rows.forEach(r=>{ saldo -= r.pago; r.saldo = Math.max(saldo, 0); });
     return rows;
   },[selectedUnit,separacion,valorCuota,numCuotas,saldoFinal,valorNeto,abonos,cuotaInicialNeta]);
+
+  // ── Orquestador: Persistir → PDF → Deal → Success ──
+  const handleSubmitDeal = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    setDealResult(null);
+    setPdfUrl(null);
+
+    const currentCotNum = cotNum || generateCotNumber(torre);
+    if (!cotNum) setCotNum(currentCotNum);
+
+    try {
+      // Step 1: Persistir cotización
+      const persistRes = await fetch('/api/engine/quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: 'jimenez_demo',
+          cotNumber: currentCotNum,
+          buyer: {
+            name: nombre, lastname: apellido, docType: tipoDoc, docNumber: cedula,
+            email, phone, phoneCc: phoneCc.code,
+            hubspotContactId: contactData?.hubspotId || null,
+          },
+          property: {
+            macroId: macro?.id, macroName: macro?.nombre,
+            torreId: torre?.id, torreName: torre?.nombre,
+            unitNumber: selectedUnit?.numero, unitTipologia: selectedUnit?.tipologia,
+            unitPiso: selectedUnit?.piso, unitArea: selectedUnit?.area,
+            unitHabs: selectedUnit?.habs, unitBanos: selectedUnit?.banos,
+            unitPrice: selectedUnit?.precio,
+            parking: selectedParking.map((p: any) => ({ numero: p.numero, price: p.precio })),
+            storage: selectedStorage.map((d: any) => ({ numero: d.numero, price: d.precio })),
+            includesParking: incluyeParq, includesStorage: incluyeDep,
+          },
+          advisor: { id: asesor.id, name: asesor.nombre },
+          financial: {
+            saleType: tipoVenta, subtotal,
+            discountCommercial: dtoComercial, discountFinancial: dtoFinanciero,
+            totalDiscounts: totalDescuentos, netValue: valorNeto,
+            separationAmount: separacion,
+            initialPaymentPct: CONFIG.cuota_inicial_pct,
+            initialPaymentAmount: cuotaInicialTotal,
+            numInstallments: numCuotas, installmentAmount: valorCuota,
+            financedAmount: saldoFinal, financedPct: CONFIG.financiacion_pct,
+            paymentPlan: planRows.map(r => ({ concepto: r.concepto, mes: mesLabel(r.mes), pago: r.pago, tipo: r.tipo })),
+            bonuses: abonos,
+          },
+          config: {
+            vigenciaDias: CONFIG.vigencia_cotizacion,
+            separacionPct: CONFIG.separacion_pct,
+            cuotaInicialPct: CONFIG.cuota_inicial_pct,
+          },
+        }),
+      });
+      if (!persistRes.ok) {
+        const errData = await persistRes.json().catch(() => ({}));
+        throw new Error(errData.message || `Error ${persistRes.status} guardando cotización`);
+      }
+
+      // Step 2: Generar PDF server-side (non-fatal)
+      try {
+        const pdfRes = await fetch('/api/engine/quotations/pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: 'jimenez_demo', cotNumber: currentCotNum }),
+        });
+        if (pdfRes.ok) {
+          const blob = await pdfRes.blob();
+          setPdfUrl(URL.createObjectURL(blob));
+        }
+      } catch { console.warn('PDF generation failed (non-fatal)'); }
+
+      // Step 3: Crear Deal en HubSpot
+      const dealRes = await fetch('/api/engine/quotations/deal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: 'jimenez_demo', cotNumber: currentCotNum }),
+      });
+      if (!dealRes.ok) {
+        const errData = await dealRes.json().catch(() => ({}));
+        throw new Error(errData.message || `Error ${dealRes.status} creando Deal`);
+      }
+      const dealData = await dealRes.json();
+      setDealResult(dealData.deal);
+      setShowSuccess(true);
+    } catch (err: any) {
+      setSubmitError(err.message || 'Error inesperado');
+      console.error('[handleSubmitDeal]', err);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, cotNum, torre, macro, nombre, apellido, tipoDoc, cedula, email, phone, phoneCc, contactData, selectedUnit, selectedParking, selectedStorage, incluyeParq, incluyeDep, asesor, tipoVenta, subtotal, dtoComercial, dtoFinanciero, totalDescuentos, valorNeto, separacion, cuotaInicialTotal, numCuotas, valorCuota, saldoFinal, planRows, abonos, CONFIG]);
 
   const allStats = useMemo(()=>{
     if(!macro) return { total:0, disp:0, bloq:0, vend:0 };
@@ -1348,7 +1446,10 @@ export default function QuoterClient() {
               {/* Actions — hidden in print */}
               <div className="no-print" style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:18 }}>
                 <button style={S.btn("outline")} onClick={handlePrint}>Imprimir / PDF</button>
-                <button style={S.btn("primary")} onClick={()=>setShowSuccess(true)}>Enviar y crear Deal →</button>
+                <button style={S.btn("primary", submitting)} onClick={handleSubmitDeal} disabled={submitting}>
+                  {submitting ? "Procesando..." : "Enviar y crear Deal →"}
+                </button>
+                {submitError && <div style={{ color:C.red, fontSize:11, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:6 }}>{submitError}</div>}
               </div>
             </div>
 
@@ -1393,8 +1494,11 @@ export default function QuoterClient() {
             </div>
 
             <p style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginBottom:16, lineHeight:1.6 }}>
-              Deal creado en HubSpot · Etapa "Cotización Enviada (20%)" · Amount $0<br/>
-              PDF adjunto · Email y WhatsApp enviados · Precio congelado en precio_cotizado_fx
+              {dealResult ? (
+                <>Deal creado en HubSpot · ID: {dealResult.hubspotDealId}<br/>Etapa &quot;Cotización Enviada (20%)&quot; · Amount $0 · Precio congelado</>
+              ) : (
+                <>Cotización guardada · Deal pendiente de creación</>
+              )}
             </p>
 
             <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap", marginBottom:16 }}>
@@ -1403,13 +1507,23 @@ export default function QuoterClient() {
               ))}
             </div>
 
-            {/* Copiar link cotización */}
-            <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:20 }}>
+            {/* Acciones — PDF + Link + Deal */}
+            <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:20, flexWrap:"wrap" }}>
+              {pdfUrl && (
+                <a href={pdfUrl} download={`${cotNum}.pdf`} style={{...S.btn("outline"), fontSize:10, padding:"8px 16px", textDecoration:"none", display:"inline-flex", alignItems:"center"}}>
+                  Descargar PDF
+                </a>
+              )}
               <button style={{...S.btn("outline"), fontSize:10, padding:"8px 16px"}} onClick={()=>{
-                const link = `${window.location.origin}/quoter?cot=${cotNum}`;
+                const link = `${window.location.origin}/cotizacion/${cotNum}`;
                 navigator.clipboard.writeText(link).then(()=>{ alert(`Link copiado: ${link}`); });
-              }}>📋 Copiar link cotización</button>
-              <button style={{...S.btn("outline"), fontSize:10, padding:"8px 16px"}} onClick={handlePrint}>🖨 Imprimir PDF</button>
+              }}>Copiar link</button>
+              {dealResult?.dealUrl && (
+                <a href={dealResult.dealUrl} target="_blank" rel="noopener noreferrer" style={{...S.btn("outline"), fontSize:10, padding:"8px 16px", textDecoration:"none", display:"inline-flex", alignItems:"center"}}>
+                  Ver Deal en HubSpot
+                </a>
+              )}
+              <button style={{...S.btn("outline"), fontSize:10, padding:"8px 16px"}} onClick={handlePrint}>Imprimir</button>
             </div>
 
             {/* Mensaje de cierre — Constructora Jiménez */}
