@@ -598,7 +598,7 @@ export default function FocuxAdapter() {
 
     const createProp = async (objectType, prop) => {
       if (isCancelled()) return;
-      const body = {
+      const body: any = {
         name: prop.name, label: prop.label, type: prop.type, fieldType: prop.fieldType,
         groupName: prop.group || "focux",
       };
