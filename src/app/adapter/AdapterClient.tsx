@@ -467,7 +467,7 @@ function buildAssociations(customObjects) {
 }
 
 /* ═══ STYLES ═══ */
-const ss = {
+const ss: any = {
   label: { display:"block", fontSize:12, fontWeight:600, color:tk.text, marginBottom:4 },
   input: { width:"100%", padding:"10px 12px", borderRadius:8, border:`1.5px solid ${tk.border}`, fontSize:13, color:tk.text, outline:"none", boxSizing:"border-box", fontFamily:font },
   textarea: { width:"100%", padding:"10px 12px", borderRadius:8, border:`1.5px solid ${tk.border}`, fontSize:12, color:tk.text, outline:"none", boxSizing:"border-box", fontFamily:mono, minHeight:200, resize:"vertical" },
