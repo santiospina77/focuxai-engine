@@ -51,7 +51,7 @@ const HS_PROXY = "/api/hubspot";
 
 async function hsCall(token, method, path, body = null, signal = null) {
   const url = `${HS_PROXY}${path}`;
-  const opts = {
+  const opts: RequestInit = {
     method,
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
   };
