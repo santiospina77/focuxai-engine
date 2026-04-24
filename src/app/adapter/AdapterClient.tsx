@@ -706,7 +706,7 @@ export default function FocuxAdapter() {
             primaryDisplayProperty: schema.primaryDisplayProperty,
             requiredProperties: [schema.primaryDisplayProperty],
             properties: schema.properties.map(p => {
-              const prop = { name: p.name, label: p.label, type: p.type, fieldType: p.fieldType };
+              const prop: any = { name: p.name, label: p.label, type: p.type, fieldType: p.fieldType };
               if (p.options) prop.options = p.options.map((o, i) => ({ label: o.label, value: toVal(o.value || o.label), displayOrder: i }));
               return prop;
             }),
