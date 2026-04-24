@@ -525,7 +525,7 @@ export default function FocuxAdapter() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target?.result;
+      const text = ev.target?.result as string;
       setJsonText(text);
       try {
         const parsed = JSON.parse(text);
@@ -547,7 +547,7 @@ export default function FocuxAdapter() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (ev) => {
-        const text = ev.target?.result;
+        const text = ev.target?.result as string;
         setJsonText(text);
         try {
           const parsed = JSON.parse(text);
