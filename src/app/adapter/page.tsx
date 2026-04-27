@@ -1,4 +1,4 @@
-import AdapterClient from "./AdapterClient.jsx";
+import AdapterClient from "./AdapterClient";
 
 export default function AdapterPage() {
   return <AdapterClient />;
