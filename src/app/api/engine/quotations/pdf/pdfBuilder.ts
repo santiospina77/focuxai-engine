@@ -474,6 +474,25 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
   }
 
   // ═══════════════════════════════════════════════════════
+  // OBSERVACIONES (if present)
+  // ═══════════════════════════════════════════════════════
+  const obsText = q.observaciones?.trim();
+  if (obsText) {
+    const obsLines = wrapText(obsText, R, 9, W - 32);
+    const obsBoxH = 28 + obsLines.length * 13;
+    needPage(obsBoxH + 12);
+
+    roundRect(page, MG, y, W, obsBoxH, 6, C.goldBg, C.borderLight, 0.5);
+    page.drawText('OBSERVACIONES', { x: MG + 14, y: y - 16, size: 7.5, font: B, color: C.gold });
+    let obsY = y - 32;
+    for (const line of obsLines) {
+      page.drawText(line, { x: MG + 14, y: obsY, size: 9, font: R, color: C.midnight });
+      obsY -= 13;
+    }
+    y -= obsBoxH + 12;
+  }
+
+  // ═══════════════════════════════════════════════════════
   // LEGAL
   // ═══════════════════════════════════════════════════════
   needPage(75);

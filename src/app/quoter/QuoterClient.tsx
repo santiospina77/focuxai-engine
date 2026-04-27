@@ -228,6 +228,7 @@ export default function QuoterClient() {
   const addAbono = (tipo) => setAbonos(prev=>[...prev, { ...tipo, valor:0, cuota:tipo.defaultMes, id:Date.now() }]);
   const updateAbono = (id, field, val) => setAbonos(prev=>prev.map(a=>a.id===id?{...a,[field]:val}:a));
   const removeAbono = (id) => setAbonos(prev=>prev.filter(a=>a.id!==id));
+  const [observaciones, setObservaciones] = useState("");
   const [tipoVenta, setTipoVenta] = useState(1);
   // Canal de atribución (for new contacts or contacts without canal)
   const [canalAtribucion, setCanalAtribucion] = useState("");
@@ -392,6 +393,7 @@ export default function QuoterClient() {
             paymentPlan: planRows.map(r => ({ concepto: r.concepto, mes: mesLabel(r.mes), pago: r.pago, tipo: r.tipo })),
             bonuses: abonos,
           },
+          observaciones: observaciones.trim() || undefined,
           config: {
             vigenciaDias: CONFIG.vigencia_cotizacion,
             separacionPct: CONFIG.separacion_pct,
@@ -436,7 +438,7 @@ export default function QuoterClient() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, cotNum, torre, macro, nombre, apellido, tipoDoc, cedula, email, phone, phoneCc, contactData, selectedUnit, selectedParking, selectedStorage, incluyeParq, incluyeDep, asesor, tipoVenta, subtotal, dtoComercial, dtoFinanciero, totalDescuentos, valorNeto, separacion, cuotaInicialTotal, numCuotas, valorCuota, saldoFinal, planRows, abonos, CONFIG]);
+  }, [submitting, cotNum, torre, macro, nombre, apellido, tipoDoc, cedula, email, phone, phoneCc, contactData, selectedUnit, selectedParking, selectedStorage, incluyeParq, incluyeDep, asesor, tipoVenta, subtotal, dtoComercial, dtoFinanciero, totalDescuentos, valorNeto, separacion, cuotaInicialTotal, numCuotas, valorCuota, saldoFinal, planRows, abonos, observaciones, CONFIG]);
 
   const allStats = useMemo(()=>{
     if(!macro) return { total:0, disp:0, bloq:0, vend:0 };
@@ -1081,6 +1083,20 @@ export default function QuoterClient() {
                 </div>
               </div>
             </div>
+            {/* Observaciones del asesor — opcional */}
+            <div style={{ ...S.card, padding:24, marginTop:16 }}>
+              <div style={{ ...S.label, marginBottom:12, fontSize:12, color:C.gold }}>Observaciones</div>
+              <textarea
+                style={{ ...S.input, minHeight:72, resize:"vertical", lineHeight:1.5 }}
+                placeholder="Notas adicionales del asesor sobre la cotización (opcional)"
+                value={observaciones}
+                onChange={e=>setObservaciones(e.target.value)}
+                maxLength={2000}
+              />
+              <div style={{ display:"flex", justifyContent:"flex-end", marginTop:4 }}>
+                <span style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{observaciones.length}/2000</span>
+              </div>
+            </div>
             <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
               <button style={S.btn("primary",!cedula||!nombre||!apellido)} disabled={!cedula||!nombre||!apellido} onClick={()=>setStep(5)}>Continuar →</button>
             </div>
@@ -1429,6 +1445,13 @@ export default function QuoterClient() {
                 </table>
               </div>
 
+              {/* Observaciones — only if present */}
+              {observaciones.trim() && (
+                <div style={{ background:C.goldBg, borderRadius:8, padding:"14px 18px", marginBottom:18, border:`1px solid ${C.borderLight}` }}>
+                  <div style={{ ...S.label, fontSize:9, color:C.gold, marginBottom:6 }}>Observaciones</div>
+                  <div style={{ fontSize:11, color:C.text, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", lineHeight:1.5, whiteSpace:"pre-wrap" }}>{observaciones.trim()}</div>
+                </div>
+              )}
               {/* Legal note */}
               <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", lineHeight:1.6, borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
                 <p style={{ margin:"0 0 6px" }}>* El cliente cancela el 100% de los Gastos de Registro e Impuestos de Registro y asume el 50% de los Derechos Notariales. Los precios y condiciones de venta pueden ser modificados sin previo aviso. Esta cotización no constituye reserva ni compromiso de venta.</p>

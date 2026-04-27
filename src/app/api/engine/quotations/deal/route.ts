@@ -308,6 +308,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     valor_adicionales_fx: 0,
     valor_exclusiones_fx: 0,
+
+    ...(quotation.observaciones ? { observaciones_venta_fx: String(quotation.observaciones).slice(0, 5000) } : {}),
   };
 
   // ── 4. Create Deal ──

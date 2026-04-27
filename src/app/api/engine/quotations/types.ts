@@ -74,6 +74,9 @@ export interface QuotationInput {
     }>;
   };
 
+  // Observaciones del asesor (texto libre, opcional)
+  observaciones?: string;
+
   // Config snapshot
   config: {
     vigenciaDias: number;
@@ -128,6 +131,7 @@ export interface QuotationRow {
   financed_pct: number;
   payment_plan: unknown[];
   bonuses: unknown[];
+  observaciones: string | null;
   config_snapshot: Record<string, unknown>;
   status: string;
   hubspot_deal_id: string | null;

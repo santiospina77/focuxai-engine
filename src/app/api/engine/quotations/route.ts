@@ -51,7 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── Validación mínima ──
-  const { clientId, cotNumber, buyer, property, advisor, financial, config } = body;
+  const { clientId, cotNumber, buyer, property, advisor, financial, config, observaciones } = body;
 
   if (!clientId?.trim()) return errorResponse(400, 'MISSING_CLIENT_ID', 'clientId es obligatorio.');
   if (!cotNumber?.trim()) return errorResponse(400, 'MISSING_COT_NUMBER', 'cotNumber es obligatorio.');
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         num_installments, installment_amount,
         financed_amount, financed_pct,
         payment_plan, bonuses, config_snapshot,
+        observaciones,
         expires_at
       ) VALUES (
         ${cotNumber}, ${clientId},
@@ -105,6 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ${financial.financedAmount}, ${financial.financedPct},
         ${JSON.stringify(financial.paymentPlan ?? [])}, ${JSON.stringify(financial.bonuses ?? [])},
         ${JSON.stringify(config ?? {})},
+        ${observaciones?.trim() || null},
         ${expiresAt.toISOString()}
       )
       RETURNING id, cot_number, created_at, expires_at
