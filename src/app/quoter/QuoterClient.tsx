@@ -1083,20 +1083,6 @@ export default function QuoterClient() {
                 </div>
               </div>
             </div>
-            {/* Observaciones del asesor — opcional */}
-            <div style={{ ...S.card, padding:24, marginTop:16 }}>
-              <div style={{ ...S.label, marginBottom:12, fontSize:12, color:C.gold }}>Observaciones</div>
-              <textarea
-                style={{ ...S.input, minHeight:72, resize:"vertical", lineHeight:1.5 }}
-                placeholder="Notas adicionales del asesor sobre la cotización (opcional)"
-                value={observaciones}
-                onChange={e=>setObservaciones(e.target.value)}
-                maxLength={2000}
-              />
-              <div style={{ display:"flex", justifyContent:"flex-end", marginTop:4 }}>
-                <span style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{observaciones.length}/2000</span>
-              </div>
-            </div>
             <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
               <button style={S.btn("primary",!cedula||!nombre||!apellido)} disabled={!cedula||!nombre||!apellido} onClick={()=>setStep(5)}>Continuar →</button>
             </div>
@@ -1250,6 +1236,20 @@ export default function QuoterClient() {
                       </div>
                     ))}
                   </div>
+                </div>
+                {/* Observaciones del asesor — opcional */}
+                <div style={{ ...S.card, padding:20 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <span style={{ ...S.label, fontSize:12, color:C.gold, margin:0 }}>Observaciones</span>
+                    <span style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{observaciones.length}/2000</span>
+                  </div>
+                  <textarea
+                    style={{ ...S.input, minHeight:72, resize:"vertical", lineHeight:1.5 }}
+                    placeholder="Notas adicionales del asesor sobre la cotización (opcional)"
+                    value={observaciones}
+                    onChange={e=>setObservaciones(e.target.value)}
+                    maxLength={2000}
+                  />
                 </div>
               </div>
 
