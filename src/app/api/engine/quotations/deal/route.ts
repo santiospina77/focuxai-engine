@@ -98,7 +98,8 @@ function slugifyFolderSegment(value: string, fallback: string): string {
 
 /**
  * Build a validated HubSpot folder path for quotation PDFs.
- * Format: /focux-quoter/{clientSlug}/cotizaciones/{macroSlug}/{YYYY-MM}/
+ * Format: /cotizaciones/{clientSlug}/{macroSlug}/{YYYY-MM}/
+ * Clean namespace — no Focux branding in client-facing URLs.
  */
 function buildHubSpotQuotationFolderPath(params: {
   readonly clientId: string;
@@ -117,7 +118,7 @@ function buildHubSpotQuotationFolderPath(params: {
     ));
   }
 
-  return ok(`/focux-quoter/${clientSlug}/cotizaciones/${macroSlug}/${yearMonth}/`);
+  return ok(`/cotizaciones/${clientSlug}/${macroSlug}/${yearMonth}/`);
 }
 
 /**
