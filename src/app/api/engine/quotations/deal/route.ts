@@ -269,15 +269,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     nombre_agrupacion_fx: `${quotation.torre_name} APT-${quotation.unit_number}`,
 
-    // ── Inmueble (duplicadas de Unidad → Deal para tarjeta CRM) ──
-    torre_deal_fx: quotation.torre_name,
-    numero_apto_deal_fx: String(quotation.unit_number),
-    tipologia_deal_fx: quotation.unit_tipologia || '',
-    piso_deal_fx: quotation.unit_piso ?? 0,
-    area_privada_deal_fx: quotation.unit_area ?? 0,
-    habitaciones_deal_fx: quotation.unit_habs ?? 0,
-    banos_deal_fx: quotation.unit_banos ?? 0,
-
     valor_apartamento_fx: quotation.unit_price,
     valor_parqueadero_fx: parkingArr.reduce((s, p) => s + (p.price || 0), 0),
     valor_deposito_fx: storageArr.reduce((s, d) => s + (d.price || 0), 0),
@@ -321,22 +312,51 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ...(quotation.observaciones ? { observaciones_venta_fx: String(quotation.observaciones).slice(0, 5000) } : {}),
   };
 
-  // ── 4. Create Deal ──
+  // ── Inmueble (duplicadas de Unidad → Deal para tarjeta CRM) ──
+  // Opcionales: si el portal no tiene estas propiedades, se omiten automáticamente
+  const inmuebleProps: Record<string, string | number> = {
+    torre_deal_fx: quotation.torre_name,
+    numero_apto_deal_fx: String(quotation.unit_number),
+    tipologia_deal_fx: quotation.unit_tipologia || '',
+    piso_deal_fx: quotation.unit_piso ?? 0,
+    area_privada_deal_fx: quotation.unit_area ?? 0,
+    habitaciones_deal_fx: quotation.unit_habs ?? 0,
+    banos_deal_fx: quotation.unit_banos ?? 0,
+  };
+
+  // ── 4. Create Deal (con retry defensivo) ──
   let hubspotDealId: string;
-  try {
-    const hsResponse = await fetch('https://api.hubapi.com/crm/v3/objects/deals', {
+  const allProps = { ...dealProperties, ...inmuebleProps };
+
+  const createDeal = async (props: Record<string, string | number>): Promise<Response> => {
+    return fetch('https://api.hubapi.com/crm/v3/objects/deals', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ properties: dealProperties }),
+      body: JSON.stringify({ properties: props }),
     });
+  };
 
+  try {
+    let hsResponse = await createDeal(allProps);
+
+    // Si falla por PROPERTY_DOESNT_EXIST, reintentar sin propiedades de inmueble
     if (!hsResponse.ok) {
       const errBody = await hsResponse.text();
-      console.error(`[deal] HubSpot create deal error: ${hsResponse.status} — ${errBody}`);
-      return errorResponse(502, 'HUBSPOT_DEAL_CREATE_ERROR', `HubSpot ${hsResponse.status}: ${errBody}`);
+      if (errBody.includes('PROPERTY_DOESNT_EXIST') && Object.keys(inmuebleProps).some(k => errBody.includes(k))) {
+        console.warn(`[deal] Inmueble properties not found in portal — retrying without them`);
+        hsResponse = await createDeal(dealProperties);
+        if (!hsResponse.ok) {
+          const retryErr = await hsResponse.text();
+          console.error(`[deal] HubSpot create deal error (retry): ${hsResponse.status} — ${retryErr}`);
+          return errorResponse(502, 'HUBSPOT_DEAL_CREATE_ERROR', `HubSpot ${hsResponse.status}: ${retryErr}`);
+        }
+      } else {
+        console.error(`[deal] HubSpot create deal error: ${hsResponse.status} — ${errBody}`);
+        return errorResponse(502, 'HUBSPOT_DEAL_CREATE_ERROR', `HubSpot ${hsResponse.status}: ${errBody}`);
+      }
     }
 
     const hsData = await hsResponse.json();
