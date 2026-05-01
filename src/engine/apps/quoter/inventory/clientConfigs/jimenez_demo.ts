@@ -19,12 +19,28 @@
 
 import type { ClientOverlayConfig, CanalOption } from '../types';
 import type { HubSpotCustomObjectTypeIds } from '@/engine/connectors/crm/hubspot/types';
+import type { TypologyRule } from '../typologyTypes';
+import { PORTO_SABBIA_SUITE_T1_RULES } from './portoSabbiaTypologyRules';
 
 export interface ClientInventoryConfig {
   readonly overlay: ClientOverlayConfig;
   readonly objectTypeIds: HubSpotCustomObjectTypeIds;
   readonly canalesAtribucion: readonly CanalOption[];
   readonly hubspotTokenEnvVar: string;
+  /**
+   * Reglas de tipología por proyecto.
+   * Indexadas por sincoId del proyecto.
+   * Si un proyecto no tiene reglas → fail hard.
+   * @since v2.0 Multi-proyecto
+   */
+  readonly typologyRules: Readonly<Record<number, readonly TypologyRule[]>>;
+  /**
+   * Hostnames permitidos para fetch de assets (SSRF protection).
+   * Se pasa a fetchAssetSafe como allowedHosts.
+   * Si vacío en producción → fail hard.
+   * @since v2.1 — Architect review: no hardcodear hosts
+   */
+  readonly assetAllowedHosts: readonly string[];
 }
 
 export const JIMENEZ_DEMO_CONFIG: ClientInventoryConfig = {
@@ -89,4 +105,26 @@ export const JIMENEZ_DEMO_CONFIG: ClientInventoryConfig = {
   ],
 
   hubspotTokenEnvVar: 'HUBSPOT_JIMENEZ_DEMO_PRIVATE_APP_TOKEN',
+
+  // ═══════════════════════════════════════════════════════════
+  // Typology Rules por proyecto (v2.1 — constante compartida)
+  // Ambos proyectos comparten las mismas 17 tipologías (confirmado con negocio).
+  // Referencia compartida → WeakMap cache funciona con una sola computación.
+  // ═══════════════════════════════════════════════════════════
+
+  typologyRules: {
+    360: PORTO_SABBIA_SUITE_T1_RULES,  // Porto Sabbia Residencial
+    361: PORTO_SABBIA_SUITE_T1_RULES,  // Porto Sabbia Suite
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // Asset allowed hosts (SSRF protection — v2.1)
+  // Hostnames permitidos para fetch de renders/planos.
+  // En Fase A: assets locales servidos por Vercel.
+  // En Fase B: agregar HubSpot File Manager.
+  // ═══════════════════════════════════════════════════════════
+  assetAllowedHosts:
+    process.env.NODE_ENV === 'production'
+      ? ['focuxai-engine.vercel.app']
+      : ['localhost', '127.0.0.1'],
 };

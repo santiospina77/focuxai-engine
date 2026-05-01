@@ -26,6 +26,12 @@ export interface InventoryResponse {
   readonly agrupaciones: Readonly<Record<number, readonly GroupingRecord[]>>;
   /** Canales de atribución dinámicos de HubSpot */
   readonly canalesAtribucion: readonly CanalOption[];
+  /**
+   * Unidades y agrupaciones excluidas dinámicamente durante el mapping.
+   * Motivos: área sin regla de tipología, tipo no reconocido, datos inválidos.
+   * Diferente de excludedUnits en overlay (cuarentena estática por config).
+   */
+  readonly quarantinedItems: readonly QuarantinedInventoryItem[];
   /** Counters de fallbacks y diagnóstico */
   readonly warnings: WarningsDto;
 }
@@ -34,6 +40,34 @@ export interface InventoryErrorResponse {
   readonly error: string;
   readonly message: string;
   readonly timestamp: string;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Quarantine — Items excluidos dinámicamente durante mapping
+// ═══════════════════════════════════════════════════════════
+
+export type QuarantineEntityType = 'unit' | 'grouping';
+
+export type QuarantineCode =
+  | 'UNMAPPED_AREA'
+  | 'INVALID_TYPE'
+  | 'FALLBACK_ERROR'
+  | 'INVALID_VALUE'
+  | 'MISSING_FIELD';
+
+/**
+ * Item excluido dinámicamente durante el mapping de inventario.
+ * Diferente de ExcludedUnit (cuarentena estática por config en overlay).
+ */
+export interface QuarantinedInventoryItem {
+  readonly entityType: QuarantineEntityType;
+  readonly sincoId: number;
+  readonly projectId: number;
+  readonly nombre: string;
+  readonly code: QuarantineCode;
+  readonly reason: string;
+  readonly area?: number;
+  readonly source: 'typology_resolution' | 'inventory_validation' | 'grouping_validation';
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -602,6 +602,8 @@ export default function FocuxAdapter() {
         name: prop.name, label: prop.label, type: prop.type, fieldType: prop.fieldType,
         groupName: prop.group || "focux",
       };
+      // v4.2 Fix: Propiedades con inForms=true deben ser visibles en formularios HubSpot
+      if (prop.inForms) body.formField = true;
       if (prop.options && prop.options.length > 0) {
         body.options = prop.options.map((o, i) => ({ label: o.label, value: o.value, displayOrder: i }));
       }

@@ -6,40 +6,29 @@
  *
  * FUENTES DE DATOS:
  *   - HubSpot Custom Objects = estructura canónica (macros, proyectos, joins, conteos)
- *   - ClientOverlayConfig = config operativa por sincoId:
- *       - codigo, pctSep, pctCI, tipo (por proyecto)
- *       - agrupacionesPreestablecidas (config operativa, NO dato de Sinco)
- *       - zona (por macro)
- *       - excludedUnits (cuarentena por dato maestro inválido en fuente)
+ *   - ClientOverlayConfig = config operativa por sincoId
  *   - canalesAtribucion = inyectados por el caller
+ *   - typologyRules = reglas de tipología por proyecto
  *
  * CUARENTENA:
- *   - excludedUnits en overlay: unidades con dato maestro inválido (ej: area=0 en Sinco)
- *   - Se excluyen ANTES del join y de selectableItems
- *   - Las agrupaciones cuyo id_unidad_principal_sinco_fx apunte a unidad excluida
- *     también se excluyen (cascada)
- *   - No se infiere ni inventa data. Corrección debe hacerse en la fuente.
- *   - Telemetría: warnings.excludedUnits + warnings.excludedGroupings
+ *   Estática (overlay.excludedUnits): unidades con dato maestro inválido en fuente.
+ *   Dinámica (quarantinedItems): unidades/agrupaciones cuyo área no matchea
+ *     regla de tipología, tipo desconocido, o error de fallback.
+ *   Ambas se excluyen de selectableItems. Ambas se reportan en el response.
  *
- * FAIL HARD rules:
- *   - overlay.clientId !== input.clientId → fail hard
- *   - Proyecto sin overlay config → fail hard (codigo obligatorio)
- *   - Unidad sin normalizeUnitType match → fail hard
- *   - APT con area <= 0 (no cuarentenada) → fail hard
- *   - Cualquier unidad disponible con precio <= 0 → fail hard
- *   - Agrupación disponible con valor_total_neto <= 0 o nombre vacío → fail hard
- *   - unmappedArea en cualquier APT → fail hard
- *   - IDs obligatorios <= 0 → fail hard (via requiredNum)
- *   - Nombres obligatorios vacíos → fail hard (via requiredStr)
- *   - overlay.codigo vacío → fail hard
- *   - JOIN errors → propagated from joinGroupingsWithUnits
+ * Retorna Result<InventoryResponse, EngineError> — nunca throw.
  *
- * PROPIEDADES: 23 accedidas de HubSpot, todas verificadas contra JSON v17.
- * (agrupaciones_preestablecidas_fx ya NO se lee de HubSpot — vive en overlay)
+ * @since v2.0.0 — Multi-proyecto (Fase A)
+ * @since v2.1.0 — Architect review fixes
+ * @since v2.2.0 — Migrado a Result, cero throw (Architect review #4)
  */
 
 import type { ICrmAdapter, CrmRecord } from '@/engine/interfaces/ICrmAdapter';
 import type { Logger } from '@/engine/core/logging/Logger';
+import type { Result } from '@/engine/core/types/Result';
+import type { EngineError } from '@/engine/core/errors/EngineError';
+import { ok, err } from '@/engine/core/types/Result';
+import { ValidationError } from '@/engine/core/errors/EngineError';
 
 import type {
   InventoryResponse,
@@ -51,6 +40,7 @@ import type {
   CanalOption,
   WarningsDto,
   ClientOverlayConfig,
+  QuarantinedInventoryItem,
 } from './types';
 
 import { fetchAllPages } from './fetchAllPages';
@@ -58,6 +48,7 @@ import { joinGroupingsWithUnits } from './joinGroupingWithUnit';
 import { normalizeUnitType } from './normalizeUnitType';
 import { parseUnitName } from './parseUnitName';
 import { resolveUnitFallbacks } from './resolveUnitFallbacks';
+import type { TypologyRule } from './typologyTypes';
 
 // ═══════════════════════════════════════════════════════════
 // Input
@@ -69,13 +60,12 @@ export interface MapInventoryInput {
   readonly clientId: string;
   readonly overlay: ClientOverlayConfig;
   readonly canalesAtribucion: readonly CanalOption[];
-}
-
-export class InventoryMappingError extends Error {
-  constructor(message: string, public readonly projectSincoId?: number) {
-    super(message);
-    this.name = 'InventoryMappingError';
-  }
+  /**
+   * Reglas de tipología por proyecto, indexadas por sincoId.
+   * Si un proyecto no tiene reglas → fail hard.
+   * @since v2.1 — Architect review: Result propagation
+   */
+  readonly typologyRules: Readonly<Record<number, readonly TypologyRule[]>>;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -104,7 +94,7 @@ const AGRUPACION_PROPS = [
 ] as const;
 
 // ═══════════════════════════════════════════════════════════
-// Helpers
+// Helpers — nunca throw
 // ═══════════════════════════════════════════════════════════
 
 function str(r: CrmRecord, p: string): string {
@@ -123,21 +113,16 @@ function bool(r: CrmRecord, p: string): boolean | null {
   return null;
 }
 
-function requiredNum(r: CrmRecord, p: string, ctx: string, projId?: number): number {
-  const raw = r.properties[p];
-  const v = Number(raw);
-  if (isNaN(v) || v <= 0) {
-    throw new InventoryMappingError(`${ctx}: ${p} obligatorio > 0, valor="${raw}". FAIL HARD.`, projId);
-  }
-  return v;
+/** Retorna number > 0 o null. Nunca throw. */
+function tryNum(r: CrmRecord, p: string): number | null {
+  const v = Number(r.properties[p]);
+  return (isNaN(v) || v <= 0) ? null : v;
 }
 
-function requiredStr(r: CrmRecord, p: string, ctx: string, projId?: number): string {
+/** Retorna string no vacío o null. Nunca throw. */
+function tryStr(r: CrmRecord, p: string): string | null {
   const v = String(r.properties[p] ?? '').trim();
-  if (v.length === 0) {
-    throw new InventoryMappingError(`${ctx}: ${p} obligatorio, está vacío. FAIL HARD.`, projId);
-  }
-  return v;
+  return v.length === 0 ? null : v;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -154,16 +139,19 @@ const DEFAULTS = {
 } as const;
 
 // ═══════════════════════════════════════════════════════════
-// Main mapper
+// Main mapper — retorna Result, nunca throw
 // ═══════════════════════════════════════════════════════════
 
-export async function mapInventoryToDto(input: MapInventoryInput): Promise<InventoryResponse> {
-  const { adapter, logger, clientId, overlay, canalesAtribucion } = input;
+export async function mapInventoryToDto(
+  input: MapInventoryInput,
+): Promise<Result<InventoryResponse, EngineError>> {
+  const { adapter, logger, clientId, overlay, canalesAtribucion, typologyRules } = input;
 
   if (overlay.clientId !== clientId) {
-    throw new InventoryMappingError(
-      `overlay.clientId="${overlay.clientId}" ≠ clientId="${clientId}". FAIL HARD.`,
-    );
+    return err(ValidationError.mappingFailed(
+      `overlay.clientId="${overlay.clientId}" ≠ clientId="${clientId}"`,
+      { clientId },
+    ));
   }
 
   // ── Build exclusion set from overlay ──
@@ -187,12 +175,18 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
     fetchAllPages(adapter, { objectType: 'agrupacion', properties: [...AGRUPACION_PROPS] }, logger),
   ]);
 
-  const macroRecords = macroResult.records;
-  const proyectoRecords = proyectoResult.records;
-  const unidadRecords = unidadResult.records;
-  const agrupacionRecords = agrupacionResult.records;
-  const totalPages = macroResult.pagesConsumed + proyectoResult.pagesConsumed
-    + unidadResult.pagesConsumed + agrupacionResult.pagesConsumed;
+  // Propagar errores de fetch
+  if (macroResult.isErr()) return err(macroResult.error);
+  if (proyectoResult.isErr()) return err(proyectoResult.error);
+  if (unidadResult.isErr()) return err(unidadResult.error);
+  if (agrupacionResult.isErr()) return err(agrupacionResult.error);
+
+  const macroRecords = macroResult.value.records;
+  const proyectoRecords = proyectoResult.value.records;
+  const unidadRecords = unidadResult.value.records;
+  const agrupacionRecords = agrupacionResult.value.records;
+  const totalPages = macroResult.value.pagesConsumed + proyectoResult.value.pagesConsumed
+    + unidadResult.value.pagesConsumed + agrupacionResult.value.pagesConsumed;
 
   logger.info({
     macros: macroRecords.length, proyectos: proyectoRecords.length,
@@ -202,7 +196,10 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
   // ── Step 2: Index by parent IDs ──
   const projectsByMacro = new Map<number, CrmRecord[]>();
   for (const p of proyectoRecords) {
-    const mid = requiredNum(p, 'id_macro_sinco_fx', `Proyecto "${str(p, 'nombre_fx')}"`);
+    const mid = tryNum(p, 'id_macro_sinco_fx');
+    if (mid === null) {
+      return err(ValidationError.missingField('id_macro_sinco_fx', `Proyecto "${str(p, 'nombre_fx')}"`));
+    }
     const list = projectsByMacro.get(mid) ?? [];
     list.push(p);
     projectsByMacro.set(mid, list);
@@ -210,7 +207,10 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
 
   const unitsByProject = new Map<number, CrmRecord[]>();
   for (const u of unidadRecords) {
-    const pid = requiredNum(u, 'id_proyecto_sinco_fx', `Unidad "${str(u, 'nombre_fx')}"`);
+    const pid = tryNum(u, 'id_proyecto_sinco_fx');
+    if (pid === null) {
+      return err(ValidationError.missingField('id_proyecto_sinco_fx', `Unidad "${str(u, 'nombre_fx')}"`));
+    }
     const list = unitsByProject.get(pid) ?? [];
     list.push(u);
     unitsByProject.set(pid, list);
@@ -218,7 +218,10 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
 
   const agrupsByProject = new Map<number, CrmRecord[]>();
   for (const a of agrupacionRecords) {
-    const pid = requiredNum(a, 'id_proyecto_sinco_fx', `Agrupación "${str(a, 'nombre_fx')}"`);
+    const pid = tryNum(a, 'id_proyecto_sinco_fx');
+    if (pid === null) {
+      return err(ValidationError.missingField('id_proyecto_sinco_fx', `Agrupación "${str(a, 'nombre_fx')}"`));
+    }
     const list = agrupsByProject.get(pid) ?? [];
     list.push(a);
     agrupsByProject.set(pid, list);
@@ -229,6 +232,7 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
   let wJoinsFK = 0, wJoinsNombre = 0;
   let wExcludedGroupings = 0;
 
+  const quarantinedItems: QuarantinedInventoryItem[] = [];
   const allUnidades: Record<number, SelectableUnit[]> = {};
   const allParking: Record<number, SelectableUnit[]> = {};
   const allStorage: Record<number, SelectableUnit[]> = {};
@@ -236,23 +240,47 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
   const macros: MacroDto[] = [];
 
   for (const macroRec of macroRecords) {
-    const macroId = requiredNum(macroRec, 'id_sinco_fx', `Macro "${str(macroRec, 'nombre_fx')}"`);
-    const macroNombre = requiredStr(macroRec, 'nombre_fx', `Macro sincoId=${macroId}`);
+    const macroId = tryNum(macroRec, 'id_sinco_fx');
+    if (macroId === null) {
+      return err(ValidationError.missingField('id_sinco_fx', `Macro "${str(macroRec, 'nombre_fx')}"`));
+    }
+    const macroNombre = tryStr(macroRec, 'nombre_fx');
+    if (macroNombre === null) {
+      return err(ValidationError.missingField('nombre_fx', `Macro sincoId=${macroId}`));
+    }
     const macroOverlay = overlay.macros[macroId];
     const proyectos: ProjectDto[] = [];
 
     for (const projRec of (projectsByMacro.get(macroId) ?? [])) {
-      const projId = requiredNum(projRec, 'id_sinco_fx', `Proyecto "${str(projRec, 'nombre_fx')}"`);
-      const projNombre = requiredStr(projRec, 'nombre_fx', `Proyecto sincoId=${projId}`, projId);
+      const projId = tryNum(projRec, 'id_sinco_fx');
+      if (projId === null) {
+        return err(ValidationError.missingField('id_sinco_fx', `Proyecto "${str(projRec, 'nombre_fx')}"`));
+      }
+      const projNombre = tryStr(projRec, 'nombre_fx');
+      if (projNombre === null) {
+        return err(ValidationError.missingField('nombre_fx', `Proyecto sincoId=${projId}`, { projectId: projId }));
+      }
       const ctx = `Proyecto ${projId} ("${projNombre}")`;
 
       // Overlay — obligatorio
       const ov = overlay.projects[projId];
       if (!ov) {
-        throw new InventoryMappingError(`${ctx}: sin overlay config. codigo obligatorio. FAIL HARD.`, projId);
+        return err(ValidationError.mappingFailed(
+          `${ctx}: sin overlay config. codigo obligatorio.`,
+          { projectId: projId },
+        ));
       }
       if (!ov.codigo || ov.codigo.trim().length === 0) {
-        throw new InventoryMappingError(`${ctx}: overlay.codigo vacío. FAIL HARD.`, projId);
+        return err(ValidationError.missingField('codigo', ctx, { projectId: projId }));
+      }
+
+      // Typology rules — obligatorias por proyecto
+      const projRules = typologyRules[projId];
+      if (!projRules || projRules.length === 0) {
+        return err(ValidationError.mappingFailed(
+          `${ctx}: sin typologyRules configuradas`,
+          { projectId: projId },
+        ));
       }
 
       // agrupacionesPreestablecidas — config operativa, vive en overlay
@@ -291,7 +319,6 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
       }
 
       // ── Filter agrupaciones: cascade quarantine to agrupaciones ──
-      // If id_unidad_principal_sinco_fx points to an excluded unit, exclude the agrupación too
       const projAgrupsRaw = agrupsByProject.get(projId) ?? [];
       const projAgrupsFiltered: CrmRecord[] = [];
       for (const a of projAgrupsRaw) {
@@ -314,8 +341,14 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
       const allAptAreas: number[] = [];
 
       for (const uRec of projUnitsFiltered) {
-        const uId = requiredNum(uRec, 'id_sinco_fx', `Unidad "${str(uRec, 'nombre_fx')}" proj ${projId}`, projId);
-        const uNombre = requiredStr(uRec, 'nombre_fx', `Unidad sincoId=${uId} proj ${projId}`, projId);
+        const uId = tryNum(uRec, 'id_sinco_fx');
+        if (uId === null) {
+          return err(ValidationError.missingField('id_sinco_fx', `Unidad "${str(uRec, 'nombre_fx')}" proj ${projId}`, { projectId: projId }));
+        }
+        const uNombre = tryStr(uRec, 'nombre_fx');
+        if (uNombre === null) {
+          return err(ValidationError.missingField('nombre_fx', `Unidad sincoId=${uId} proj ${projId}`, { projectId: projId }));
+        }
         const uEstado = str(uRec, 'estado_fx').toLowerCase();
 
         const tipoNorm = normalizeUnitType(
@@ -323,9 +356,14 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
           num(uRec, 'tipo_unidad_sinco_fx') || null,
         );
         if (tipoNorm === null) {
-          throw new InventoryMappingError(
-            `Unidad "${uNombre}" (${uId}) proj ${projId}: tipo no matchea. FAIL HARD.`, projId,
-          );
+          // Quarantine: tipo no reconocido
+          quarantinedItems.push({
+            entityType: 'unit', sincoId: uId, projectId: projId, nombre: uNombre,
+            code: 'INVALID_TYPE',
+            reason: `tipo_unidad no matchea ninguna categoría conocida`,
+            source: 'inventory_validation',
+          });
+          continue;
         }
 
         const parsed = parseUnitName(uNombre);
@@ -333,25 +371,50 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
         let habs = 0;
         let banos = 0;
         let area = num(uRec, 'area_construida_fx');
-        let precio = num(uRec, 'precio_lista_fx');
+        const precio = num(uRec, 'precio_lista_fx');
 
         if (tipoNorm === 'APT') {
           if (area <= 0) {
-            throw new InventoryMappingError(
-              `APT "${uNombre}" (${uId}) proj ${projId}: area=${area}. FAIL HARD.`, projId,
-            );
+            // Quarantine: area inválida
+            quarantinedItems.push({
+              entityType: 'unit', sincoId: uId, projectId: projId, nombre: uNombre,
+              code: 'INVALID_VALUE', area,
+              reason: `area_construida_fx=${area} inválida`,
+              source: 'inventory_validation',
+            });
+            continue;
           }
           if (uEstado === 'disponible' && precio <= 0) {
-            throw new InventoryMappingError(
-              `APT "${uNombre}" (${uId}) proj ${projId}: precio=${precio} en disponible. FAIL HARD.`, projId,
-            );
+            quarantinedItems.push({
+              entityType: 'unit', sincoId: uId, projectId: projId, nombre: uNombre,
+              code: 'INVALID_VALUE', area,
+              reason: `precio_lista_fx=${precio} inválido para unidad disponible`,
+              source: 'inventory_validation',
+            });
+            continue;
           }
-          const fb = resolveUnitFallbacks(area, undefined, num(uRec, 'alcobas_fx') || null, num(uRec, 'banos_fx') || null);
+          const fbResult = resolveUnitFallbacks(area, undefined, num(uRec, 'alcobas_fx') || null, num(uRec, 'banos_fx') || null, projRules);
+          if (fbResult.isErr()) {
+            // Quarantine: error en resolución de fallbacks
+            quarantinedItems.push({
+              entityType: 'unit', sincoId: uId, projectId: projId, nombre: uNombre,
+              code: 'FALLBACK_ERROR', area,
+              reason: fbResult.error.message,
+              source: 'typology_resolution',
+            });
+            continue;
+          }
+          const fb = fbResult.value;
           if (fb.unmappedArea) {
             wUnmapped++;
-            throw new InventoryMappingError(
-              `APT "${uNombre}" (${uId}) proj ${projId}: area=${area} unmapped. FAIL HARD.`, projId,
-            );
+            // Quarantine: área no matchea regla → continue, no abort
+            quarantinedItems.push({
+              entityType: 'unit', sincoId: uId, projectId: projId, nombre: uNombre,
+              code: 'UNMAPPED_AREA', area,
+              reason: `area=${area} no matchea ninguna regla de tipología`,
+              source: 'typology_resolution',
+            });
+            continue;
           }
           tipologia = fb.tipologia;
           habs = fb.habs;
@@ -363,9 +426,13 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
         } else {
           // PARQ / DEP
           if (uEstado === 'disponible' && precio <= 0) {
-            throw new InventoryMappingError(
-              `${tipoNorm} "${uNombre}" (${uId}) proj ${projId}: precio=${precio} en disponible. FAIL HARD.`, projId,
-            );
+            quarantinedItems.push({
+              entityType: 'unit', sincoId: uId, projectId: projId, nombre: uNombre,
+              code: 'INVALID_VALUE',
+              reason: `precio_lista_fx=${precio} inválido para ${tipoNorm} disponible`,
+              source: 'inventory_validation',
+            });
+            continue;
           }
         }
 
@@ -393,7 +460,8 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
       allStorage[projId] = storUnits;
 
       // ── Agrupaciones top-level (from filtered list) ──
-      const groupingRecords: GroupingRecord[] = projAgrupsFiltered.map((a) => {
+      const groupingRecords: GroupingRecord[] = [];
+      for (const a of projAgrupsFiltered) {
         const aC = `Agrupación "${str(a, 'nombre_fx')}" proj ${projId}`;
         const aEstado = str(a, 'estado_fx').toLowerCase();
         const aNombre = str(a, 'nombre_fx');
@@ -401,25 +469,41 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
 
         if (aEstado === 'disponible') {
           if (!aNombre || aNombre.trim().length === 0) {
-            throw new InventoryMappingError(`${aC}: nombre vacío en disponible. FAIL HARD.`, projId);
+            return err(ValidationError.missingField('nombre_fx', aC, { projectId: projId }));
           }
           if (aVTN <= 0) {
-            throw new InventoryMappingError(`${aC}: valor_total_neto=${aVTN} en disponible. FAIL HARD.`, projId);
+            const aSincoIdQ = num(a, 'id_sinco_fx');
+            quarantinedItems.push({
+              entityType: 'grouping', sincoId: aSincoIdQ, projectId: projId, nombre: aNombre,
+              code: 'INVALID_VALUE',
+              reason: `valor_total_neto_fx=${aVTN} inválido para agrupación disponible`,
+              source: 'grouping_validation',
+            });
+            continue;
           }
         }
 
-        return {
+        const aSincoId = tryNum(a, 'id_sinco_fx');
+        if (aSincoId === null) {
+          return err(ValidationError.missingField('id_sinco_fx', aC, { projectId: projId }));
+        }
+        const aIdProyecto = tryNum(a, 'id_proyecto_sinco_fx');
+        if (aIdProyecto === null) {
+          return err(ValidationError.missingField('id_proyecto_sinco_fx', aC, { projectId: projId }));
+        }
+
+        groupingRecords.push({
           hubspotId: a.id,
-          sincoId: requiredNum(a, 'id_sinco_fx', aC, projId),
+          sincoId: aSincoId,
           nombre: aNombre,
           estado: aEstado,
           valorSubtotal: num(a, 'valor_subtotal_fx'),
           valorDescuento: num(a, 'valor_descuento_fx'),
           valorTotalNeto: aVTN,
           idUnidadPrincipal: num(a, 'id_unidad_principal_sinco_fx'),
-          idProyecto: requiredNum(a, 'id_proyecto_sinco_fx', aC, projId),
-        };
-      });
+          idProyecto: aIdProyecto,
+        });
+      }
       allAgrupaciones[projId] = groupingRecords;
 
       // ── selectableItems (uses filtered lists) ──
@@ -427,16 +511,41 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
 
       if (selectionMode === 'agrupacion') {
         const jr = joinGroupingsWithUnits(projAgrupsFiltered, projUnitsFiltered, projId, agrupPreest, logger);
-        wJoinsFK += jr.stats.joinedByFK;
-        wJoinsNombre += jr.stats.joinedByNombre;
+        if (jr.isErr()) return err(jr.error);
 
-        selectableItems = jr.joined.map((j) => {
+        wJoinsFK += jr.value.stats.joinedByFK;
+        wJoinsNombre += jr.value.stats.joinedByNombre;
+
+        selectableItems = [];
+        for (const j of jr.value.joined) {
           const uRec = j.unidadPrincipal;
           const aRec = j.agrupacion;
           const aNombre = str(aRec, 'nombre_fx');
           const aParsed = parseUnitName(aNombre);
           const area = num(uRec, 'area_construida_fx');
-          const fb = resolveUnitFallbacks(area, undefined, num(uRec, 'alcobas_fx') || null, num(uRec, 'banos_fx') || null);
+          const fbResult = resolveUnitFallbacks(area, undefined, num(uRec, 'alcobas_fx') || null, num(uRec, 'banos_fx') || null, projRules);
+          if (fbResult.isErr()) {
+            // Quarantine: error en resolución
+            quarantinedItems.push({
+              entityType: 'grouping', sincoId: num(aRec, 'id_sinco_fx'), projectId: projId, nombre: aNombre,
+              code: 'FALLBACK_ERROR', area,
+              reason: fbResult.error.message,
+              source: 'grouping_validation',
+            });
+            continue;
+          }
+          const fb = fbResult.value;
+          if (fb.unmappedArea) {
+            wUnmapped++;
+            // Quarantine: área no matchea regla
+            quarantinedItems.push({
+              entityType: 'grouping', sincoId: num(aRec, 'id_sinco_fx'), projectId: projId, nombre: aNombre,
+              code: 'UNMAPPED_AREA', area,
+              reason: `area=${area} no matchea ninguna regla de tipología`,
+              source: 'grouping_validation',
+            });
+            continue;
+          }
 
           // piso físico from unit principal, not agrupación
           let piso = num(uRec, 'piso_fx');
@@ -448,12 +557,16 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
           const aEstado = str(aRec, 'estado_fx').toLowerCase();
           const aPrecio = num(aRec, 'valor_total_neto_fx');
           if (aEstado === 'disponible' && aPrecio <= 0) {
-            throw new InventoryMappingError(
-              `Agrupación "${aNombre}" proj ${projId}: valor_total_neto=${aPrecio} en disponible. FAIL HARD.`, projId,
-            );
+            quarantinedItems.push({
+              entityType: 'grouping', sincoId: num(aRec, 'id_sinco_fx'), projectId: projId, nombre: aNombre,
+              code: 'INVALID_VALUE',
+              reason: `valor_total_neto_fx=${aPrecio} inválido para agrupación disponible`,
+              source: 'grouping_validation',
+            });
+            continue;
           }
 
-          return {
+          selectableItems.push({
             hubspotId: aRec.id,
             sincoId: num(aRec, 'id_sinco_fx'),
             nombre: aNombre,
@@ -468,8 +581,8 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
             estado: aEstado,
             tipo_inmueble: 'APT' as const,
             esPrincipal: true,
-          } satisfies SelectableUnit;
-        });
+          } satisfies SelectableUnit);
+        }
       } else {
         selectableItems = aptUnits;
       }
@@ -522,9 +635,9 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
     excludedGroupings: wExcludedGroupings,
   };
 
-  logger.info({ warnings }, 'mapInventoryToDto: completed');
+  logger.info({ warnings, quarantinedCount: quarantinedItems.length }, 'mapInventoryToDto: completed');
 
-  return {
+  return ok({
     clientId,
     timestamp: new Date().toISOString(),
     macros,
@@ -533,6 +646,7 @@ export async function mapInventoryToDto(input: MapInventoryInput): Promise<Inven
     storage: allStorage,
     agrupaciones: allAgrupaciones,
     canalesAtribucion,
+    quarantinedItems,
     warnings,
-  };
+  });
 }

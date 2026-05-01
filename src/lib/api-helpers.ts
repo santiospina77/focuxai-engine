@@ -34,20 +34,24 @@ export function jsonError(error: EngineError): Response {
 function httpStatusForCode(code: string): number {
   // 4xx — error del caller
   if (code === 'CONFIG_CLIENT_NOT_FOUND') return 404;
-  if (code === 'ERP_RESOURCE_NOT_FOUND' || code === 'CRM_RESOURCE_NOT_FOUND') return 404;
-  if (code === 'AUTH_INVALID_CREDENTIALS') return 401;
+  if (code === 'ERP_RESOURCE_NOT_FOUND' || code === 'RESOURCE_CRM_NOT_FOUND') return 404;
+  if (code === 'AUTH_INVALID_CREDENTIALS' || code === 'AUTH_CRM_UNAUTHORIZED') return 401;
   if (code === 'CONFIG_MISSING_SECRET') return 401;
-  if (code === 'ERP_VALIDATION_ERROR' || code === 'CRM_VALIDATION_ERROR') return 400;
-  if (code === 'CRM_DUPLICATE_RECORD') return 409;
-  if (code === 'ERP_RATE_LIMITED' || code === 'CRM_RATE_LIMITED') return 429;
+  if (code === 'ERP_VALIDATION_ERROR' || code === 'VALIDATION_CRM_DUPLICATE_DETECTED') return 400;
+  if (code === 'RESOURCE_CRM_DUPLICATE_RECORD') return 409;
+  if (code === 'ERP_RATE_LIMITED' || code === 'RESOURCE_CRM_RATE_LIMITED') return 429;
+  if (code === 'RESOURCE_CRM_REQUEST_REJECTED') return 400;
   if (code === 'ERP_BUSINESS_RULE_VIOLATION') return 422;
   if (code === 'ERP_SALES_PERIOD_CLOSED') return 422;
 
   // 5xx — error del Engine o upstream
   if (code === 'ERP_TIMEOUT' || code === 'ERP_NETWORK_ERROR') return 502;
-  if (code === 'CRM_NETWORK_ERROR') return 502;
-  if (code === 'ERP_SERVER_ERROR' || code === 'CRM_SERVER_ERROR') return 502;
-  if (code === 'ERP_SCHEMA_MISMATCH') return 502;
+  if (code === 'RESOURCE_CRM_NETWORK_ERROR' || code === 'RESOURCE_CRM_TIMEOUT') return 502;
+  if (code === 'ERP_SERVER_ERROR' || code === 'RESOURCE_CRM_SERVER_ERROR') return 502;
+  if (code === 'ERP_SCHEMA_MISMATCH' || code === 'RESOURCE_CRM_SCHEMA_MISMATCH') return 502;
+
+  // RESOURCE_CRM_* genéricos que no matchearon arriba
+  if (code.startsWith('RESOURCE_CRM_')) return 502;
 
   return 500;
 }

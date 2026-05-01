@@ -5,20 +5,27 @@
  * Fallback defensivo: match exacto único por nombre dentro del mismo proyecto
  *
  * SOLO unidades APT son candidatas a unidad principal.
- * Si id_unidad_principal_sinco_fx apunta a un PARQ/DEP → FAIL HARD.
+ * Si id_unidad_principal_sinco_fx apunta a un PARQ/DEP → return err.
  *
  * FAIL HARD rules (para agrupaciones_preestablecidas = true):
- *   - Agrupación DISPONIBLE sin match por FK NI por nombre → FAIL HARD del proyecto
- *   - Agrupación DISPONIBLE con 2+ matches por nombre → FAIL HARD del proyecto
+ *   - Agrupación DISPONIBLE sin match por FK NI por nombre → return err
+ *   - Agrupación DISPONIBLE con 2+ matches por nombre → return err
  *   - Agrupación NO disponible (vendida/separada) sin match → excluir silenciosamente
- *   - Agrupación de OTRO proyecto → FAIL HARD (inconsistencia del dataset)
- *   - Unidad principal no es APT → FAIL HARD
+ *   - Agrupación de OTRO proyecto → return err (inconsistencia del dataset)
+ *   - Unidad principal no es APT → return err
  *
- * Pure function except for logging.
+ * Retorna Result<JoinResult, EngineError> — nunca throw.
+ *
+ * @since v2.0.0 — Multi-proyecto
+ * @since v2.2.0 — Migrado a Result (Architect review #4)
  */
 
 import type { CrmRecord } from '@/engine/interfaces/ICrmAdapter';
 import type { Logger } from '@/engine/core/logging/Logger';
+import type { Result } from '@/engine/core/types/Result';
+import type { EngineError } from '@/engine/core/errors/EngineError';
+import { ok, err } from '@/engine/core/types/Result';
+import { ValidationError } from '@/engine/core/errors/EngineError';
 import { normalizeUnitType } from './normalizeUnitType';
 
 export interface JoinResult {
@@ -40,52 +47,45 @@ export interface JoinStats {
   readonly excludedNonDisponible: number;
 }
 
-export class JoinError extends Error {
-  constructor(
-    message: string,
-    public readonly projectSincoId: number,
-    public readonly agrupacionNombre: string,
-  ) {
-    super(message);
-    this.name = 'JoinError';
-  }
-}
-
 const DISPONIBLE_STATES = new Set(['disponible', 'Disponible', 'DISPONIBLE']);
 
 /**
  * Valida que la unidad resuelta como principal sea un APT real.
- * Si id_unidad_principal_sinco_fx apunta a un PARQ/DEP → FAIL HARD.
+ * Si id_unidad_principal_sinco_fx apunta a un PARQ/DEP → return err.
  */
 function assertUnitIsAPT(
   unit: CrmRecord,
   agrupNombre: string,
   projectSincoId: number,
   joinMethod: string,
-): void {
+): EngineError | null {
   const tipoTexto = String(unit.properties['tipo_unidad_fx'] ?? '') || null;
   const tipoId = Number(unit.properties['tipo_unidad_sinco_fx']) || null;
   const tipo = normalizeUnitType(tipoTexto, tipoId);
 
   if (tipo !== 'APT') {
-    throw new JoinError(
-      `Agrupación "${agrupNombre}" en proyecto ${projectSincoId}: ` +
+    return ValidationError.invalidType(
+      `Agrupación "${agrupNombre}" proj ${projectSincoId}: ` +
       `unidad principal "${unit.properties['nombre_fx']}" (sincoId=${unit.properties['id_sinco_fx']}) ` +
-      `es ${tipo ?? 'DESCONOCIDO'}, no APT. Join method: ${joinMethod}. ` +
-      `FAIL HARD: unidad principal debe ser apartamento.`,
-      projectSincoId,
-      agrupNombre,
+      `es ${tipo ?? 'DESCONOCIDO'}, no APT. Join method: ${joinMethod}.`,
+      { projectId: projectSincoId, agrupNombre },
     );
   }
+  return null;
 }
 
+/**
+ * Enriquece agrupaciones con datos de su unidad principal.
+ *
+ * Retorna Result — nunca throw.
+ */
 export function joinGroupingsWithUnits(
   agrupaciones: readonly CrmRecord[],
   unidades: readonly CrmRecord[],
   projectSincoId: number,
   agrupacionesPreestablecidas: boolean,
   logger: Logger,
-): JoinResult {
+): Result<JoinResult, EngineError> {
   // ── Build unit map by sincoId — FAIL HARD on duplicates ──
   const unidadMap = new Map<number, CrmRecord>();
   for (const u of unidades) {
@@ -97,13 +97,11 @@ export function joinGroupingsWithUnits(
     if (unitProjectId !== projectSincoId) continue;
 
     if (unidadMap.has(sincoId)) {
-      throw new JoinError(
+      return err(ValidationError.mappingFailed(
         `Duplicate id_sinco_fx=${sincoId} found in unidades for project ${projectSincoId}. ` +
-        `Unit "${u.properties['nombre_fx']}" collides with "${unidadMap.get(sincoId)!.properties['nombre_fx']}". ` +
-        `FAIL HARD: inventory data integrity violation.`,
-        projectSincoId,
-        String(u.properties['nombre_fx'] ?? ''),
-      );
+        `Unit "${u.properties['nombre_fx']}" collides with "${unidadMap.get(sincoId)!.properties['nombre_fx']}".`,
+        { projectId: projectSincoId, sincoId },
+      ));
     }
     unidadMap.set(sincoId, u);
   }
@@ -133,22 +131,21 @@ export function joinGroupingsWithUnits(
     const idPrincipal = Number(agrup.properties['id_unidad_principal_sinco_fx']);
     const isDisponible = DISPONIBLE_STATES.has(agrupEstado);
 
-    // ── Corrección GPT #1: Validar que la agrupación pertenece a este proyecto ──
+    // ── Validar que la agrupación pertenece a este proyecto ──
     const agrupProjectId = Number(agrup.properties['id_proyecto_sinco_fx']);
     if (agrupProjectId !== projectSincoId) {
-      throw new JoinError(
+      return err(ValidationError.mappingFailed(
         `Agrupación "${agrupNombre}" tiene id_proyecto_sinco_fx=${agrupProjectId} ` +
-        `pero se esperaba ${projectSincoId}. ` +
-        `FAIL HARD: el caller pasó agrupaciones de otro proyecto al helper.`,
-        projectSincoId,
-        agrupNombre,
-      );
+        `pero se esperaba ${projectSincoId}.`,
+        { projectId: projectSincoId, agrupNombre, actualProjectId: agrupProjectId },
+      ));
     }
 
     // ── Camino A: FK por id_unidad_principal_sinco_fx ──
     if (!isNaN(idPrincipal) && idPrincipal > 0 && unidadMap.has(idPrincipal)) {
       const matched = unidadMap.get(idPrincipal)!;
-      assertUnitIsAPT(matched, agrupNombre, projectSincoId, 'fk');
+      const aptErr = assertUnitIsAPT(matched, agrupNombre, projectSincoId, 'fk');
+      if (aptErr) return err(aptErr);
       joined.push({
         agrupacion: agrup,
         unidadPrincipal: matched,
@@ -164,7 +161,8 @@ export function joinGroupingsWithUnits(
 
     if (nombreMatches.length === 1) {
       const matched = nombreMatches[0]!;
-      assertUnitIsAPT(matched, agrupNombre, projectSincoId, 'nombre');
+      const aptErr = assertUnitIsAPT(matched, agrupNombre, projectSincoId, 'nombre');
+      if (aptErr) return err(aptErr);
       logger.warn(
         { agrupNombre, projectSincoId, idPrincipal },
         'joinGroupingWithUnit: FK miss, resolved by nombre match',
@@ -180,19 +178,15 @@ export function joinGroupingsWithUnits(
 
     // ── Camino C: No match ──
     if (agrupacionesPreestablecidas && isDisponible) {
-      // FAIL HARD: agrupación disponible en proyecto preestablecido sin join válido
       const reason = nombreMatches.length === 0
         ? `0 unidades matchean por nombre "${agrupNombre}"`
         : `${nombreMatches.length} unidades matchean por nombre "${agrupNombre}" (ambiguo)`;
 
-      throw new JoinError(
+      return err(ValidationError.mappingFailed(
         `Agrupación disponible "${agrupNombre}" (FK id_unidad_principal=${idPrincipal}) ` +
-        `no se pudo unir a su unidad principal en proyecto ${projectSincoId}. ` +
-        `${reason}. ` +
-        `FAIL HARD: inconsistencia de inventario en proyecto con agrupaciones preestablecidas.`,
-        projectSincoId,
-        agrupNombre,
-      );
+        `no se pudo unir a su unidad principal en proyecto ${projectSincoId}. ${reason}.`,
+        { projectId: projectSincoId, agrupNombre, idPrincipal },
+      ));
     }
 
     // Non-disponible without match: exclude silently
@@ -203,7 +197,7 @@ export function joinGroupingsWithUnits(
     );
   }
 
-  return {
+  return ok({
     joined,
     stats: {
       total: agrupaciones.length,
@@ -211,5 +205,5 @@ export function joinGroupingsWithUnits(
       joinedByNombre,
       excludedNonDisponible,
     },
-  };
+  });
 }
