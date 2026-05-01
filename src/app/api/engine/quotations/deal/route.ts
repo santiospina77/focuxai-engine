@@ -8,8 +8,9 @@
  *   4. Asociar Deal ↔ Contacto
  *   5. PDF Upload a HubSpot File Manager (non-fatal)
  *      5a. buildPdfBufferSafe() → Result<Buffer, EngineError>
- *      5b. uploadFileToHubSpot(PRIVATE)
+ *      5b. uploadFileToHubSpot(PUBLIC_NOT_INDEXABLE) → client-facing URL
  *      5c. attachFileToRecord(deals) → Note con PDF adjunto
+ *      5e. PATCH Deal con pdf_hubspot_url_fx (URL pública HubSpot CDN)
  *   6. Actualizar cotización en DB (hubspot_deal_id, pdf_*, status)
  *   7. Return response
  *
@@ -466,6 +467,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // ── 5.5 PDF Upload to HubSpot File Manager (non-fatal) ──
   let pdfHubspotFileId: string | null = null;
+  let pdfHubspotUrl: string | null = null;
   let pdfUploadStatus: PdfUploadStatus = null;
   let pdfUploadError: string | null = null;
   let pdfHubspotNoteId: string | null = null;
@@ -499,16 +501,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         operation: 'build_pdf_for_hubspot_upload',
       });
     } else {
-      // 5.5c — Upload to HubSpot File Manager
+      // 5.5c — Upload to HubSpot File Manager (PUBLIC_NOT_INDEXABLE for client-facing URL)
       const uploadResult = await uploadFileToHubSpot(token, pdfResult.value, {
         fileName: `${cotNumber}_v1.pdf`,
         folderPath: folderPathResult.value,
         contentType: 'application/pdf',
-        access: 'PRIVATE',
+        access: 'PUBLIC_NOT_INDEXABLE',
       });
 
       if (uploadResult.isOk()) {
         pdfHubspotFileId = uploadResult.value.fileId;
+        pdfHubspotUrl = uploadResult.value.url ?? uploadResult.value.defaultHostingUrl ?? null;
         pdfUploadStatus = 'uploaded';
         pdfUploadedAt = new Date().toISOString();
 
@@ -523,6 +526,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           pdfHubspotNoteId = attachResult.value.noteId;
           pdfUploadStatus = 'attached';
           pdfAttachedAt = new Date().toISOString();
+
+          // 5.5e — PATCH Deal with HubSpot PDF URL (non-fatal)
+          if (pdfHubspotUrl) {
+            try {
+              await fetch(
+                `https://api.hubapi.com/crm/v3/objects/deals/${hubspotDealId}`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({
+                    properties: {
+                      pdf_hubspot_url_fx: pdfHubspotUrl,
+                    },
+                  }),
+                },
+              );
+            } catch (patchErr) {
+              console.warn('[deal] PATCH pdf_hubspot_url_fx failed (non-fatal)', {
+                cotNumber,
+                error: patchErr instanceof Error ? patchErr.message : String(patchErr),
+              });
+            }
+          }
         } else {
           pdfUploadStatus = 'attach_failed';
           pdfUploadError = safeErrorMessage(attachResult.error);
@@ -557,7 +586,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           pdf_upload_error = ${pdfUploadError},
           pdf_uploaded_at = ${pdfUploadedAt}::timestamptz,
           pdf_hubspot_note_id = ${pdfHubspotNoteId},
-          pdf_attached_at = ${pdfAttachedAt}::timestamptz
+          pdf_attached_at = ${pdfAttachedAt}::timestamptz,
+          pdf_hubspot_url = ${pdfHubspotUrl}
       WHERE id = ${quotation.id}
     `;
   } catch (err) {
@@ -582,6 +612,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           status: pdfUploadStatus,
           fileId: pdfHubspotFileId,
           noteId: pdfHubspotNoteId,
+          url: pdfHubspotUrl,
           error: pdfUploadError,
         },
       },

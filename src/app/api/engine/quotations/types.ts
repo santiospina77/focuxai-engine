@@ -145,6 +145,8 @@ export interface QuotationRow {
   pdf_uploaded_at: string | null;
   pdf_hubspot_note_id: string | null;
   pdf_attached_at: string | null;
+  /** Public HubSpot CDN URL — client-facing, no Focux branding in URL */
+  pdf_hubspot_url: string | null;
   created_at: string;
   updated_at: string;
   expires_at: string;
