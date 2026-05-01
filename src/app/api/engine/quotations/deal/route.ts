@@ -520,7 +520,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const attachResult = await attachFileToRecord(token, pdfHubspotFileId, {
           objectType: 'deals',
           objectId: hubspotDealId,
-          noteBody: `Cotización ${cotNumber} — generada por FocuxAI Quoter`,
+          noteBody: `Cotización ${cotNumber}`,
         });
 
         if (attachResult.isOk()) {
