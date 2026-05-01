@@ -167,18 +167,17 @@ export async function mapInventoryToDto(
 
   logger.info({ clientId }, 'mapInventoryToDto: starting');
 
-  // ── Step 1: Fetch all Custom Objects ──
-  const [macroResult, proyectoResult, unidadResult, agrupacionResult] = await Promise.all([
-    fetchAllPages(adapter, { objectType: 'macroproyecto', properties: [...MACRO_PROPS] }, logger),
-    fetchAllPages(adapter, { objectType: 'proyecto', properties: [...PROYECTO_PROPS] }, logger),
-    fetchAllPages(adapter, { objectType: 'unidad', properties: [...UNIDAD_PROPS] }, logger),
-    fetchAllPages(adapter, { objectType: 'agrupacion', properties: [...AGRUPACION_PROPS] }, logger),
-  ]);
-
-  // Propagar errores de fetch
+  // ── Step 1: Fetch all Custom Objects (secuencial para respetar rate limit 4 req/s) ──
+  const macroResult = await fetchAllPages(adapter, { objectType: 'macroproyecto', properties: [...MACRO_PROPS] }, logger);
   if (macroResult.isErr()) return err(macroResult.error);
+
+  const proyectoResult = await fetchAllPages(adapter, { objectType: 'proyecto', properties: [...PROYECTO_PROPS] }, logger);
   if (proyectoResult.isErr()) return err(proyectoResult.error);
+
+  const unidadResult = await fetchAllPages(adapter, { objectType: 'unidad', properties: [...UNIDAD_PROPS] }, logger);
   if (unidadResult.isErr()) return err(unidadResult.error);
+
+  const agrupacionResult = await fetchAllPages(adapter, { objectType: 'agrupacion', properties: [...AGRUPACION_PROPS] }, logger);
   if (agrupacionResult.isErr()) return err(agrupacionResult.error);
 
   const macroRecords = macroResult.value.records;
