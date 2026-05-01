@@ -269,6 +269,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     nombre_agrupacion_fx: `${quotation.torre_name} APT-${quotation.unit_number}`,
 
+    // ── Inmueble (duplicadas de Unidad → Deal para tarjeta CRM) ──
+    torre_deal_fx: quotation.torre_name,
+    numero_apto_deal_fx: String(quotation.unit_number),
+    tipologia_deal_fx: quotation.unit_tipologia || '',
+    piso_deal_fx: quotation.unit_piso ?? 0,
+    area_privada_deal_fx: quotation.unit_area ?? 0,
+    habitaciones_deal_fx: quotation.unit_habs ?? 0,
+    banos_deal_fx: quotation.unit_banos ?? 0,
+
     valor_apartamento_fx: quotation.unit_price,
     valor_parqueadero_fx: parkingArr.reduce((s, p) => s + (p.price || 0), 0),
     valor_deposito_fx: storageArr.reduce((s, d) => s + (d.price || 0), 0),
