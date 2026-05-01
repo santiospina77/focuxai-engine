@@ -1468,7 +1468,6 @@ export default function QuoterClient() {
               </div>
               {/* Actions — hidden in print */}
               <div className="no-print" style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:18 }}>
-                <button style={S.btn("outline")} onClick={handlePrint}>Imprimir / PDF</button>
                 <button style={S.btn("primary", submitting)} onClick={handleSubmitDeal} disabled={submitting}>
                   {submitting ? "Procesando..." : "Enviar y crear Deal →"}
                 </button>
@@ -1546,7 +1545,6 @@ export default function QuoterClient() {
                   Ver Deal en HubSpot
                 </a>
               )}
-              <button style={{...S.btn("outline"), fontSize:10, padding:"8px 16px"}} onClick={handlePrint}>Imprimir</button>
             </div>
 
             {/* Mensaje de cierre — Constructora Jiménez */}
