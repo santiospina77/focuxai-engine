@@ -140,7 +140,7 @@ export interface QuotationRow {
   pdf_generated_at: string | null;
   // HubSpot File Manager traceability (Fase B.0)
   pdf_hubspot_file_id: string | null;
-  pdf_upload_status: 'upload_failed' | 'uploaded' | 'attach_failed' | 'attached' | null;
+  pdf_upload_status: 'generation_failed' | 'upload_failed' | 'uploaded' | 'attach_failed' | 'attached' | null;
   pdf_upload_error: string | null;
   pdf_uploaded_at: string | null;
   pdf_hubspot_note_id: string | null;

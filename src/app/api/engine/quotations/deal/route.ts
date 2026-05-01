@@ -6,10 +6,15 @@
  *   2. Buscar contacto por email en HubSpot → si no existe, CREARLO
  *   3. Crear Deal con propiedades _fx del v17
  *   4. Asociar Deal ↔ Contacto
- *   5. Actualizar cotización en DB (hubspot_deal_id, hubspot_contact_id, status)
+ *   5. PDF Upload a HubSpot File Manager (non-fatal)
+ *      5a. buildPdfBufferSafe() → Result<Buffer, EngineError>
+ *      5b. uploadFileToHubSpot(PRIVATE)
+ *      5c. attachFileToRecord(deals) → Note con PDF adjunto
+ *   6. Actualizar cotización en DB (hubspot_deal_id, pdf_*, status)
+ *   7. Return response
  *
  * Responses:
- *   201 → { success: true, deal: { hubspotDealId, dealUrl, contactId } }
+ *   201 → { success: true, deal: { hubspotDealId, dealUrl, contactId, pdfUpload } }
  *   400 → datos faltantes
  *   404 → cotización no encontrada
  *   409 → deal ya fue creado para esta cotización
@@ -21,6 +26,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/engine/core/db/neon';
 import type { QuotationRow, ErrorResponse } from '../types';
+import { buildPdfBuffer } from '@/app/api/engine/quotations/pdf/pdfBuilder';
+import { uploadFileToHubSpot, attachFileToRecord } from '@/engine/connectors/crm/hubspot/hubspotFileManager';
+import type { Result } from '@/engine/core/types/Result';
+import { ok, err } from '@/engine/core/types/Result';
+import type { EngineError } from '@/engine/core/errors/EngineError';
+import { ResourceError, ValidationError } from '@/engine/core/errors/EngineError';
 
 // ═══════════════════════════════════════════════════════════
 // Client config
@@ -62,6 +73,81 @@ function toMidnightUtc(val: string | Date | number): number {
 function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_BASE_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://engine.focux.co');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PDF Upload Helpers (Fase B.0)
+// ═══════════════════════════════════════════════════════════
+
+type PdfUploadStatus = QuotationRow['pdf_upload_status'];
+
+/**
+ * Slugify a string for use as a HubSpot folder path segment.
+ * Returns fallback if result is empty (e.g., all special chars).
+ */
+function slugifyFolderSegment(value: string, fallback: string): string {
+  const slug = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || fallback;
+}
+
+/**
+ * Build a validated HubSpot folder path for quotation PDFs.
+ * Format: /focux-quoter/{clientSlug}/cotizaciones/{macroSlug}/{YYYY-MM}/
+ */
+function buildHubSpotQuotationFolderPath(params: {
+  readonly clientId: string;
+  readonly macroName: string;
+  readonly date: Date;
+}): Result<string, EngineError> {
+  const clientSlug = slugifyFolderSegment(params.clientId, 'unknown-client');
+  const macroSlug = slugifyFolderSegment(params.macroName, 'unknown-project');
+  const yearMonth = params.date.toISOString().slice(0, 7);
+
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+    return err(new ValidationError(
+      'VALIDATION_CRM_FILE_FOLDER_INVALID',
+      'No se pudo construir la ruta del folder para HubSpot',
+      { yearMonth },
+    ));
+  }
+
+  return ok(`/focux-quoter/${clientSlug}/cotizaciones/${macroSlug}/${yearMonth}/`);
+}
+
+/**
+ * Wrap buildPdfBuffer in Result pattern.
+ * Converts throw-based pdf-lib errors into Result<Buffer, EngineError>.
+ */
+async function buildPdfBufferSafe(
+  quotation: QuotationRow,
+): Promise<Result<Buffer, EngineError>> {
+  try {
+    const raw = await buildPdfBuffer(quotation);
+    return ok(Buffer.from(raw));
+  } catch (error: unknown) {
+    return err(new ResourceError(
+      'RESOURCE_PDF_GENERATION_FAILED',
+      'No se pudo generar el PDF de la cotización',
+      {
+        operation: 'build_pdf_for_hubspot_upload',
+        cotNumber: quotation.cot_number,
+        retryable: true,
+      },
+      error,
+    ));
+  }
+}
+
+/**
+ * Extract safe error info for logs (no PII, no tokens, no buffers).
+ */
+function safeErrorMessage(error: EngineError): string {
+  return `${error.code}: ${error.message}`.slice(0, 500);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -378,14 +464,100 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // ── 6. Update quotation in DB ──
+  // ── 5.5 PDF Upload to HubSpot File Manager (non-fatal) ──
+  let pdfHubspotFileId: string | null = null;
+  let pdfUploadStatus: PdfUploadStatus = null;
+  let pdfUploadError: string | null = null;
+  let pdfHubspotNoteId: string | null = null;
+  let pdfUploadedAt: string | null = null;
+  let pdfAttachedAt: string | null = null;
+
+  // 5.5a — Build folder path
+  const folderPathResult = buildHubSpotQuotationFolderPath({
+    clientId,
+    macroName: String(quotation.macro_name),
+    date: new Date(),
+  });
+
+  if (folderPathResult.isErr()) {
+    pdfUploadStatus = 'upload_failed';
+    pdfUploadError = safeErrorMessage(folderPathResult.error);
+    console.warn('[deal] PDF folder path invalid (non-fatal)', {
+      code: folderPathResult.error.code,
+      cotNumber,
+    });
+  } else {
+    // 5.5b — Generate PDF buffer
+    const pdfResult = await buildPdfBufferSafe(quotation);
+
+    if (pdfResult.isErr()) {
+      pdfUploadStatus = 'generation_failed';
+      pdfUploadError = safeErrorMessage(pdfResult.error);
+      console.warn('[deal] PDF generation failed (non-fatal)', {
+        code: pdfResult.error.code,
+        cotNumber,
+        operation: 'build_pdf_for_hubspot_upload',
+      });
+    } else {
+      // 5.5c — Upload to HubSpot File Manager
+      const uploadResult = await uploadFileToHubSpot(token, pdfResult.value, {
+        fileName: `${cotNumber}_v1.pdf`,
+        folderPath: folderPathResult.value,
+        contentType: 'application/pdf',
+        access: 'PRIVATE',
+      });
+
+      if (uploadResult.isOk()) {
+        pdfHubspotFileId = uploadResult.value.fileId;
+        pdfUploadStatus = 'uploaded';
+        pdfUploadedAt = new Date().toISOString();
+
+        // 5.5d — Attach to Deal as Note
+        const attachResult = await attachFileToRecord(token, pdfHubspotFileId, {
+          objectType: 'deals',
+          objectId: hubspotDealId,
+          noteBody: `Cotización ${cotNumber} — generada por FocuxAI Quoter`,
+        });
+
+        if (attachResult.isOk()) {
+          pdfHubspotNoteId = attachResult.value.noteId;
+          pdfUploadStatus = 'attached';
+          pdfAttachedAt = new Date().toISOString();
+        } else {
+          pdfUploadStatus = 'attach_failed';
+          pdfUploadError = safeErrorMessage(attachResult.error);
+          console.warn('[deal] PDF attach failed (non-fatal)', {
+            code: attachResult.error.code,
+            cotNumber,
+            operation: 'hubspot_pdf_attach',
+          });
+        }
+      } else {
+        pdfUploadStatus = 'upload_failed';
+        pdfUploadError = safeErrorMessage(uploadResult.error);
+        console.warn('[deal] PDF upload failed (non-fatal)', {
+          code: uploadResult.error.code,
+          cotNumber,
+          operation: 'hubspot_pdf_upload',
+        });
+      }
+    }
+  }
+
+  // ── 6. Update quotation in DB (single UPDATE with all fields) ──
   try {
     await sql`
       UPDATE quotations
       SET hubspot_deal_id = ${hubspotDealId},
           hubspot_contact_id = COALESCE(hubspot_contact_id, ${contactId}),
           deal_created_at = NOW(),
-          status = 'deal_created'
+          status = 'deal_created',
+          pdf_hubspot_file_id = ${pdfHubspotFileId},
+          pdf_upload_status = ${pdfUploadStatus},
+          pdf_upload_error = ${pdfUploadError},
+          pdf_uploaded_at = ${pdfUploadedAt}::timestamptz,
+          pdf_hubspot_note_id = ${pdfHubspotNoteId},
+          pdf_attached_at = ${pdfAttachedAt}::timestamptz
       WHERE id = ${quotation.id}
     `;
   } catch (err) {
@@ -406,6 +578,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         contactError,
         cotNumber,
         dealName: dealProperties.dealname,
+        pdfUpload: {
+          status: pdfUploadStatus,
+          fileId: pdfHubspotFileId,
+          noteId: pdfHubspotNoteId,
+          error: pdfUploadError,
+        },
       },
     },
     { status: 201, headers: { 'Cache-Control': 'no-store' } },
