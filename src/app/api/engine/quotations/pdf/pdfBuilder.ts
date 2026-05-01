@@ -12,6 +12,15 @@
 import { PDFDocument, StandardFonts, rgb, PDFPage, PDFFont, PDFImage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { QuotationRow } from '../types';
+import { fetchAssetSafe, resolveAssetUrl } from '@/engine/apps/quoter/inventory/fetchAssetSafe';
+
+/** Options for asset resolution in PDF generation */
+export interface PdfAssetOptions {
+  /** CDN base URL (HubSpot File Manager). Undefined = fallback to Vercel static. */
+  readonly assetBaseUrl?: string;
+  /** Allowed hostnames for SSRF protection. Required in production. */
+  readonly allowedHosts?: readonly string[];
+}
 
 // ═══════════════════════════════════════════════════════════
 // Design tokens
@@ -119,8 +128,25 @@ function roundRect(
   page.drawSvgPath(p, { x: left, y: top, color: fill, borderColor: stroke, borderWidth: sw });
 }
 
-/** Fetch binary asset from public URL */
-async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array | null> {
+/**
+ * Fetch image asset via fetchAssetSafe (SSRF-protected).
+ * Returns Uint8Array or null — silently swallows errors (PDF must not crash on missing assets).
+ */
+async function fetchImageAsset(
+  resolvedUrl: string,
+  allowedHosts: readonly string[],
+): Promise<Uint8Array | null> {
+  const result = await fetchAssetSafe(resolvedUrl, { allowedHosts });
+  if (result.isOk()) return new Uint8Array(result.value.data);
+  // Placeholder or any error → null (PDF renders without the image)
+  return null;
+}
+
+/**
+ * Fetch non-image asset (fonts) directly. Fonts are always from Vercel (same origin),
+ * not from external CDN, so they don't need SSRF protection.
+ */
+async function fetchFont(baseUrl: string, path: string): Promise<Uint8Array | null> {
   try {
     const res = await fetch(`${baseUrl}/${path}`);
     if (!res.ok) return null;
@@ -139,22 +165,37 @@ async function embedImg(doc: PDFDocument, data: Uint8Array | null): Promise<PDFI
 // MAIN
 // ═══════════════════════════════════════════════════════════
 
-export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
+/**
+ * @param q — Quotation row from DB
+ * @param assetOpts — Optional asset resolution config (CDN URL + allowed hosts).
+ *                    If omitted or assetBaseUrl undefined, fallback to /assets/ on Vercel.
+ *                    Fonts ALWAYS load from Vercel (not CDN).
+ *                    All image fetches go through fetchAssetSafe (SSRF-protected).
+ */
+export async function buildPdfBuffer(q: QuotationRow, assetOpts?: PdfAssetOptions): Promise<Uint8Array> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://engine.focux.co');
+
+  const assetBaseUrl = assetOpts?.assetBaseUrl;
+  const allowedHosts = assetOpts?.allowedHosts ?? [];
+
+  // Resolve asset path → absolute URL via centralised resolver
+  const assetUrl = (relativePath: string): string =>
+    resolveAssetUrl(relativePath, baseUrl, assetBaseUrl) ?? '';
 
   const doc = await PDFDocument.create();
 
   // ── Register fontkit & embed custom fonts ──
+  // Fonts ALWAYS from Vercel (same origin) — not from external CDN
   let R: PDFFont;  // AinslieSans Regular — body text
   let B: PDFFont;  // AinslieSans Bold    — emphasis
   let H: PDFFont;  // CarlaSans Bold      — headings/display
   try {
     doc.registerFontkit(fontkit);
     const [arBytes, abBytes, cbBytes] = await Promise.all([
-      fetchAsset(baseUrl, 'fonts/AinslieSans-NorReg.otf'),
-      fetchAsset(baseUrl, 'fonts/AinslieSans-NorBol.otf'),
-      fetchAsset(baseUrl, 'fonts/CarlaSansBold.ttf'),
+      fetchFont(baseUrl, 'fonts/AinslieSans-NorReg.otf'),
+      fetchFont(baseUrl, 'fonts/AinslieSans-NorBol.otf'),
+      fetchFont(baseUrl, 'fonts/CarlaSansBold.ttf'),
     ]);
     R = arBytes ? await doc.embedFont(arBytes) : await doc.embedFont(StandardFonts.Helvetica);
     B = abBytes ? await doc.embedFont(abBytes) : await doc.embedFont(StandardFonts.HelveticaBold);
@@ -177,13 +218,13 @@ export async function buildPdfBuffer(q: QuotationRow): Promise<Uint8Array> {
     if (y - h < MG + 24) { page = doc.addPage([PW, PH]); y = PH - MG; }
   }
 
-  // ── Fetch all images in parallel ──
+  // ── Fetch all images in parallel via fetchAssetSafe (SSRF-protected) ──
   const tip = q.unit_tipologia || '';
   const [logoData, selloData, renderData, planoData] = await Promise.all([
-    fetchAsset(baseUrl, 'assets/logo-jimenez-horizontal.png'),
-    fetchAsset(baseUrl, 'assets/sello-40-anos.png'),
-    tip ? fetchAsset(baseUrl, `assets/render-${tip}.png`) : null,
-    tip ? fetchAsset(baseUrl, `assets/plano-${tip}.png`) : null,
+    fetchImageAsset(assetUrl('logo-jimenez-horizontal.png'), allowedHosts),
+    fetchImageAsset(assetUrl('sello-40-anos.png'), allowedHosts),
+    tip ? fetchImageAsset(assetUrl(`render-${tip}.png`), allowedHosts) : null,
+    tip ? fetchImageAsset(assetUrl(`plano-${tip}.png`), allowedHosts) : null,
   ]);
   const [logoImg, selloImg, renderImg, planoImg] = await Promise.all([
     embedImg(doc, logoData), embedImg(doc, selloData),

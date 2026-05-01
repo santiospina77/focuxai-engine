@@ -36,6 +36,9 @@ async function generatePdf(clientId: string, cotNumber: string): Promise<NextRes
     }
 
     const quotation = rows[0] as QuotationRow;
+    // Intentionally no assetOpts here. This endpoint is the fallback renderer
+    // that always resolves assets from Vercel static /assets/. If HubSpot CDN
+    // is down, the deal pipeline's pdf_cotizacion_url_fx still works via this route.
     const pdfBuffer = await buildPdfBuffer(quotation);
 
     await sql`

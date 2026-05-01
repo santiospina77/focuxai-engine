@@ -41,6 +41,8 @@ export interface ClientInventoryConfig {
    * @since v2.1 — Architect review: no hardcodear hosts
    */
   readonly assetAllowedHosts: readonly string[];
+  // NOTE: assetBaseUrl lives in PdfAssetOptions (deal/route.ts) — single source of truth.
+  // ClientInventoryConfig only owns SSRF whitelist (assetAllowedHosts).
 }
 
 export const JIMENEZ_DEMO_CONFIG: ClientInventoryConfig = {
@@ -125,6 +127,9 @@ export const JIMENEZ_DEMO_CONFIG: ClientInventoryConfig = {
   // ═══════════════════════════════════════════════════════════
   assetAllowedHosts:
     process.env.NODE_ENV === 'production'
-      ? ['focuxai-engine.vercel.app']
-      : ['localhost', '127.0.0.1'],
+      ? ['focuxai-engine.vercel.app', '51256354.fs1.hubspotusercontent-na1.net']
+      : ['localhost', '127.0.0.1', '51256354.fs1.hubspotusercontent-na1.net'],
+
+  // NOTE: assetBaseUrl para PDF generation se configura en PdfAssetOptions
+  // dentro de deal/route.ts (JIMENEZ_PDF_ASSETS). Ver FASE_B0_SUMMARY.md.
 };

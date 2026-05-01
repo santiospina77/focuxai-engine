@@ -75,18 +75,35 @@ export interface FetchAssetSuccess {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Resuelve la URL completa de un asset dado su path relativo y el proyecto.
+ * Resuelve la URL completa de un asset dado su path relativo.
  *
- * Fase A: /assets/{projectSlug}/{filename}
- * Fase B: URL de HubSpot File Manager
+ * Resolution order:
+ *   1. Si path es URL absoluta (http/https) → usar directo.
+ *   2. Si assetBaseUrl está definido → assetBaseUrl + "/" + path relativo.
+ *   3. Fallback → fallbackBaseUrl + "/assets/" + path relativo.
  *
- * @param path — Ruta relativa (ej: "porto-sabbia/render-A1.png") o URL absoluta
- * @param baseUrl — Base URL del servidor
+ * Fase A: fallback a /assets/{filename} (Vercel static).
+ * Fase B: assetBaseUrl apunta al HubSpot CDN del cliente.
+ *
+ * @param path — Ruta relativa (ej: "render-A1.png") o URL absoluta
+ * @param fallbackBaseUrl — Base URL del servidor (ej: "https://engine.focux.co")
+ * @param assetBaseUrl — Base URL del CDN de assets (ej: HubSpot CDN). Opcional.
  */
-export function resolveAssetUrl(path: string | undefined, baseUrl: string): string | null {
+export function resolveAssetUrl(
+  path: string | undefined,
+  fallbackBaseUrl: string,
+  assetBaseUrl?: string,
+): string | null {
   if (!path) return null;
+  // 1. Already absolute
   if (path.startsWith('http')) return path;
-  return `${baseUrl.replace(/\/$/, '')}/assets/${path.replace(/^\//, '')}`;
+  const cleanPath = path.replace(/^\//, '');
+  // 2. CDN base URL (HubSpot File Manager)
+  if (assetBaseUrl) {
+    return `${assetBaseUrl.replace(/\/$/, '')}/${cleanPath}`;
+  }
+  // 3. Fallback to static /assets/ on server
+  return `${fallbackBaseUrl.replace(/\/$/, '')}/assets/${cleanPath}`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -119,6 +136,14 @@ export async function fetchAssetSafe(
 
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     return err(ResourceError.invalidUrl(resolvedUrl));
+  }
+
+  // ── SSRF protection: reject credentials and custom ports ──
+  if (parsed.username || parsed.password) {
+    return err(ResourceError.invalidUrl(`${resolvedUrl} (credentials in URL rejected)`));
+  }
+  if (parsed.port) {
+    return err(ResourceError.invalidUrl(`${resolvedUrl} (custom port rejected)`));
   }
 
   // ── SSRF protection: host whitelist ──

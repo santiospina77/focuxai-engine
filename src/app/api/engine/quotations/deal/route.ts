@@ -27,11 +27,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/engine/core/db/neon';
 import type { QuotationRow, ErrorResponse } from '../types';
 import { buildPdfBuffer } from '@/app/api/engine/quotations/pdf/pdfBuilder';
+import type { PdfAssetOptions } from '@/app/api/engine/quotations/pdf/pdfBuilder';
 import { uploadFileToHubSpot, attachFileToRecord } from '@/engine/connectors/crm/hubspot/hubspotFileManager';
 import type { Result } from '@/engine/core/types/Result';
 import { ok, err } from '@/engine/core/types/Result';
 import type { EngineError } from '@/engine/core/errors/EngineError';
 import { ResourceError, ValidationError } from '@/engine/core/errors/EngineError';
+
+// ═══════════════════════════════════════════════════════════
+// Client asset config — single source of truth
+// Descomentar después de ejecutar migrate-assets-to-hubspot.ts
+// ═══════════════════════════════════════════════════════════
+
+// const JIMENEZ_PDF_ASSETS: PdfAssetOptions = {
+//   assetBaseUrl: 'https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez',
+//   allowedHosts: ['focuxai-engine.vercel.app', '51256354.fs1.hubspotusercontent-na1.net'],
+// };
 
 // ═══════════════════════════════════════════════════════════
 // Client config
@@ -42,6 +53,8 @@ interface ClientDealConfig {
   readonly pipelineId: string;
   readonly stageIdCotizacion: string;
   readonly hubspotPortalId: string;
+  /** PDF asset options — CDN base URL + allowed hosts for SSRF protection. */
+  readonly pdfAssets?: PdfAssetOptions;
 }
 
 const CLIENT_REGISTRY: Record<string, ClientDealConfig> = {
@@ -50,6 +63,10 @@ const CLIENT_REGISTRY: Record<string, ClientDealConfig> = {
     pipelineId: '889311333',
     stageIdCotizacion: '1338267783',
     hubspotPortalId: '51256354',
+    // Fase B.0 Step 7: PDF assets desde HubSpot CDN del cliente.
+    // Se activa después de ejecutar migrate-assets-to-hubspot.ts (Step 6).
+    // Mientras esté undefined → fallback automático a /assets/ de Vercel.
+    // pdfAssets: JIMENEZ_PDF_ASSETS,
   },
 };
 
@@ -125,9 +142,10 @@ function buildHubSpotQuotationFolderPath(params: {
  */
 async function buildPdfBufferSafe(
   quotation: QuotationRow,
+  assetOpts?: PdfAssetOptions,
 ): Promise<Result<Buffer, EngineError>> {
   try {
-    const raw = await buildPdfBuffer(quotation);
+    const raw = await buildPdfBuffer(quotation, assetOpts);
     return ok(Buffer.from(raw));
   } catch (error: unknown) {
     return err(new ResourceError(
@@ -488,7 +506,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   } else {
     // 5.5b — Generate PDF buffer
-    const pdfResult = await buildPdfBufferSafe(quotation);
+    const pdfResult = await buildPdfBufferSafe(quotation, clientConfig.pdfAssets);
 
     if (pdfResult.isErr()) {
       pdfUploadStatus = 'generation_failed';
