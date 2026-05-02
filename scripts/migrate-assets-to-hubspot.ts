@@ -20,7 +20,10 @@
  * Output:
  *   scripts/output/asset-migration-{clientSlug}-{projectSlug}-{timestamp}.json
  *
- * Idempotent: uses duplicateValidationStrategy: RETURN_EXISTING.
+ * Uses duplicateValidationStrategy: RETURN_EXISTING — safe because each manifest
+ * entry is unique content (renders are deduplicated to one file per project/tower).
+ * Runtime depends on every canonical filename resolving to HTTP 200.
+ * Post-upload: validates every expected runtime URL returns 200.
  *
  * FocuxAI Engine™ — Fase B.0 Step 6
  */
@@ -77,34 +80,22 @@ interface AssetManifestEntry {
 }
 
 /**
- * Porto Sabbia — 36 assets.
+ * Porto Sabbia — 20 assets.
  * sourcePath points to porto-sabbia/ subdirectory (canonical local structure).
  * hubspotFileName = what the Engine runtime resolves (flat name, no subdirs).
+ *
+ * Renders: ONE per project (all tipologías share the same facade render).
+ *          When a project has multiple towers with distinct renders,
+ *          use render-torre-1.png, render-torre-2.png, etc.
+ * Planos:  ONE per tipología (each has unique floor plan).
  */
 const ASSET_MANIFEST: readonly AssetManifestEntry[] = [
   // ── Branding (2) ──
-  // These live at /public/assets/ root locally, but get uploaded to the project folder
   { sourcePath: 'public/assets/logo-jimenez-horizontal.png', hubspotFileName: 'logo-jimenez-horizontal.png', kind: 'branding', typology: null, originalSourceName: null },
   { sourcePath: 'public/assets/sello-40-anos.png', hubspotFileName: 'sello-40-anos.png', kind: 'branding', typology: null, originalSourceName: null },
 
-  // ── Renders (17) ──
-  { sourcePath: 'public/assets/porto-sabbia/render-A1.png', hubspotFileName: 'render-A1.png', kind: 'render', typology: 'A1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-A2.png', hubspotFileName: 'render-A2.png', kind: 'render', typology: 'A2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-A3.png', hubspotFileName: 'render-A3.png', kind: 'render', typology: 'A3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-B1.png', hubspotFileName: 'render-B1.png', kind: 'render', typology: 'B1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-B2.png', hubspotFileName: 'render-B2.png', kind: 'render', typology: 'B2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-B3.png', hubspotFileName: 'render-B3.png', kind: 'render', typology: 'B3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-B4.png', hubspotFileName: 'render-B4.png', kind: 'render', typology: 'B4', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-C1.png', hubspotFileName: 'render-C1.png', kind: 'render', typology: 'C1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-C2.png', hubspotFileName: 'render-C2.png', kind: 'render', typology: 'C2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-C3.png', hubspotFileName: 'render-C3.png', kind: 'render', typology: 'C3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-C4.png', hubspotFileName: 'render-C4.png', kind: 'render', typology: 'C4', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-D1.png', hubspotFileName: 'render-D1.png', kind: 'render', typology: 'D1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-D2.png', hubspotFileName: 'render-D2.png', kind: 'render', typology: 'D2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-D3.png', hubspotFileName: 'render-D3.png', kind: 'render', typology: 'D3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-D4.png', hubspotFileName: 'render-D4.png', kind: 'render', typology: 'D4', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-D5.png', hubspotFileName: 'render-D5.png', kind: 'render', typology: 'D5', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/render-E1.png', hubspotFileName: 'render-E1.png', kind: 'render', typology: 'E1', originalSourceName: null },
+  // ── Render (1) — shared across all tipologías ──
+  { sourcePath: 'public/assets/porto-sabbia/render-A1.png', hubspotFileName: 'render.png', kind: 'render', typology: null, originalSourceName: null },
 
   // ── Planos (17) ──
   { sourcePath: 'public/assets/porto-sabbia/plano-A1.png', hubspotFileName: 'plano-A1.png', kind: 'floorplan', typology: 'A1', originalSourceName: null },
@@ -354,17 +345,89 @@ async function main() {
   const outputFile = path.join(OUTPUT_DIR, `asset-migration-${CLIENT_SLUG}-${PROJECT_SLUG}-${Date.now()}.json`);
   fs.writeFileSync(outputFile, JSON.stringify(output, null, 2));
 
+  // ── Detect deduplication (same fileId, different hubspotFileName) ──
+  const fileIdToNames = new Map<string, string[]>();
+  for (const r of results) {
+    if (r.status !== 'failed' && r.fileId) {
+      const existing = fileIdToNames.get(r.fileId) || [];
+      existing.push(r.hubspotFileName);
+      fileIdToNames.set(r.fileId, existing);
+    }
+  }
+  const deduplicatedGroups = [...fileIdToNames.entries()]
+    .filter(([, names]) => names.length > 1);
+
+  if (deduplicatedGroups.length > 0) {
+    console.error(`\n⚠ WARNING: ASSETS_DEDUPLICATED — ${deduplicatedGroups.length} fileId(s) shared by multiple filenames:`);
+    for (const [fileId, names] of deduplicatedGroups) {
+      console.error(`  fileId ${fileId}: ${names.join(', ')}`);
+    }
+    console.error('  These filenames may not resolve to unique URLs. Verify runtime URL validation below.');
+  }
+
+  // ── Runtime URL validation: every expected URL must return 200 ──
+  console.log(`\n═══ Runtime URL Validation ═══`);
+  let urlsChecked = 0;
+  let urlsOk = 0;
+  let urlsFailed = 0;
+  const urlErrors: Array<{ hubspotFileName: string; expectedUrl: string; status: number }> = [];
+
+  for (const r of results) {
+    if (r.status === 'failed' || !r.url) continue;
+    urlsChecked++;
+    try {
+      const headRes = await fetch(r.url, { method: 'HEAD' });
+      if (headRes.ok) {
+        urlsOk++;
+        process.stdout.write('.');
+      } else {
+        urlsFailed++;
+        urlErrors.push({ hubspotFileName: r.hubspotFileName, expectedUrl: r.url, status: headRes.status });
+        process.stdout.write('✗');
+      }
+    } catch {
+      urlsFailed++;
+      urlErrors.push({ hubspotFileName: r.hubspotFileName, expectedUrl: r.url!, status: 0 });
+      process.stdout.write('✗');
+    }
+    // Small delay between HEAD requests
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  console.log(`\n  Checked: ${urlsChecked}  OK: ${urlsOk}  Failed: ${urlsFailed}`);
+
+  if (urlsFailed > 0) {
+    console.error(`\n  RUNTIME_ASSET_URL_NOT_ACCESSIBLE:`);
+    for (const e of urlErrors) {
+      console.error(`    ${e.hubspotFileName} → ${e.expectedUrl} (HTTP ${e.status})`);
+    }
+  }
+
+  // Add validation results to output
+  (output as any).runtimeUrlValidation = { checked: urlsChecked, ok: urlsOk, failed: urlsFailed };
+  (output as any).deduplicatedAssets = deduplicatedGroups.map(([fileId, names]) => ({ fileId, filenames: names }));
+  if (urlErrors.length > 0) {
+    output.errors.push(...urlErrors.map(e => ({
+      hubspotFileName: e.hubspotFileName,
+      error: `RUNTIME_ASSET_URL_NOT_ACCESSIBLE: HTTP ${e.status} at ${e.expectedUrl}`,
+    })));
+  }
+
+  // Re-write output JSON with validation results
+  fs.writeFileSync(outputFile, JSON.stringify(output, null, 2));
+
   // Summary
   console.log(`\n═══ Summary ═══`);
   console.log(`  Uploaded:  ${output.uploaded}`);
   console.log(`  Existing:  ${output.existing}`);
   console.log(`  Failed:    ${output.failed}`);
+  console.log(`  URLs OK:   ${urlsOk}/${urlsChecked}`);
   console.log(`  Base URL:  ${assetBaseUrl || '(none — all failed)'}`);
   console.log(`  Host:      ${assetHost || '(none)'}`);
   console.log(`  Output:    ${outputFile}\n`);
 
-  if (output.failed > 0) {
-    console.error(`  ${output.failed} files failed. Check output JSON for details.`);
+  if (output.failed > 0 || urlsFailed > 0) {
+    console.error(`  ${output.failed} uploads failed, ${urlsFailed} runtime URLs not accessible.`);
+    console.error('  DO NOT use this assetBaseUrl in production until all URLs return 200.');
     process.exit(1);
   }
 }

@@ -1,0 +1,381 @@
+{
+  "clientSlug": "jimenez",
+  "projectSlug": "porto-sabbia-v2",
+  "hubspotFolder": "/assets/jimenez/porto-sabbia-v2",
+  "assetBaseUrl": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2",
+  "assetHost": "51256354.fs1.hubspotusercontent-na1.net",
+  "timestamp": "2026-05-02T01:47:16.633Z",
+  "totalFiles": 36,
+  "uploaded": 36,
+  "existing": 0,
+  "failed": 0,
+  "assets": {
+    "logo-jimenez-horizontal.png": {
+      "sourcePath": "public/assets/logo-jimenez-horizontal.png",
+      "kind": "branding",
+      "typology": null,
+      "originalSourceName": null,
+      "fileId": "212114028381",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/logo-jimenez-horizontal.png",
+      "sha256": "02961da7cfbbf5c66fd51bca77fca22fe12f31a1cea053ee5a1ca04144ed17ef",
+      "sizeBytes": 32186
+    },
+    "sello-40-anos.png": {
+      "sourcePath": "public/assets/sello-40-anos.png",
+      "kind": "branding",
+      "typology": null,
+      "originalSourceName": null,
+      "fileId": "212114028385",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/sello-40-anos.png",
+      "sha256": "2a5269f3efcca748c9ae4400413255aade2d256d6f57b92fd4d3ef0f3f4d543a",
+      "sizeBytes": 156089
+    },
+    "render-A1.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-A1.png",
+      "kind": "render",
+      "typology": "A1",
+      "originalSourceName": null,
+      "fileId": "212114028391",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-A1.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-A2.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-A2.png",
+      "kind": "render",
+      "typology": "A2",
+      "originalSourceName": null,
+      "fileId": "212114028393",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-A2.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-A3.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-A3.png",
+      "kind": "render",
+      "typology": "A3",
+      "originalSourceName": null,
+      "fileId": "212114028394",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-A3.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-B1.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-B1.png",
+      "kind": "render",
+      "typology": "B1",
+      "originalSourceName": null,
+      "fileId": "212114028396",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-B1.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-B2.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-B2.png",
+      "kind": "render",
+      "typology": "B2",
+      "originalSourceName": null,
+      "fileId": "212109056634",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-B2.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-B3.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-B3.png",
+      "kind": "render",
+      "typology": "B3",
+      "originalSourceName": null,
+      "fileId": "212114028401",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-B3.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-B4.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-B4.png",
+      "kind": "render",
+      "typology": "B4",
+      "originalSourceName": null,
+      "fileId": "212109056639",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-B4.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-C1.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-C1.png",
+      "kind": "render",
+      "typology": "C1",
+      "originalSourceName": null,
+      "fileId": "212114028405",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-C1.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-C2.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-C2.png",
+      "kind": "render",
+      "typology": "C2",
+      "originalSourceName": null,
+      "fileId": "212109056643",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-C2.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-C3.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-C3.png",
+      "kind": "render",
+      "typology": "C3",
+      "originalSourceName": null,
+      "fileId": "212109056644",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-C3.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-C4.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-C4.png",
+      "kind": "render",
+      "typology": "C4",
+      "originalSourceName": null,
+      "fileId": "212109056647",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-C4.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-D1.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-D1.png",
+      "kind": "render",
+      "typology": "D1",
+      "originalSourceName": null,
+      "fileId": "212114028413",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-D1.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-D2.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-D2.png",
+      "kind": "render",
+      "typology": "D2",
+      "originalSourceName": null,
+      "fileId": "212114028416",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-D2.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-D3.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-D3.png",
+      "kind": "render",
+      "typology": "D3",
+      "originalSourceName": null,
+      "fileId": "212114028418",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-D3.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-D4.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-D4.png",
+      "kind": "render",
+      "typology": "D4",
+      "originalSourceName": null,
+      "fileId": "212114028419",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-D4.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-D5.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-D5.png",
+      "kind": "render",
+      "typology": "D5",
+      "originalSourceName": null,
+      "fileId": "212114028422",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-D5.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "render-E1.png": {
+      "sourcePath": "public/assets/porto-sabbia/render-E1.png",
+      "kind": "render",
+      "typology": "E1",
+      "originalSourceName": null,
+      "fileId": "212114028423",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/render-E1.png",
+      "sha256": "ed5f792abcfe0a5df2f3755864b3e72ac26fb4703bbbe3630e3e3af2460cb705",
+      "sizeBytes": 2856054
+    },
+    "plano-A1.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-A1.png",
+      "kind": "floorplan",
+      "typology": "A1",
+      "originalSourceName": null,
+      "fileId": "212114028426",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-A1.png",
+      "sha256": "6d5c5eafca2146711358bfc616d713621ecec0df057b118a0f8fe49450128ed4",
+      "sizeBytes": 321725
+    },
+    "plano-A2.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-A2.png",
+      "kind": "floorplan",
+      "typology": "A2",
+      "originalSourceName": null,
+      "fileId": "212114028429",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-A2.png",
+      "sha256": "1ef3d9fd4bbfb86c23f92c4cba0b406147d3de965fa8059d30fe634acba0ff93",
+      "sizeBytes": 343492
+    },
+    "plano-A3.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-A3.png",
+      "kind": "floorplan",
+      "typology": "A3",
+      "originalSourceName": null,
+      "fileId": "212114028430",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-A3.png",
+      "sha256": "4135bb7fb3cb4dd425febeb3f1041ac59531c50c1eb5e3c1384c2454e7c5c7db",
+      "sizeBytes": 282125
+    },
+    "plano-B1.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-B1.png",
+      "kind": "floorplan",
+      "typology": "B1",
+      "originalSourceName": null,
+      "fileId": "212114028432",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-B1.png",
+      "sha256": "644bf24af9a7cf3fbebbb86f0ab1c25324004dc7791016e53fd906b1cb5895ad",
+      "sizeBytes": 306819
+    },
+    "plano-B2.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-B2.png",
+      "kind": "floorplan",
+      "typology": "B2",
+      "originalSourceName": null,
+      "fileId": "212114028436",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-B2.png",
+      "sha256": "9bcfb0338983dd9f1da769e3f6b24598f0d568e7a64d81b3c66e2622384352cb",
+      "sizeBytes": 301647
+    },
+    "plano-B3.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-B3.png",
+      "kind": "floorplan",
+      "typology": "B3",
+      "originalSourceName": null,
+      "fileId": "212114028438",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-B3.png",
+      "sha256": "03ad3996c1b6d543081c7981e06c98973edae29eeaf67e55729d06c0adb00aa3",
+      "sizeBytes": 311197
+    },
+    "plano-B4.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-B4.png",
+      "kind": "floorplan",
+      "typology": "B4",
+      "originalSourceName": null,
+      "fileId": "212114028442",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-B4.png",
+      "sha256": "2df2a3f6b6a85c534b8754dbcc1f09410d225097314c86b47b00f3a0068eab60",
+      "sizeBytes": 281654
+    },
+    "plano-C1.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-C1.png",
+      "kind": "floorplan",
+      "typology": "C1",
+      "originalSourceName": null,
+      "fileId": "212109056668",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-C1.png",
+      "sha256": "c4ac3f0abeb66274d3c00ba07b8f8df220ca3c5a873b07ac0756203ad045728d",
+      "sizeBytes": 333707
+    },
+    "plano-C2.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-C2.png",
+      "kind": "floorplan",
+      "typology": "C2",
+      "originalSourceName": null,
+      "fileId": "212109056670",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-C2.png",
+      "sha256": "98e6efdab8b7226dcf41fdaff0ba126e7f6c0b37707c3a4b9a17a0cfe479af5f",
+      "sizeBytes": 318323
+    },
+    "plano-C3.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-C3.png",
+      "kind": "floorplan",
+      "typology": "C3",
+      "originalSourceName": null,
+      "fileId": "212109056673",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-C3.png",
+      "sha256": "98e51f240817a6e960142c5c503172439117b0504527781ef0502bba4826f3a9",
+      "sizeBytes": 402145
+    },
+    "plano-C4.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-C4.png",
+      "kind": "floorplan",
+      "typology": "C4",
+      "originalSourceName": null,
+      "fileId": "212109056674",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-C4.png",
+      "sha256": "8842de0f16d9555a41e444c8a44c7320db7cada469c71867795cec16e706c469",
+      "sizeBytes": 292178
+    },
+    "plano-D1.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-D1.png",
+      "kind": "floorplan",
+      "typology": "D1",
+      "originalSourceName": null,
+      "fileId": "212109056675",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-D1.png",
+      "sha256": "0ec1880ce2e74c82c8e926efdbc48f0b8bae16ed4dabe3d1f164018b762b0ab9",
+      "sizeBytes": 291677
+    },
+    "plano-D2.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-D2.png",
+      "kind": "floorplan",
+      "typology": "D2",
+      "originalSourceName": null,
+      "fileId": "212114028449",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-D2.png",
+      "sha256": "97e4aeaaaba43f324009a74f5a4d3c55b524ffbf5db6b9067a5c29293d48d0e7",
+      "sizeBytes": 375527
+    },
+    "plano-D3.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-D3.png",
+      "kind": "floorplan",
+      "typology": "D3",
+      "originalSourceName": null,
+      "fileId": "212114028452",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-D3.png",
+      "sha256": "42e684c6d5d72f7451d40933e357cdd020c2af14b6dfe40ee2711e14ce97c1a2",
+      "sizeBytes": 357794
+    },
+    "plano-D4.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-D4.png",
+      "kind": "floorplan",
+      "typology": "D4",
+      "originalSourceName": null,
+      "fileId": "212109056680",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-D4.png",
+      "sha256": "3f3749a29c168170f6828ada46e1e3d1a6b2205862aebb9a014855e81c26e03f",
+      "sizeBytes": 400541
+    },
+    "plano-D5.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-D5.png",
+      "kind": "floorplan",
+      "typology": "D5",
+      "originalSourceName": null,
+      "fileId": "212109056683",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-D5.png",
+      "sha256": "60494b5f582587059ff7d92617198c89ecdab5809d2c9d792be79465a0496b7b",
+      "sizeBytes": 380733
+    },
+    "plano-E1.png": {
+      "sourcePath": "public/assets/porto-sabbia/plano-E1.png",
+      "kind": "floorplan",
+      "typology": "E1",
+      "originalSourceName": null,
+      "fileId": "212114028456",
+      "url": "https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia-v2/plano-E1.png",
+      "sha256": "ddacd307df91a6da1e578bc212183eed3a8453d5647011b5378f6faacb8c3c3a",
+      "sizeBytes": 302374
+    }
+  },
+  "errors": [],
+  "runtimeUrlValidation": {
+    "checked": 36,
+    "ok": 36,
+    "failed": 0
+  },
+  "deduplicatedAssets": []
+}

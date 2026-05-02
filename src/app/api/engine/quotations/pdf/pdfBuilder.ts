@@ -225,7 +225,7 @@ export async function buildPdfBuffer(q: QuotationRow, assetOpts?: PdfAssetOption
   const [logoData, selloData, renderData, planoData] = await Promise.all([
     fetchImageAsset(assetUrl('logo-jimenez-horizontal.png'), allowedHosts),
     fetchImageAsset(assetUrl('sello-40-anos.png'), allowedHosts),
-    tip ? fetchImageAsset(assetUrl(`render-${tip}.png`), allowedHosts) : null,
+    fetchImageAsset(assetUrl('render.png'), allowedHosts),
     tip ? fetchImageAsset(assetUrl(`plano-${tip}.png`), allowedHosts) : null,
   ]);
   const [logoImg, selloImg, renderImg, planoImg] = await Promise.all([
