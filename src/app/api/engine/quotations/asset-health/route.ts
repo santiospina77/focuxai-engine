@@ -45,7 +45,7 @@ const CLIENT_REGISTRY: Record<string, ClientAssetHealthConfig> = {
     expectedAssets: [
       // Render — single shared file
       'render.png',
-      // Planos — one per typology
+      // Planos — one per typology (Porto Sabbia: A1-D2 + E1)
       'plano-A1.png',
       'plano-A2.png',
       'plano-A3.png',
@@ -58,11 +58,6 @@ const CLIENT_REGISTRY: Record<string, ClientAssetHealthConfig> = {
       'plano-D1.png',
       'plano-D2.png',
       'plano-E1.png',
-      'plano-E2.png',
-      'plano-E3.png',
-      'plano-F1.png',
-      'plano-F2.png',
-      'plano-F3.png',
       // Branding
       'logo-jimenez-horizontal.png',
       'sello-40-anos.png',
