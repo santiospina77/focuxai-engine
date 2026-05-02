@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "discover:sinco": "node --env-file=.env.local --import tsx scripts/discover-sinco-projects.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
