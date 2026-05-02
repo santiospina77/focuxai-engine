@@ -136,7 +136,9 @@ async function fetchImageAsset(
   resolvedUrl: string,
   allowedHosts: readonly string[],
 ): Promise<Uint8Array | null> {
-  const result = await fetchAssetSafe(resolvedUrl, { allowedHosts });
+  // Renders can be 2-3MB — default 5s timeout is too tight for CDN fetch.
+  // 15s gives ample room without risking serverless function timeout (60s).
+  const result = await fetchAssetSafe(resolvedUrl, { allowedHosts, timeoutMs: 15_000 });
   if (result.isOk()) return new Uint8Array(result.value.data);
   // Placeholder or any error → null (PDF renders without the image)
   return null;
