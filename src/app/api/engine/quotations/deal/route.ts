@@ -40,7 +40,7 @@ import { ResourceError, ValidationError } from '@/engine/core/errors/EngineError
 // ═══════════════════════════════════════════════════════════
 
 // const JIMENEZ_PDF_ASSETS: PdfAssetOptions = {
-//   assetBaseUrl: 'https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez',
+//   assetBaseUrl: 'https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia',
 //   allowedHosts: ['focuxai-engine.vercel.app', '51256354.fs1.hubspotusercontent-na1.net'],
 // };
 
