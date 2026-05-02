@@ -39,10 +39,10 @@ import { ResourceError, ValidationError } from '@/engine/core/errors/EngineError
 // Descomentar después de ejecutar migrate-assets-to-hubspot.ts
 // ═══════════════════════════════════════════════════════════
 
-// const JIMENEZ_PDF_ASSETS: PdfAssetOptions = {
-//   assetBaseUrl: 'https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia',
-//   allowedHosts: ['focuxai-engine.vercel.app', '51256354.fs1.hubspotusercontent-na1.net'],
-// };
+const JIMENEZ_PDF_ASSETS: PdfAssetOptions = {
+  assetBaseUrl: 'https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia',
+  allowedHosts: ['focuxai-engine.vercel.app', '51256354.fs1.hubspotusercontent-na1.net'],
+};
 
 // ═══════════════════════════════════════════════════════════
 // Client config
@@ -63,10 +63,8 @@ const CLIENT_REGISTRY: Record<string, ClientDealConfig> = {
     pipelineId: '889311333',
     stageIdCotizacion: '1338267783',
     hubspotPortalId: '51256354',
-    // Fase B.0 Step 7: PDF assets desde HubSpot CDN del cliente.
-    // Se activa después de ejecutar migrate-assets-to-hubspot.ts (Step 6).
-    // Mientras esté undefined → fallback automático a /assets/ de Vercel.
-    // pdfAssets: JIMENEZ_PDF_ASSETS,
+    // Fase B.0: PDF assets desde HubSpot CDN del cliente (activado post-migration).
+    pdfAssets: JIMENEZ_PDF_ASSETS,
   },
 };
 
