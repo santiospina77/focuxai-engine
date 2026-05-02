@@ -6,11 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test:hubspot-files": "node --import tsx --test src/engine/connectors/crm/hubspot/__tests__/hubspotFileManager.test.ts"
+    "lint": "next lint"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.4",
+    "@neondatabase/serverless": "^1.1.0",
     "@pdf-lib/fontkit": "^1.1.1",
     "@react-pdf/renderer": "^4.3.2",
     "file-saver": "^2.0.5",
@@ -26,7 +25,6 @@
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
-    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
