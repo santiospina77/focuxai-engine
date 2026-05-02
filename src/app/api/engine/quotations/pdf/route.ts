@@ -13,11 +13,11 @@ import { buildPdfBuffer } from './pdfBuilder';
 import type { PdfAssetOptions } from './pdfBuilder';
 import type { QuotationRow } from '../types';
 
-// Fallback asset options for this endpoint.
-// No assetBaseUrl → resolves to Vercel static /assets/.
-// allowedHosts explicit because fetchAssetSafe fails closed in production.
-const FALLBACK_PDF_ASSET_OPTIONS: PdfAssetOptions = {
-  allowedHosts: ['focuxai-engine.vercel.app', 'engine.focux.co'],
+// Asset options — same CDN config as deal/route.ts.
+// Both endpoints must resolve assets from HubSpot File Manager.
+const JIMENEZ_PDF_ASSETS: PdfAssetOptions = {
+  assetBaseUrl: 'https://51256354.fs1.hubspotusercontent-na1.net/hubfs/51256354/assets/jimenez/porto-sabbia',
+  allowedHosts: ['focuxai-engine.vercel.app', 'engine.focux.co', '51256354.fs1.hubspotusercontent-na1.net'],
 };
 
 function errorResponse(status: number, error: string, message: string) {
@@ -44,10 +44,7 @@ async function generatePdf(clientId: string, cotNumber: string): Promise<NextRes
     }
 
     const quotation = rows[0] as QuotationRow;
-    // Intentionally no assetBaseUrl here.
-    // This endpoint is the fallback renderer and must resolve assets from Vercel static /assets/.
-    // allowedHosts is explicit because fetchAssetSafe fails closed in production.
-    const pdfBuffer = await buildPdfBuffer(quotation, FALLBACK_PDF_ASSET_OPTIONS);
+    const pdfBuffer = await buildPdfBuffer(quotation, JIMENEZ_PDF_ASSETS);
 
     await sql`
       UPDATE quotations SET pdf_generated_at = NOW() WHERE id = ${quotation.id}
