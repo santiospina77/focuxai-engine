@@ -20,9 +20,16 @@
  * Output:
  *   scripts/output/asset-migration-{clientSlug}-{projectSlug}-{timestamp}.json
  *
- * Uses duplicateValidationStrategy: RETURN_EXISTING — safe because each manifest
- * entry is unique content (renders are deduplicated to one file per project/tower).
- * Runtime depends on every canonical filename resolving to HTTP 200.
+ * Hybrid duplicate validation strategy (Architect-approved):
+ *   - Renders: NONE — forces HubSpot to create the file with the exact requested name.
+ *     Required when hubspotFileName differs from any existing file (e.g. render.png
+ *     when the content already exists as render-A1.png). RETURN_EXISTING would silently
+ *     return the existing file's URL without materializing the new name.
+ *   - Planos/Branding: RETURN_EXISTING — safe because hubspotFileName matches the
+ *     uploaded filename (no rename), so dedup returns the correct URL.
+ *
+ * Post-upload validation checks CONSTRUCTED runtime URLs (assetBaseUrl + hubspotFileName),
+ * NOT the URLs HubSpot returns. Hard-fail if any runtime URL is not accessible.
  * Post-upload: validates every expected runtime URL returns 200.
  *
  * FocuxAI Engine™ — Fase B.0 Step 6
@@ -73,10 +80,16 @@ interface AssetManifestEntry {
   readonly hubspotFileName: string;
   /** Asset category */
   readonly kind: 'render' | 'floorplan' | 'branding';
-  /** Typology code (null for branding) */
+  /** Typology code (null for branding/render) */
   readonly typology: string | null;
   /** Original filename from client delivery (audit trail) */
   readonly originalSourceName: string | null;
+  /**
+   * HubSpot duplicate validation strategy per entry.
+   * - NONE: force-create file with exact hubspotFileName (use when renaming).
+   * - RETURN_EXISTING: reuse existing file if content matches (use when name matches).
+   */
+  readonly duplicateValidationStrategy: 'NONE' | 'RETURN_EXISTING';
 }
 
 /**
@@ -90,31 +103,31 @@ interface AssetManifestEntry {
  * Planos:  ONE per tipología (each has unique floor plan).
  */
 const ASSET_MANIFEST: readonly AssetManifestEntry[] = [
-  // ── Branding (2) ──
-  { sourcePath: 'public/assets/logo-jimenez-horizontal.png', hubspotFileName: 'logo-jimenez-horizontal.png', kind: 'branding', typology: null, originalSourceName: null },
-  { sourcePath: 'public/assets/sello-40-anos.png', hubspotFileName: 'sello-40-anos.png', kind: 'branding', typology: null, originalSourceName: null },
+  // ── Branding (2) — RETURN_EXISTING: name matches, safe to dedup ──
+  { sourcePath: 'public/assets/logo-jimenez-horizontal.png', hubspotFileName: 'logo-jimenez-horizontal.png', kind: 'branding', typology: null, originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/sello-40-anos.png', hubspotFileName: 'sello-40-anos.png', kind: 'branding', typology: null, originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
 
-  // ── Render (1) — shared across all tipologías ──
-  { sourcePath: 'public/assets/porto-sabbia/render-A1.png', hubspotFileName: 'render.png', kind: 'render', typology: null, originalSourceName: null },
+  // ── Render (1) — NONE: hubspotFileName differs from source, must force-create ──
+  { sourcePath: 'public/assets/porto-sabbia/render-A1.png', hubspotFileName: 'render.png', kind: 'render', typology: null, originalSourceName: 'render-A1.png', duplicateValidationStrategy: 'NONE' },
 
-  // ── Planos (17) ──
-  { sourcePath: 'public/assets/porto-sabbia/plano-A1.png', hubspotFileName: 'plano-A1.png', kind: 'floorplan', typology: 'A1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-A2.png', hubspotFileName: 'plano-A2.png', kind: 'floorplan', typology: 'A2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-A3.png', hubspotFileName: 'plano-A3.png', kind: 'floorplan', typology: 'A3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-B1.png', hubspotFileName: 'plano-B1.png', kind: 'floorplan', typology: 'B1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-B2.png', hubspotFileName: 'plano-B2.png', kind: 'floorplan', typology: 'B2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-B3.png', hubspotFileName: 'plano-B3.png', kind: 'floorplan', typology: 'B3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-B4.png', hubspotFileName: 'plano-B4.png', kind: 'floorplan', typology: 'B4', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-C1.png', hubspotFileName: 'plano-C1.png', kind: 'floorplan', typology: 'C1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-C2.png', hubspotFileName: 'plano-C2.png', kind: 'floorplan', typology: 'C2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-C3.png', hubspotFileName: 'plano-C3.png', kind: 'floorplan', typology: 'C3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-C4.png', hubspotFileName: 'plano-C4.png', kind: 'floorplan', typology: 'C4', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-D1.png', hubspotFileName: 'plano-D1.png', kind: 'floorplan', typology: 'D1', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-D2.png', hubspotFileName: 'plano-D2.png', kind: 'floorplan', typology: 'D2', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-D3.png', hubspotFileName: 'plano-D3.png', kind: 'floorplan', typology: 'D3', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-D4.png', hubspotFileName: 'plano-D4.png', kind: 'floorplan', typology: 'D4', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-D5.png', hubspotFileName: 'plano-D5.png', kind: 'floorplan', typology: 'D5', originalSourceName: null },
-  { sourcePath: 'public/assets/porto-sabbia/plano-E1.png', hubspotFileName: 'plano-E1.png', kind: 'floorplan', typology: 'E1', originalSourceName: null },
+  // ── Planos (17) — RETURN_EXISTING: name matches source, safe to dedup ──
+  { sourcePath: 'public/assets/porto-sabbia/plano-A1.png', hubspotFileName: 'plano-A1.png', kind: 'floorplan', typology: 'A1', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-A2.png', hubspotFileName: 'plano-A2.png', kind: 'floorplan', typology: 'A2', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-A3.png', hubspotFileName: 'plano-A3.png', kind: 'floorplan', typology: 'A3', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-B1.png', hubspotFileName: 'plano-B1.png', kind: 'floorplan', typology: 'B1', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-B2.png', hubspotFileName: 'plano-B2.png', kind: 'floorplan', typology: 'B2', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-B3.png', hubspotFileName: 'plano-B3.png', kind: 'floorplan', typology: 'B3', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-B4.png', hubspotFileName: 'plano-B4.png', kind: 'floorplan', typology: 'B4', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-C1.png', hubspotFileName: 'plano-C1.png', kind: 'floorplan', typology: 'C1', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-C2.png', hubspotFileName: 'plano-C2.png', kind: 'floorplan', typology: 'C2', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-C3.png', hubspotFileName: 'plano-C3.png', kind: 'floorplan', typology: 'C3', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-C4.png', hubspotFileName: 'plano-C4.png', kind: 'floorplan', typology: 'C4', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-D1.png', hubspotFileName: 'plano-D1.png', kind: 'floorplan', typology: 'D1', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-D2.png', hubspotFileName: 'plano-D2.png', kind: 'floorplan', typology: 'D2', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-D3.png', hubspotFileName: 'plano-D3.png', kind: 'floorplan', typology: 'D3', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-D4.png', hubspotFileName: 'plano-D4.png', kind: 'floorplan', typology: 'D4', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-D5.png', hubspotFileName: 'plano-D5.png', kind: 'floorplan', typology: 'D5', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
+  { sourcePath: 'public/assets/porto-sabbia/plano-E1.png', hubspotFileName: 'plano-E1.png', kind: 'floorplan', typology: 'E1', originalSourceName: null, duplicateValidationStrategy: 'RETURN_EXISTING' },
 ];
 
 // ═══════════════════════════════════════════════════════════
@@ -178,7 +191,7 @@ async function uploadAsset(
   formData.append('options', JSON.stringify({
     access: 'PUBLIC_NOT_INDEXABLE',
     overwrite: false,
-    duplicateValidationStrategy: 'RETURN_EXISTING',
+    duplicateValidationStrategy: entry.duplicateValidationStrategy,
     duplicateValidationScope: 'EXACT_FOLDER',
   }));
   formData.append('folderPath', HUBSPOT_FOLDER);
@@ -261,7 +274,8 @@ async function main() {
     const fullPath = path.resolve(PROJECT_ROOT, entry.sourcePath);
     const sizeMB = (fs.statSync(fullPath).size / 1_048_576).toFixed(2);
 
-    process.stdout.write(`  [${i + 1}/${ASSET_MANIFEST.length}] ${entry.hubspotFileName} (${sizeMB}MB, ${entry.kind})... `);
+    const strategyTag = entry.duplicateValidationStrategy === 'NONE' ? ' [NONE]' : '';
+    process.stdout.write(`  [${i + 1}/${ASSET_MANIFEST.length}] ${entry.hubspotFileName} (${sizeMB}MB, ${entry.kind}${strategyTag})... `);
     const result = await uploadAsset(entry);
     results.push(result);
 
@@ -365,50 +379,77 @@ async function main() {
     console.error('  These filenames may not resolve to unique URLs. Verify runtime URL validation below.');
   }
 
-  // ── Runtime URL validation: every expected URL must return 200 ──
-  console.log(`\n═══ Runtime URL Validation ═══`);
+  // ── Runtime URL validation ──
+  // CRITICAL: Validate the CONSTRUCTED URL (assetBaseUrl + hubspotFileName),
+  // NOT the URL HubSpot returned. RETURN_EXISTING can return a URL with a
+  // different filename (e.g. render-A1.png when we asked for render.png).
+  // The pdfBuilder constructs URLs from assetBaseUrl + hubspotFileName,
+  // so that's the contract we must validate.
+  console.log(`\n═══ Runtime URL Validation (constructed URLs) ═══`);
   let urlsChecked = 0;
   let urlsOk = 0;
   let urlsFailed = 0;
-  const urlErrors: Array<{ hubspotFileName: string; expectedUrl: string; status: number }> = [];
+  const urlErrors: Array<{ hubspotFileName: string; hubspotReturnedUrl: string; runtimeExpectedUrl: string; status: number }> = [];
 
-  for (const r of results) {
-    if (r.status === 'failed' || !r.url) continue;
-    urlsChecked++;
-    try {
-      const headRes = await fetch(r.url, { method: 'HEAD' });
-      if (headRes.ok) {
-        urlsOk++;
-        process.stdout.write('.');
-      } else {
+  if (!assetBaseUrl) {
+    console.error('  SKIP: No assetBaseUrl derived — cannot validate constructed URLs.');
+  } else {
+    for (const r of results) {
+      if (r.status === 'failed') continue;
+      urlsChecked++;
+
+      // This is the URL pdfBuilder will construct at runtime
+      const runtimeUrl = `${assetBaseUrl}/${r.hubspotFileName}`;
+      const hubspotUrl = r.url || '(none)';
+
+      try {
+        const headRes = await fetch(runtimeUrl, { method: 'HEAD' });
+        if (headRes.ok) {
+          urlsOk++;
+          process.stdout.write('.');
+        } else {
+          urlsFailed++;
+          urlErrors.push({ hubspotFileName: r.hubspotFileName, hubspotReturnedUrl: hubspotUrl, runtimeExpectedUrl: runtimeUrl, status: headRes.status });
+          process.stdout.write('✗');
+        }
+      } catch {
         urlsFailed++;
-        urlErrors.push({ hubspotFileName: r.hubspotFileName, expectedUrl: r.url, status: headRes.status });
+        urlErrors.push({ hubspotFileName: r.hubspotFileName, hubspotReturnedUrl: hubspotUrl, runtimeExpectedUrl: runtimeUrl, status: 0 });
         process.stdout.write('✗');
       }
-    } catch {
-      urlsFailed++;
-      urlErrors.push({ hubspotFileName: r.hubspotFileName, expectedUrl: r.url!, status: 0 });
-      process.stdout.write('✗');
+      // Small delay between HEAD requests
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
-    // Small delay between HEAD requests
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  console.log(`\n  Checked: ${urlsChecked}  OK: ${urlsOk}  Failed: ${urlsFailed}`);
+    console.log(`\n  Checked: ${urlsChecked}  OK: ${urlsOk}  Failed: ${urlsFailed}`);
 
-  if (urlsFailed > 0) {
-    console.error(`\n  RUNTIME_ASSET_URL_NOT_ACCESSIBLE:`);
-    for (const e of urlErrors) {
-      console.error(`    ${e.hubspotFileName} → ${e.expectedUrl} (HTTP ${e.status})`);
+    if (urlsFailed > 0) {
+      console.error(`\n  RUNTIME_ASSET_URL_NOT_ACCESSIBLE:`);
+      for (const e of urlErrors) {
+        console.error(`    ${e.hubspotFileName}`);
+        console.error(`      HubSpot returned: ${e.hubspotReturnedUrl}`);
+        console.error(`      Runtime expects:  ${e.runtimeExpectedUrl} → HTTP ${e.status}`);
+      }
     }
   }
 
-  // Add validation results to output
+  // Add validation results to output (with both URLs for audit)
   (output as any).runtimeUrlValidation = { checked: urlsChecked, ok: urlsOk, failed: urlsFailed };
   (output as any).deduplicatedAssets = deduplicatedGroups.map(([fileId, names]) => ({ fileId, filenames: names }));
+
+  // Enrich asset records with both URLs for audit trail
+  if (assetBaseUrl) {
+    for (const r of results) {
+      if (r.status !== 'failed' && output.assets[r.hubspotFileName]) {
+        (output.assets[r.hubspotFileName] as any).hubspotReturnedUrl = r.url;
+        (output.assets[r.hubspotFileName] as any).runtimeExpectedUrl = `${assetBaseUrl}/${r.hubspotFileName}`;
+      }
+    }
+  }
+
   if (urlErrors.length > 0) {
     output.errors.push(...urlErrors.map(e => ({
       hubspotFileName: e.hubspotFileName,
-      error: `RUNTIME_ASSET_URL_NOT_ACCESSIBLE: HTTP ${e.status} at ${e.expectedUrl}`,
+      error: `RUNTIME_ASSET_URL_NOT_ACCESSIBLE: HTTP ${e.status} at ${e.runtimeExpectedUrl} (HubSpot returned: ${e.hubspotReturnedUrl})`,
     })));
   }
 
