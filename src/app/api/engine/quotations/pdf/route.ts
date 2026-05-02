@@ -10,7 +10,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/engine/core/db/neon';
 import { buildPdfBuffer } from './pdfBuilder';
+import type { PdfAssetOptions } from './pdfBuilder';
 import type { QuotationRow } from '../types';
+
+// Fallback asset options for this endpoint.
+// No assetBaseUrl → resolves to Vercel static /assets/.
+// allowedHosts explicit because fetchAssetSafe fails closed in production.
+const FALLBACK_PDF_ASSET_OPTIONS: PdfAssetOptions = {
+  allowedHosts: ['focuxai-engine.vercel.app', 'engine.focux.co'],
+};
 
 function errorResponse(status: number, error: string, message: string) {
   return NextResponse.json(
@@ -36,7 +44,10 @@ async function generatePdf(clientId: string, cotNumber: string): Promise<NextRes
     }
 
     const quotation = rows[0] as QuotationRow;
-    const pdfBuffer = await buildPdfBuffer(quotation);
+    // Intentionally no assetBaseUrl here.
+    // This endpoint is the fallback renderer and must resolve assets from Vercel static /assets/.
+    // allowedHosts is explicit because fetchAssetSafe fails closed in production.
+    const pdfBuffer = await buildPdfBuffer(quotation, FALLBACK_PDF_ASSET_OPTIONS);
 
     await sql`
       UPDATE quotations SET pdf_generated_at = NOW() WHERE id = ${quotation.id}
