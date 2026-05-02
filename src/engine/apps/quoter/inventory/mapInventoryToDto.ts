@@ -167,16 +167,22 @@ export async function mapInventoryToDto(
 
   logger.info({ clientId }, 'mapInventoryToDto: starting');
 
-  // ── Step 1: Fetch all Custom Objects (secuencial para respetar rate limit 4 req/s) ──
+  // ── Step 1: Fetch all Custom Objects (secuencial + throttled para respetar rate limit ~4 req/s) ──
+  const OBJECT_TYPE_DELAY_MS = 500; // Cooldown between object types to avoid cumulative rate limiting
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const macroResult = await fetchAllPages(adapter, { objectType: 'macroproyecto', properties: [...MACRO_PROPS] }, logger);
   if (macroResult.isErr()) return err(macroResult.error);
 
+  await sleep(OBJECT_TYPE_DELAY_MS);
   const proyectoResult = await fetchAllPages(adapter, { objectType: 'proyecto', properties: [...PROYECTO_PROPS] }, logger);
   if (proyectoResult.isErr()) return err(proyectoResult.error);
 
+  await sleep(OBJECT_TYPE_DELAY_MS);
   const unidadResult = await fetchAllPages(adapter, { objectType: 'unidad', properties: [...UNIDAD_PROPS] }, logger);
   if (unidadResult.isErr()) return err(unidadResult.error);
 
+  await sleep(OBJECT_TYPE_DELAY_MS);
   const agrupacionResult = await fetchAllPages(adapter, { objectType: 'agrupacion', properties: [...AGRUPACION_PROPS] }, logger);
   if (agrupacionResult.isErr()) return err(agrupacionResult.error);
 

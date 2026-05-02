@@ -30,6 +30,13 @@ export interface FetchAllPagesOptions {
   readonly filters?: CrmSearchQuery['filters'];
   readonly properties: readonly string[];
   readonly maxPages?: number;
+  /**
+   * Delay in ms between page fetches to respect HubSpot rate limits (~4 req/s).
+   * Applied BEFORE pages 2+. Page 1 fires immediately.
+   * Default: 300ms — conservative enough for sequential multi-objectType calls.
+   * @since v2.3.0 — Rate limit fix
+   */
+  readonly pageDelayMs?: number;
 }
 
 export interface FetchAllPagesResult {
@@ -48,13 +55,14 @@ export async function fetchAllPages(
   options: FetchAllPagesOptions,
   logger: Logger,
 ): Promise<Result<FetchAllPagesResult, EngineError>> {
-  const { objectType, filters, properties, maxPages = MAX_PAGES_DEFAULT } = options;
+  const PAGE_DELAY_DEFAULT = 300;
+  const { objectType, filters, properties, maxPages = MAX_PAGES_DEFAULT, pageDelayMs = PAGE_DELAY_DEFAULT } = options;
   const allRecords: CrmRecord[] = [];
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
   let pageCount = 0;
 
-  logger.info({ objectType, maxPages }, 'fetchAllPages: starting');
+  logger.info({ objectType, maxPages, pageDelayMs }, 'fetchAllPages: starting');
 
   while (true) {
     pageCount++;
@@ -105,6 +113,11 @@ export async function fetchAllPages(
     // No more pages
     if (cursor === undefined) {
       break;
+    }
+
+    // ── Rate limit protection: delay before next page ──
+    if (pageDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, pageDelayMs));
     }
   }
 

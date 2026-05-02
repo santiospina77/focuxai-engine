@@ -131,7 +131,7 @@ export class HttpClient {
     let lastError: EngineError | null = null;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const result = await this.executeOnce<T>(req, attempt);
+      const { result, retryAfterMs } = await this.executeOnce<T>(req, attempt);
 
       if (result.isOk()) return result;
 
@@ -142,7 +142,10 @@ export class HttpClient {
       }
 
       if (attempt < maxAttempts) {
-        const delayMs = this.computeBackoff(attempt);
+        // Prefer Retry-After header when available (429 rate limits).
+        // Falls back to exponential backoff + jitter.
+        const backoffMs = this.computeBackoff(attempt);
+        const delayMs = retryAfterMs !== null ? Math.max(retryAfterMs, backoffMs) : backoffMs;
         this.logger.warn(
           {
             clientId: this.config.clientId,
@@ -150,6 +153,7 @@ export class HttpClient {
             attempt,
             maxAttempts,
             delayMs,
+            retryAfterMs,
             errorCode: lastError.code,
           },
           'HTTP request failed, retrying'
@@ -165,17 +169,21 @@ export class HttpClient {
   // Internos
   // -------------------------------------------------------------------------
 
+  /**
+   * Internal result of a single HTTP attempt.
+   * Carries retry metadata alongside the Result without mutating EngineError.
+   */
   private async executeOnce<T>(
     req: HttpRequest,
     attempt: number
-  ): Promise<Result<HttpResponse<T>, EngineError>> {
+  ): Promise<HttpAttemptResult<HttpResponse<T>>> {
     const url = this.buildUrl(req.path, req.query);
     const timeoutMs = req.timeoutMs ?? this.config.defaultTimeoutMs;
     const startedAt = Date.now();
 
     // Obtener headers de auth (si hay provider)
     const authHeadersResult = await this.resolveAuthHeaders();
-    if (authHeadersResult.isErr()) return err(authHeadersResult.error);
+    if (authHeadersResult.isErr()) return { result: err(authHeadersResult.error), retryAfterMs: null };
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -236,22 +244,28 @@ export class HttpClient {
         this.config.additionalSuccessStatuses.includes(response.status);
 
       if (isSuccess) {
-        return ok({
-          status: response.status,
-          body: parsedBody as T,
-          headers: responseHeaders,
-          durationMs,
-        });
+        return {
+          result: ok({
+            status: response.status,
+            body: parsedBody as T,
+            headers: responseHeaders,
+            durationMs,
+          }),
+          retryAfterMs: null,
+        };
       }
 
-      return err(
-        this.config.mapHttpError({
-          status: response.status,
-          body: parsedBody,
-          request: req,
-          context: logContext,
-        })
-      );
+      const mappedError = this.config.mapHttpError({
+        status: response.status,
+        body: parsedBody,
+        request: req,
+        context: logContext,
+      });
+
+      // Extract Retry-After as sidecar metadata — never mutate the error.
+      const retryAfterMs = parseRetryAfterMs(responseHeaders['retry-after']);
+
+      return { result: err(mappedError), retryAfterMs };
     } catch (caught) {
       const durationMs = Date.now() - startedAt;
       const timedOut = caught instanceof Error && caught.name === 'AbortError';
@@ -275,7 +289,7 @@ export class HttpClient {
         'HTTP request failed'
       );
 
-      return err(mapped);
+      return { result: err(mapped), retryAfterMs: null };
     } finally {
       clearTimeout(timeoutHandle);
     }
@@ -317,6 +331,30 @@ export class HttpClient {
     const jitter = Math.random() * exponential * 0.5;
     return Math.floor(exponential + jitter);
   }
+}
+
+// ─── Private helpers (outside class, no access to instance state) ───
+
+/**
+ * Internal result of a single HTTP attempt.
+ * Carries retry metadata as a sidecar — EngineError stays immutable.
+ */
+interface HttpAttemptResult<T> {
+  readonly result: Result<T, EngineError>;
+  readonly retryAfterMs: number | null;
+}
+
+/**
+ * Parse Retry-After header value to milliseconds.
+ * HubSpot sends seconds (e.g., "10"). HTTP spec also allows HTTP-date (ignored).
+ * Returns null if absent, unparseable, or out of sane range.
+ * Cap at 120s to prevent absurd waits from malformed headers.
+ */
+function parseRetryAfterMs(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 120) return null;
+  return Math.ceil(seconds * 1000);
 }
 
 function sleep(ms: number): Promise<void> {
