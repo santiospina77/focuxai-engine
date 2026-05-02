@@ -23,7 +23,7 @@ import type { IErpConnector, Macroproyecto, Proyecto, Agrupacion, Unidad } from 
 import type { ICrmAdapter, CrmAssociation, CrmRecordInput, CrmRecordUpdate } from '@/engine/interfaces/ICrmAdapter';
 import type { Logger } from '../logging/Logger';
 import type { EngineError } from '../errors/EngineError';
-import { CrmError } from '../errors/EngineError';
+import { ValidationError } from '../errors/EngineError';
 import type { IEventLog } from '../eventlog/EventLog';
 import { type Result, ok, err } from '../types/Result';
 
@@ -824,8 +824,8 @@ export class InventorySync {
           { objectType, total: result.value.total, returned: result.value.records.length, chunkSize: chunk.length },
           'ABORTING: Search returned more results than expected — possible duplicates in CRM'
         );
-        return err(new CrmError(
-          'CRM_VALIDATION_ERROR',
+        return err(new ValidationError(
+          'VALIDATION_CRM_DUPLICATE_DETECTED',
           `Search for ${objectType} returned more results than expected (total=${result.value.total}, chunk=${chunk.length}). Possible duplicates in CRM — aborting to prevent more.`,
           { objectType, retryable: false }
         ));
@@ -841,8 +841,8 @@ export class InventorySync {
               { objectType, externalId: extId, existingCrmId: map.get(extId), newCrmId: record.id },
               'ABORTING: Duplicate externalId found in CRM — data integrity issue'
             );
-            return err(new CrmError(
-              'CRM_DUPLICATE_RECORD',
+            return err(new ValidationError(
+              'VALIDATION_CRM_DUPLICATE_DETECTED',
               `Duplicate ${objectType} with id_sinco_fx=${extId} found in CRM (ids: ${map.get(extId)}, ${record.id}). Clean up duplicates before syncing.`,
               { objectType, externalId: extId, retryable: false }
             ));

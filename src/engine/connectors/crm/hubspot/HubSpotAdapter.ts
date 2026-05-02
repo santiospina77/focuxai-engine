@@ -21,7 +21,7 @@
  *   - Search API: 4 req/s, 100 resultados por página, max 10k total.
  */
 
-import { CrmError, type EngineError } from '../../../core/errors/EngineError';
+import { ResourceError, AuthError, type EngineError } from '../../../core/errors/EngineError';
 import { HttpClient } from '../../../core/http/HttpClient';
 import type { Logger } from '../../../core/logging/Logger';
 import { type Result, ok, err } from '../../../core/types/Result';
@@ -87,57 +87,50 @@ export class HubSpotAdapter implements ICrmAdapter {
         },
         mapHttpError: ({ status, body, context }) => {
           if (status === 404) {
-            return new CrmError(
-              'CRM_RESOURCE_NOT_FOUND',
+            return ResourceError.crmNotFound(
               'HubSpot resource not found',
-              { ...context, httpStatus: status, body, retryable: false }
+              { ...context, httpStatus: status, body },
             );
           }
           if (status === 401 || status === 403) {
-            return new CrmError(
-              'CRM_VALIDATION_ERROR',
+            return new AuthError(
+              'AUTH_CRM_UNAUTHORIZED',
               `HubSpot auth error (HTTP ${status}) — verifica el Private App Token`,
-              { ...context, httpStatus: status, body, retryable: false }
+              { ...context, httpStatus: status, body, retryable: false },
             );
           }
           if (status === 409) {
-            return new CrmError(
-              'CRM_DUPLICATE_RECORD',
+            return ResourceError.crmDuplicateRecord(
               'HubSpot rejected duplicate record',
-              { ...context, httpStatus: status, body, retryable: false }
+              { ...context, httpStatus: status, body },
             );
           }
           if (status === 429) {
-            return new CrmError(
-              'CRM_RATE_LIMITED',
+            return ResourceError.crmRateLimited(
               'HubSpot rate limit exceeded',
-              { ...context, httpStatus: status, body, retryable: true }
+              { ...context, httpStatus: status, body },
             );
           }
           if (status >= 500) {
-            return new CrmError(
-              'CRM_SERVER_ERROR',
+            return ResourceError.crmServerError(
               `HubSpot server error (HTTP ${status})`,
-              { ...context, httpStatus: status, body, retryable: true }
+              { ...context, httpStatus: status, body },
             );
           }
-          return new CrmError(
-            'CRM_VALIDATION_ERROR',
+          return ResourceError.crmRequestRejected(
             `HubSpot rejected request (HTTP ${status})`,
-            { ...context, httpStatus: status, body, retryable: false }
+            { ...context, httpStatus: status, body },
           );
         },
         mapNetworkError: ({ cause, timedOut, context }) => {
           if (timedOut) {
-            return new CrmError(
-              'CRM_NETWORK_ERROR',
+            return ResourceError.crmTimeout(
               'HubSpot request timed out',
               { ...context, retryable: true },
               cause
             );
           }
-          return new CrmError(
-            'CRM_NETWORK_ERROR',
+          return ResourceError.crmNetworkError(
             'Network error communicating with HubSpot',
             { ...context, retryable: true },
             cause
@@ -166,8 +159,7 @@ export class HubSpotAdapter implements ICrmAdapter {
     const parsed = HubSpotObjectSchema.safeParse(response.value.body);
     if (!parsed.success) {
       return err(
-        new CrmError(
-          'CRM_VALIDATION_ERROR',
+        ResourceError.crmSchemaMismatch(
           'HubSpot createRecord response schema mismatch',
           { issues: parsed.error.issues, retryable: false }
         )
@@ -191,8 +183,7 @@ export class HubSpotAdapter implements ICrmAdapter {
     const parsed = HubSpotObjectSchema.safeParse(response.value.body);
     if (!parsed.success) {
       return err(
-        new CrmError(
-          'CRM_VALIDATION_ERROR',
+        ResourceError.crmSchemaMismatch(
           'HubSpot updateRecord response schema mismatch',
           { issues: parsed.error.issues, retryable: false }
         )
@@ -221,7 +212,7 @@ export class HubSpotAdapter implements ICrmAdapter {
     });
 
     if (response.isErr()) {
-      if (response.error.code === 'CRM_RESOURCE_NOT_FOUND') {
+      if (response.error.code === 'RESOURCE_CRM_NOT_FOUND') {
         return ok(null);
       }
       return err(response.error);
@@ -230,8 +221,7 @@ export class HubSpotAdapter implements ICrmAdapter {
     const parsed = HubSpotObjectSchema.safeParse(response.value.body);
     if (!parsed.success) {
       return err(
-        new CrmError(
-          'CRM_VALIDATION_ERROR',
+        ResourceError.crmSchemaMismatch(
           'HubSpot getRecord response schema mismatch',
           { issues: parsed.error.issues, retryable: false }
         )
@@ -290,8 +280,7 @@ export class HubSpotAdapter implements ICrmAdapter {
 
       const parsed = HubSpotBatchResponseSchema.safeParse(response.value.body);
       if (!parsed.success) {
-        const schemaError = new CrmError(
-          'CRM_VALIDATION_ERROR',
+        const schemaError = ResourceError.crmSchemaMismatch(
           'HubSpot batch response schema mismatch',
           { issues: parsed.error.issues, retryable: false }
         );
@@ -307,8 +296,7 @@ export class HubSpotAdapter implements ICrmAdapter {
         ),
         failed: parsed.data.errors.map((e) => ({
           input: e.context,
-          error: new CrmError(
-            'CRM_VALIDATION_ERROR',
+          error: ResourceError.crmRequestRejected(
             e.message,
             { category: e.category, retryable: false }
           ),
@@ -349,8 +337,7 @@ export class HubSpotAdapter implements ICrmAdapter {
 
       const parsed = HubSpotBatchResponseSchema.safeParse(response.value.body);
       if (!parsed.success) {
-        const schemaError = new CrmError(
-          'CRM_VALIDATION_ERROR',
+        const schemaError = ResourceError.crmSchemaMismatch(
           'HubSpot batch response schema mismatch',
           { issues: parsed.error.issues, retryable: false }
         );
@@ -366,8 +353,7 @@ export class HubSpotAdapter implements ICrmAdapter {
         ),
         failed: parsed.data.errors.map((e) => ({
           input: e.context,
-          error: new CrmError(
-            'CRM_VALIDATION_ERROR',
+          error: ResourceError.crmRequestRejected(
             e.message,
             { category: e.category, retryable: false }
           ),
@@ -414,8 +400,7 @@ export class HubSpotAdapter implements ICrmAdapter {
 
       const parsed = HubSpotBatchResponseSchema.safeParse(response.value.body);
       if (!parsed.success) {
-        const schemaError = new CrmError(
-          'CRM_VALIDATION_ERROR',
+        const schemaError = ResourceError.crmSchemaMismatch(
           'HubSpot upsert batch response schema mismatch',
           { issues: parsed.error.issues, retryable: false }
         );
@@ -431,8 +416,7 @@ export class HubSpotAdapter implements ICrmAdapter {
         ),
         failed: parsed.data.errors.map((e) => ({
           input: e.context,
-          error: new CrmError(
-            'CRM_VALIDATION_ERROR',
+          error: ResourceError.crmRequestRejected(
             e.message,
             { category: e.category, retryable: false }
           ),
@@ -489,8 +473,7 @@ export class HubSpotAdapter implements ICrmAdapter {
     const parsed = HubSpotSearchResponseSchema.safeParse(response.value.body);
     if (!parsed.success) {
       return err(
-        new CrmError(
-          'CRM_VALIDATION_ERROR',
+        ResourceError.crmSchemaMismatch(
           'HubSpot search response schema mismatch',
           { issues: parsed.error.issues, retryable: false }
         )
