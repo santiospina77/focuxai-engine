@@ -25,6 +25,11 @@ export type ErrorCode =
   | 'ERP_TIMEOUT'
   | 'ERP_SCHEMA_MISMATCH'
   | 'ERP_SALES_PERIOD_CLOSED'
+  | 'ERP_FEATURE_DISABLED'
+  // Capa de validación de negocio write-back (BUSINESS_*)
+  | 'BUSINESS_INVALID_PARTICIPATION'
+  | 'BUSINESS_MISSING_SEPARACION_CONCEPTO'
+  | 'BUSINESS_MISSING_COMPRADOR_ID'
   // Capa de autenticación CRM (AUTH_CRM_*)
   | 'AUTH_CRM_UNAUTHORIZED'
   // Capa de configuración (CONFIG_*)

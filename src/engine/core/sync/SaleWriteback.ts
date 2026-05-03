@@ -53,6 +53,9 @@ export interface SeparacionInput {
     readonly correo?: string;
     readonly celular?: string;
     readonly direccion?: string;
+    readonly genero?: 'M' | 'F' | 'O';
+    readonly ingresoPromedioMensual?: number;
+    readonly idCiudadResidencia?: number | null;
   };
   /**
    * Datos de la venta. idVenta = idAgrupacion en Sinco.
@@ -106,32 +109,51 @@ export class SaleWriteback {
   /**
    * Write-back #1: Cuando el Deal pasa a "Unidad Separada".
    * Crea comprador en Sinco (si no existe) y confirma la venta.
+   *
+   * Feature flags:
+   *   SINCO_WRITEBACK_ENABLED=true  → ejecuta el flow
+   *   SINCO_WRITEBACK_DRY_RUN=true  → valida todo pero no toca Sinco
+   *   SINCO_WRITEBACK_DRY_RUN=false → BLOQUEADO hasta PgEventLog
    */
   async separar(
     erp: IErpConnector,
     crm: ICrmAdapter,
     input: SeparacionInput
   ): Promise<Result<SaleWritebackResult, EngineError>> {
-    const transactionId = `separar_${input.clientId}_${input.dealId}`;
+    const writebackEnabled = process.env.SINCO_WRITEBACK_ENABLED === 'true';
+    const dryRun = process.env.SINCO_WRITEBACK_DRY_RUN !== 'false';
+    const mode = dryRun ? 'dry_run' : 'real';
+    const transactionId = `separar_${mode}_${input.clientId}_${input.dealId}`;
+
     const log = this.logger.child({
       clientId: input.clientId,
       dealId: input.dealId,
       operation: 'writeback.separar',
       transactionId,
+      mode,
     });
 
-    // Idempotencia: si ya se ejecutó, no repetir.
-    if (await this.eventLog.hasSucceeded(transactionId)) {
-      log.warn({}, 'Separación ya ejecutada, no se repite');
+    // === Gate 1: Feature flag ===
+    if (!writebackEnabled) {
+      log.warn({}, 'Write-back deshabilitado (SINCO_WRITEBACK_ENABLED=false)');
       return err(
-        new ErpError(
-          'ERP_BUSINESS_RULE_VIOLATION',
-          'Esta separación ya fue procesada (idempotencia)',
-          { dealId: input.dealId, transactionId, retryable: false }
-        )
+        new ErpError('ERP_FEATURE_DISABLED', 'Write-back Sinco deshabilitado por feature flag',
+          { dealId: input.dealId, retryable: false })
       );
     }
 
+    // === Gate 2: Idempotency ===
+    // NOTE: InMemoryEventLog — solo protege dentro de la misma invocación.
+    // PgEventLog (bloqueador de flip a real) protegerá cross-request.
+    if (await this.eventLog.hasSucceeded(transactionId)) {
+      log.warn({}, 'Separación ya ejecutada, no se repite');
+      return err(
+        new ErpError('ERP_BUSINESS_RULE_VIOLATION', 'Esta separación ya fue procesada (idempotencia)',
+          { dealId: input.dealId, transactionId, retryable: false })
+      );
+    }
+
+    // === Gate 3: Write-ahead — marcar en progreso ===
     await this.eventLog.begin({
       transactionId,
       clientId: input.clientId,
@@ -140,33 +162,84 @@ export class SaleWriteback {
         dealId: input.dealId,
         cedula: input.comprador.numeroIdentificacion,
         idAgrupacion: input.venta.idAgrupacionSinco,
+        mode,
       },
     });
 
-    // Marcar Deal como pending en HubSpot.
+    // === Validación: participación con epsilon ===
+    const PARTICIPATION_EPSILON = 0.01;
+    const alternosSum = input.compradoresAlternos?.reduce(
+      (s, a) => s + a.porcentajeParticipacion, 0
+    ) ?? 0;
+    const principalParticipacion = 100 - alternosSum;
+
+    if (principalParticipacion <= 0 || principalParticipacion > 100) {
+      await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, {
+        code: 'BUSINESS_INVALID_PARTICIPATION',
+        message: `Participación principal inválida: ${principalParticipacion}%`,
+      });
+      return err(new ErpError('BUSINESS_INVALID_PARTICIPATION',
+        `Participación principal inválida: ${principalParticipacion}%. Alternos suman ${alternosSum}%.`,
+        { dealId: input.dealId, principalParticipacion, retryable: false }));
+    }
+
+    if (Math.abs((principalParticipacion + alternosSum) - 100) > PARTICIPATION_EPSILON) {
+      await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, {
+        code: 'BUSINESS_INVALID_PARTICIPATION',
+        message: `Participación total ≠ 100%`,
+      });
+      return err(new ErpError('BUSINESS_INVALID_PARTICIPATION',
+        `Participación total ${principalParticipacion + alternosSum}% ≠ 100%`,
+        { dealId: input.dealId, retryable: false }));
+    }
+
+    // === Validación: idConcepto=0 en planPagos ===
+    const CONCEPTO_SEPARACION = 0;
+    if (!input.venta.planPagos.some((c) => c.idConcepto === CONCEPTO_SEPARACION)) {
+      await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, {
+        code: 'BUSINESS_MISSING_SEPARACION_CONCEPTO',
+        message: 'Plan de pagos sin cuota de separación',
+      });
+      return err(new ErpError('BUSINESS_MISSING_SEPARACION_CONCEPTO',
+        'Plan de pagos debe incluir cuota de separación (idConcepto=0)',
+        { dealId: input.dealId, retryable: false }));
+    }
+
+    // === Warn: idCiudadResidencia ===
+    if (input.comprador.idCiudadResidencia == null) {
+      log.warn({ dealId: input.dealId }, 'idCiudadResidencia no proporcionada — Sinco recibirá null');
+    }
+
+    // Marcar Deal como pending en HubSpot (non-blocking — v7 HIGH 3)
     await this.markDealStatus(crm, input.dealId, 'pending', undefined, transactionId);
 
     // ---------------------------------------------------------------------
-    // Paso 1: Buscar o crear comprador
+    // Step 1a: Lookup comprador
     // ---------------------------------------------------------------------
     log.info({}, 'Step 1: getCompradorByIdentificacion');
     const lookupResult = await erp.getCompradorByIdentificacion(
       input.comprador.numeroIdentificacion
     );
 
-    if (lookupResult.isErr()) {
-      await this.handleFailure(crm, input.dealId, transactionId, lookupResult.error);
-      return err(lookupResult.error);
-    }
-
-    let compradorExternalId: number;
+    let compradorExternalId: number | undefined;
     let compradorWasCreated = false;
 
-    if (lookupResult.value) {
+    if (lookupResult.isErr()) {
+      // CRITICAL: Solo RESOURCE_NOT_FOUND permite crear. Todo otro error → fail hard.
+      if (lookupResult.error.code !== 'ERP_RESOURCE_NOT_FOUND') {
+        await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, lookupResult.error);
+        return err(lookupResult.error);
+      }
+      log.info({ cc: input.comprador.numeroIdentificacion }, 'Comprador no encontrado — se creará');
+    } else if (lookupResult.value) {
       compradorExternalId = lookupResult.value.externalId;
       log.info({ compradorExternalId }, 'Comprador ya existe en Sinco, reusing');
-    } else {
-      log.info({}, 'Step 1b: createComprador');
+    }
+
+    // ---------------------------------------------------------------------
+    // Step 1b: Crear comprador (solo si not found)
+    // ---------------------------------------------------------------------
+    if (compradorExternalId === undefined) {
       const createInput: CompradorInput = {
         tipoPersona: input.comprador.tipoPersona,
         tipoIdentificacion: input.comprador.tipoIdentificacion,
@@ -178,78 +251,131 @@ export class SaleWriteback {
         correo: input.comprador.correo,
         celular: input.comprador.celular,
         direccion: input.comprador.direccion,
+        genero: input.comprador.genero ?? 'O',
+        ingresoPromedioMensual: input.comprador.ingresoPromedioMensual,
+        idCiudadResidencia: input.comprador.idCiudadResidencia ?? null,
         aceptoPoliticaDatos: true,
       };
-      const createResult = await erp.createComprador(createInput);
-      if (createResult.isErr()) {
-        await this.handleFailure(crm, input.dealId, transactionId, createResult.error);
-        return err(createResult.error);
+
+      if (dryRun) {
+        log.info({ compradorInput: createInput }, 'DRY-RUN: createComprador skipped');
+      } else {
+        log.info({}, 'Step 1b: createComprador');
+        const createResult = await erp.createComprador(createInput);
+        if (createResult.isErr()) {
+          await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, createResult.error);
+          return err(createResult.error);
+        }
+        compradorExternalId = createResult.value.externalId;
+        compradorWasCreated = true;
+        log.info({ compradorExternalId }, 'Comprador creado en Sinco');
       }
-      compradorExternalId = createResult.value.externalId;
-      compradorWasCreated = true;
-      log.info({ compradorExternalId }, 'Comprador creado en Sinco');
     }
 
     // ---------------------------------------------------------------------
-    // Paso 2: Confirmar venta
+    // Step 2: confirmarVenta
     // ---------------------------------------------------------------------
-    log.info({}, 'Step 2: confirmarVenta');
-    const confirmInput: ConfirmacionVentaInput = {
-      idVenta: input.venta.idAgrupacionSinco, // idVenta = idAgrupacion
-      idProyecto: input.venta.idProyectoSinco,
-      numeroIdentificacionComprador: input.comprador.numeroIdentificacion,
-      fecha: input.venta.fecha,
-      porcentajeParticipacion:
-        input.compradoresAlternos && input.compradoresAlternos.length > 0
-          ? 100 - input.compradoresAlternos.reduce((s, a) => s + a.porcentajeParticipacion, 0)
-          : 100,
-      valorDescuento: input.venta.valorDescuento,
-      valorDescuentoFinanciero: input.venta.valorDescuentoFinanciero,
-      tipoVenta: input.venta.tipoVenta,
-      idAsesor: input.venta.idAsesor,
-      planPagos: input.venta.planPagos,
-      compradoresAlternos: input.compradoresAlternos,
-      crmDealId: input.dealId,
+    if (dryRun) {
+      log.info({
+        idAgrupacion: input.venta.idAgrupacionSinco,
+        idProyecto: input.venta.idProyectoSinco,
+        numeroIdentificacionComprador: input.comprador.numeroIdentificacion,
+        idHubspot: input.dealId,
+        porcentajeParticipacion: principalParticipacion,
+        planPagosCount: input.venta.planPagos.length,
+        hasCompradorId: compradorExternalId !== undefined,
+      }, 'DRY-RUN: confirmarVenta skipped');
+    } else {
+      // Real mode: compradorExternalId MUST exist
+      if (compradorExternalId === undefined) {
+        await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, {
+          code: 'BUSINESS_MISSING_COMPRADOR_ID',
+          message: 'No se puede confirmar venta sin comprador',
+        });
+        return err(new ErpError('BUSINESS_MISSING_COMPRADOR_ID',
+          'No se puede confirmar venta sin idCompradorSinco — comprador no fue creado ni encontrado',
+          { dealId: input.dealId, retryable: false }));
+      }
+
+      log.info({}, 'Step 2: confirmarVenta');
+      const confirmInput: ConfirmacionVentaInput = {
+        idVenta: input.venta.idAgrupacionSinco, // maps to idAgrupacion in Sinco body
+        idProyecto: input.venta.idProyectoSinco,
+        numeroIdentificacionComprador: input.comprador.numeroIdentificacion,
+        fecha: input.venta.fecha,
+        porcentajeParticipacion: principalParticipacion,
+        valorDescuento: input.venta.valorDescuento,
+        valorDescuentoFinanciero: input.venta.valorDescuentoFinanciero,
+        tipoVenta: input.venta.tipoVenta,
+        idAsesor: input.venta.idAsesor,
+        planPagos: input.venta.planPagos,
+        compradoresAlternos: input.compradoresAlternos,
+        crmDealId: input.dealId, // maps to idHubspot in Sinco body
+      };
+
+      const confirmResult = await erp.confirmarVenta(confirmInput);
+      if (confirmResult.isErr()) {
+        await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, confirmResult.error);
+        return err(confirmResult.error);
+      }
+
+      // EventLog succeed IMMEDIATELY after Sinco confirms (before CRM update)
+      await this.eventLog.succeed(transactionId, {
+        compradorExternalId,
+        compradorWasCreated,
+        idAgrupacionSinco: input.venta.idAgrupacionSinco,
+        idHubspot: input.dealId,
+      });
+    }
+
+    // ---------------------------------------------------------------------
+    // Step 3: Update Deal en HubSpot
+    // ---------------------------------------------------------------------
+    const baseProperties: Record<string, unknown> = {
+      [DEAL_PROPS.writebackStatus]: dryRun ? 'dry_run' : 'success',
+      [DEAL_PROPS.writebackError]: '',
+      [DEAL_PROPS.writebackAttemptedAt]: new Date().toISOString(),
+      [DEAL_PROPS.writebackTransactionId]: transactionId,
     };
 
-    const confirmResult = await erp.confirmarVenta(confirmInput);
-    if (confirmResult.isErr()) {
-      await this.handleFailure(crm, input.dealId, transactionId, confirmResult.error);
-      return err(confirmResult.error);
+    if (!dryRun) {
+      baseProperties[DEAL_PROPS.compradorIdSinco] = compradorExternalId;
+      baseProperties[DEAL_PROPS.ventaIdSinco] = input.venta.idAgrupacionSinco;
     }
 
-    // ---------------------------------------------------------------------
-    // Paso 3: Actualizar Deal con éxito
-    // ---------------------------------------------------------------------
-    await crm.updateRecord({
+    const crmUpdateResult = await crm.updateRecord({
       id: input.dealId,
       objectType: 'deal',
-      properties: {
-        [DEAL_PROPS.writebackStatus]: 'success',
-        [DEAL_PROPS.writebackError]: '',
-        [DEAL_PROPS.writebackAttemptedAt]: new Date().toISOString(),
-        [DEAL_PROPS.writebackTransactionId]: transactionId,
-        [DEAL_PROPS.compradorIdSinco]: compradorExternalId,
-        [DEAL_PROPS.ventaIdSinco]: input.venta.idAgrupacionSinco,
-      },
+      properties: baseProperties,
     });
 
-    await this.eventLog.succeed(transactionId, {
-      compradorExternalId,
-      compradorWasCreated,
-      ventaConfirmada: true,
-    });
+    if (crmUpdateResult.isErr()) {
+      log.error({
+        dealId: input.dealId,
+        transactionId,
+        error: crmUpdateResult.error,
+        sincoAlreadyConfirmed: !dryRun,
+      }, 'CRM update failed after write-back flow');
+      // In real mode, EventLog already marked success — Sinco is protected.
+      // Caller knows CRM is out of sync.
+      return err(crmUpdateResult.error);
+    }
 
-    log.info(
-      { compradorExternalId, compradorWasCreated },
-      'Separación completada exitosamente'
-    );
+    // Dry-run EventLog
+    if (dryRun) {
+      await this.eventLog.succeed(transactionId, {
+        mode: 'dry_run',
+        dealId: input.dealId,
+      });
+    }
+
+    log.info({ compradorExternalId, compradorWasCreated, mode }, 'Separación completada');
 
     return ok({
       dealId: input.dealId,
-      compradorExternalId,
+      compradorExternalId: compradorExternalId ?? 0,
       compradorWasCreated,
-      ventaConfirmada: true,
+      ventaConfirmada: !dryRun,
       transactionId,
     });
   }
@@ -316,11 +442,14 @@ export class SaleWriteback {
 
     const confirmResult = await erp.confirmarVenta(confirmInput);
     if (confirmResult.isErr()) {
-      await this.handleFailure(crm, input.dealId, transactionId, confirmResult.error);
+      await this.handleFailureBestEffort(crm, log, input.dealId, transactionId, confirmResult.error);
       return err(confirmResult.error);
     }
 
-    await crm.updateRecord({
+    // EventLog succeed IMMEDIATELY after Sinco confirms
+    await this.eventLog.succeed(transactionId, { ventaLegalizada: true });
+
+    const crmUpdateResult = await crm.updateRecord({
       id: input.dealId,
       objectType: 'deal',
       properties: {
@@ -330,7 +459,9 @@ export class SaleWriteback {
       },
     });
 
-    await this.eventLog.succeed(transactionId, { ventaLegalizada: true });
+    if (crmUpdateResult.isErr()) {
+      log.error({ dealId: input.dealId, error: crmUpdateResult.error }, 'CRM update failed after legalización');
+    }
 
     log.info({}, 'Legalización completada exitosamente');
 
@@ -347,10 +478,14 @@ export class SaleWriteback {
   // Internos
   // -------------------------------------------------------------------------
 
+  /**
+   * Marks the Deal status in HubSpot. Non-blocking: logs warning if CRM update fails
+   * but does NOT propagate the error. (v7 HIGH 3: explicit Result handling)
+   */
   private async markDealStatus(
     crm: ICrmAdapter,
     dealId: string,
-    status: 'pending' | 'success' | 'failed',
+    status: 'pending' | 'success' | 'failed' | 'dry_run',
     errorMsg: string | undefined,
     transactionId: string
   ): Promise<void> {
@@ -362,29 +497,39 @@ export class SaleWriteback {
     if (errorMsg !== undefined) {
       properties[DEAL_PROPS.writebackError] = errorMsg;
     }
-    await crm.updateRecord({
+    const result = await crm.updateRecord({
       id: dealId,
       objectType: 'deal',
       properties,
     });
+    if (result.isErr()) {
+      this.logger.warn(
+        { dealId, status, error: result.error },
+        'markDealStatus failed (non-blocking)'
+      );
+    }
   }
 
-  private async handleFailure(
+  /**
+   * Best-effort failure handler. Logs CRM/EventLog failures but does NOT
+   * mask the original error that caused the write-back to fail.
+   */
+  private async handleFailureBestEffort(
     crm: ICrmAdapter,
+    log: Logger,
     dealId: string,
     transactionId: string,
-    error: EngineError
+    error: { code: string; message: string }
   ): Promise<void> {
-    await this.markDealStatus(
-      crm,
-      dealId,
-      'failed',
-      `${error.code}: ${error.message}`,
-      transactionId
-    );
-    await this.eventLog.fail(transactionId, {
-      code: error.code,
-      message: error.message,
-    });
+    try {
+      await this.markDealStatus(crm, dealId, 'failed', `${error.code}: ${error.message}`, transactionId);
+    } catch (crmErr) {
+      log.error({ dealId, crmErr }, 'Failed to mark Deal as failed in CRM (best-effort)');
+    }
+    try {
+      await this.eventLog.fail(transactionId, error);
+    } catch (logErr) {
+      log.error({ dealId, logErr }, 'Failed to mark EventLog as failed (best-effort)');
+    }
   }
 }

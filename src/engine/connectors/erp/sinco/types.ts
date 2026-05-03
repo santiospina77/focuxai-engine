@@ -417,6 +417,18 @@ export interface SincoCreateCompradorBody {
   genero?: string;
   usoVivienda?: number;
   aceptoPoliticaDeDatos?: number;
+  /** Ingreso mensual promedio. Lab: campo informativo, acepta 0. */
+  ingresoPromedioMensual?: number;
+  /** ID ciudad residencia catálogo Sinco. null = no proporcionada. */
+  idCiudadResidencia?: number | null;
+  // --- 7 financial defaults (Lab-validated: accept 0/false) ---
+  valorArriendo?: number;
+  valorArriendoNegocio?: number;
+  valorServicios?: number;
+  viviendaPropia?: boolean;
+  tipoContratoArrendador?: number;
+  idTieneVehiculo?: number;
+  discapacidad?: boolean;
 }
 
 export const SincoCreateCompradorResponseSchema = z.number();
@@ -425,8 +437,16 @@ export const SincoCreateCompradorResponseSchema = z.number();
 // Confirmar Venta (request body — unchanged)
 // ============================================================================
 
+/**
+ * Matches Swagger v4 schema "ConfirmacionVenta" exactly.
+ * CRITICAL field names verified against Lab + Swagger:
+ *   - idAgrupacion (NOT idVenta)
+ *   - idAsesor (NOT idVendedor)
+ *   - idHubspot (correct spelling; Sinco returns typo "idHusbpot")
+ *   - NO idComprador (does not exist in schema)
+ */
 export interface SincoConfirmacionVentaBody {
-  idVenta: number;
+  idAgrupacion: number;
   idProyecto: number;
   numeroIdentificacionComprador: string;
   fecha?: string;
@@ -434,6 +454,7 @@ export interface SincoConfirmacionVentaBody {
   valorDescuento: number;
   valorDescuentoFinanciero: number;
   tipoVenta: number;
+  idMedioPublicitario?: number | null;
   idAsesor?: number | null;
   planPagos: ReadonlyArray<{
     idConcepto: number;
@@ -442,11 +463,12 @@ export interface SincoConfirmacionVentaBody {
     numeroCuota: number;
     idEntidad?: number | null;
   }>;
+  /** Swagger v4: CompradorAlternoConfirmacionVenta uses numeroIdentificacionComprador */
   compradoresAlternos?: ReadonlyArray<{
-    numeroIdentificacion: string;
+    numeroIdentificacionComprador: string;
     porcentajeParticipacion: number;
   }>;
-  idHubspot?: string;
+  idHubspot?: string | null;
 }
 
 const TIPO_VENTA_TO_SINCO: Record<string, number> = {
@@ -485,4 +507,75 @@ export function mapTipoPersonaToSinco(tipo: string): string {
 export function mapUsoViviendaToSinco(uso: string | undefined): number | undefined {
   if (!uso) return undefined;
   return USO_VIVIENDA_TO_SINCO[uso];
+}
+
+// ============================================================================
+// Pure body builders — WB-1 (Swagger v4 aligned, Lab-validated)
+// ============================================================================
+
+import type { CompradorInput, ConfirmacionVentaInput } from '@/engine/interfaces/IErpConnector';
+
+/**
+ * Pure function — builds Sinco POST /Compradores body.
+ * 7 financial defaults are Sinco-specific, hardcoded here (Lab-validated: accept 0/false).
+ */
+export function buildSincoCompradorBody(input: CompradorInput): SincoCreateCompradorBody {
+  return {
+    tipoPersona: mapTipoPersonaToSinco(input.tipoPersona),
+    tipoIdentificacion: input.tipoIdentificacion,
+    numeroIdentificacion: input.numeroIdentificacion,
+    primerNombre: input.primerNombre ?? '',
+    segundoNombre: input.segundoNombre ?? '',
+    primerApellido: input.primerApellido ?? '',
+    segundoApellido: input.segundoApellido ?? '',
+    correo: input.correo ?? '',
+    celular: input.celular ?? '',
+    direccion: input.direccion ?? '',
+    genero: input.genero ?? 'O',
+    usoVivienda: mapUsoViviendaToSinco(input.usoVivienda),
+    aceptoPoliticaDeDatos: input.aceptoPoliticaDatos ? 1 : 0,
+    ingresoPromedioMensual: input.ingresoPromedioMensual ?? 0,
+    idCiudadResidencia: input.idCiudadResidencia ?? null,
+    // 7 financial defaults (Sinco Lab: all accept 0/false)
+    valorArriendo: 0,
+    valorArriendoNegocio: 0,
+    valorServicios: 0,
+    viviendaPropia: false,
+    tipoContratoArrendador: 0,
+    idTieneVehiculo: 0,
+    discapacidad: false,
+  };
+}
+
+/**
+ * Pure function — builds Sinco PUT /Ventas/ConfirmacionVenta body.
+ * Field names match Swagger v4 schema ConfirmacionVenta exactly.
+ * CRITICAL: idAgrupacion (NOT idVenta), idAsesor (NOT idVendedor),
+ *           idHubspot (correct spelling, Sinco reads as idHusbpot).
+ */
+export function buildSincoConfirmacionBody(input: ConfirmacionVentaInput): SincoConfirmacionVentaBody {
+  return {
+    idAgrupacion: input.idVenta, // idVenta in interface = idAgrupacion in Sinco
+    idProyecto: input.idProyecto,
+    numeroIdentificacionComprador: input.numeroIdentificacionComprador,
+    fecha: input.fecha ? formatSincoDate(input.fecha) : undefined,
+    porcentajeParticipacion: input.porcentajeParticipacion,
+    valorDescuento: input.valorDescuento,
+    valorDescuentoFinanciero: input.valorDescuentoFinanciero,
+    tipoVenta: mapTipoVentaToSinco(input.tipoVenta),
+    idAsesor: input.idAsesor ?? null,
+    idMedioPublicitario: null,
+    idHubspot: input.crmDealId ?? null,
+    planPagos: input.planPagos.map((cuota) => ({
+      idConcepto: cuota.idConcepto,
+      fecha: formatSincoDate(cuota.fecha),
+      valor: cuota.valor,
+      numeroCuota: cuota.numeroCuota,
+      idEntidad: cuota.idEntidad ?? null,
+    })),
+    compradoresAlternos: input.compradoresAlternos?.map((alt) => ({
+      numeroIdentificacionComprador: alt.numeroIdentificacion,
+      porcentajeParticipacion: alt.porcentajeParticipacion,
+    })) ?? [],
+  };
 }

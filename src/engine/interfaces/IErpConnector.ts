@@ -146,6 +146,10 @@ export interface CompradorInput {
   readonly genero?: Genero;
   readonly usoVivienda?: UsoVivienda;
   readonly aceptoPoliticaDatos?: boolean;
+  /** Ingreso mensual promedio. Campo informativo para Sinco. */
+  readonly ingresoPromedioMensual?: number;
+  /** ID ciudad residencia catálogo Sinco. null = no proporcionada. */
+  readonly idCiudadResidencia?: number | null;
 }
 
 export interface Comprador extends CompradorInput {

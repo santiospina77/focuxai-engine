@@ -50,12 +50,8 @@ import {
   mapComprador,
   mapVendedor,
   mapConceptoPlanPago,
-  mapTipoPersonaToSinco,
-  mapUsoViviendaToSinco,
-  mapTipoVentaToSinco,
-  formatSincoDate,
-  type SincoCreateCompradorBody,
-  type SincoConfirmacionVentaBody,
+  buildSincoCompradorBody,
+  buildSincoConfirmacionBody,
 } from './types';
 
 export interface SincoConnectorConfig {
@@ -213,21 +209,7 @@ export class SincoConnector implements IErpConnector {
   async createComprador(
     input: CompradorInput
   ): Promise<Result<{ externalId: number }, EngineError>> {
-    const body: SincoCreateCompradorBody = {
-      tipoPersona: mapTipoPersonaToSinco(input.tipoPersona),
-      tipoIdentificacion: input.tipoIdentificacion,
-      numeroIdentificacion: input.numeroIdentificacion,
-      primerNombre: input.primerNombre,
-      segundoNombre: input.segundoNombre,
-      primerApellido: input.primerApellido,
-      segundoApellido: input.segundoApellido,
-      correo: input.correo,
-      celular: input.celular,
-      direccion: input.direccion,
-      genero: input.genero,
-      usoVivienda: mapUsoViviendaToSinco(input.usoVivienda),
-      aceptoPoliticaDeDatos: input.aceptoPoliticaDatos ? 1 : 0,
-    };
+    const body = buildSincoCompradorBody(input);
 
     const tokenResult = await this.auth.getToken();
     if (tokenResult.isErr()) return err(tokenResult.error);
@@ -257,29 +239,7 @@ export class SincoConnector implements IErpConnector {
   async confirmarVenta(
     input: ConfirmacionVentaInput
   ): Promise<Result<void, EngineError>> {
-    const body: SincoConfirmacionVentaBody = {
-      idVenta: input.idVenta,
-      idProyecto: input.idProyecto,
-      numeroIdentificacionComprador: input.numeroIdentificacionComprador,
-      fecha: input.fecha ? formatSincoDate(input.fecha) : undefined,
-      porcentajeParticipacion: input.porcentajeParticipacion,
-      valorDescuento: input.valorDescuento,
-      valorDescuentoFinanciero: input.valorDescuentoFinanciero,
-      tipoVenta: mapTipoVentaToSinco(input.tipoVenta),
-      idAsesor: input.idAsesor ?? null,
-      planPagos: input.planPagos.map((cuota) => ({
-        idConcepto: cuota.idConcepto,
-        fecha: formatSincoDate(cuota.fecha),
-        valor: cuota.valor,
-        numeroCuota: cuota.numeroCuota,
-        idEntidad: cuota.idEntidad ?? null,
-      })),
-      compradoresAlternos: input.compradoresAlternos?.map((alt) => ({
-        numeroIdentificacion: alt.numeroIdentificacion,
-        porcentajeParticipacion: alt.porcentajeParticipacion,
-      })),
-      idHubspot: input.crmDealId,
-    };
+    const body = buildSincoConfirmacionBody(input);
 
     const tokenResult = await this.auth.getToken();
     if (tokenResult.isErr()) return err(tokenResult.error);
