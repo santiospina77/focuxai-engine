@@ -7,10 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "discover:sinco": "node --env-file=.env.local --import tsx scripts/discover-sinco-projects.ts"
+    "test:hubspot-files": "node --import tsx --test src/engine/connectors/crm/hubspot/__tests__/hubspotFileManager.test.ts",
+    "discover:sinco": "node --env-file=.env.local --import tsx scripts/discover-sinco-projects.ts",
+    "dump:sinco": "node --env-file=.env.local --import tsx scripts/raw-dump-sinco.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.1.0",
+    "@neondatabase/serverless": "^0.10.4",
     "@pdf-lib/fontkit": "^1.1.1",
     "@react-pdf/renderer": "^4.3.2",
     "file-saver": "^2.0.5",
