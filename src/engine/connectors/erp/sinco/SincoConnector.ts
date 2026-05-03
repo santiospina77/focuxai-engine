@@ -165,6 +165,14 @@ export class SincoConnector implements IErpConnector {
       if (response.error.code === 'ERP_RESOURCE_NOT_FOUND') {
         return ok(null);
       }
+      // Sinco quirk: devuelve 409 (no 404) con "no existe" para compradores inexistentes.
+      if (
+        response.error.context.httpStatus === 409 &&
+        typeof response.error.context.body === 'string' &&
+        response.error.context.body.toLowerCase().includes('no existe')
+      ) {
+        return ok(null);
+      }
       return err(response.error);
     }
 
