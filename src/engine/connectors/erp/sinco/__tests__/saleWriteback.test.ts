@@ -14,6 +14,7 @@ import { z } from 'zod';
 import {
   buildSincoCompradorBody,
   buildSincoConfirmacionBody,
+  formatSincoDate,
 } from '../types';
 import type {
   CompradorInput,
@@ -254,6 +255,17 @@ describe('Sinco 409 comprador-not-found matcher', () => {
     assert.equal(
       isSincoCompradorNotFound409(409, 'La agrupación ya se encuentra vendida.'),
       false
+    );
+  });
+});
+
+// ==================== formatSincoDate (1 test — Architect HIGH 1 WB-2 E2E) ====================
+
+describe('formatSincoDate', () => {
+  it('returns ISO 8601 string accepted by .NET System.DateTime', () => {
+    assert.equal(
+      formatSincoDate(new Date('2026-05-04T00:00:00.000Z')),
+      '2026-05-04T00:00:00.000Z'
     );
   });
 });

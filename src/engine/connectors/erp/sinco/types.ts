@@ -400,6 +400,17 @@ export function mapConceptoPlanPago(raw: SincoConceptoPlanPagoRaw): ConceptoPlan
 }
 
 // ============================================================================
+// Sinco .NET type aliases
+// ============================================================================
+
+/**
+ * Sinco uses System.Byte for some boolean-like fields (viviendaPropia, idTieneVehiculo, etc.)
+ * but System.Boolean for others (discapacidad). Never assume — verify each field in Swagger v4.
+ * See: reference_sinco_dotnet_types.md
+ */
+export type SincoByte = 0 | 1;
+
+// ============================================================================
 // Create Comprador (request body — unchanged)
 // ============================================================================
 
@@ -419,15 +430,20 @@ export interface SincoCreateCompradorBody {
   aceptoPoliticaDeDatos?: number;
   /** Ingreso mensual promedio. Lab: campo informativo, acepta 0. */
   ingresoPromedioMensual?: number;
-  /** ID ciudad residencia catálogo Sinco. 0 = no proporcionada. */
+  /**
+   * ID ciudad residencia catálogo Sinco. System.Int32 — rejects null.
+   * Sinco sentinel: 0 = no proporcionada (domain layer uses number | null,
+   * Sinco layer coalesces to 0 via ?? 0 in buildSincoCompradorBody).
+   */
   idCiudadResidencia?: number;
   // --- 7 financial defaults (Sinco expects System.Byte: 0/1, NOT boolean) ---
-  valorArriendo?: number;
-  valorArriendoNegocio?: number;
-  valorServicios?: number;
-  viviendaPropia?: number;
-  tipoContratoArrendador?: number;
-  idTieneVehiculo?: number;
+  valorArriendo?: SincoByte;
+  valorArriendoNegocio?: SincoByte;
+  valorServicios?: SincoByte;
+  viviendaPropia?: SincoByte;
+  tipoContratoArrendador?: SincoByte;
+  idTieneVehiculo?: SincoByte;
+  /** EXCEPTION: Sinco uses System.Boolean here, NOT System.Byte. Inconsistent with above. */
   discapacidad?: boolean;
 }
 
