@@ -482,11 +482,12 @@ export function mapTipoVentaToSinco(tipo: string): number {
   return TIPO_VENTA_TO_SINCO[tipo] ?? 1;
 }
 
+/**
+ * Sinco expects System.DateTime — ISO 8601 format.
+ * Previous DD-MM-YYYY format was rejected by .NET JSON deserializer.
+ */
 export function formatSincoDate(date: Date): string {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`;
+  return date.toISOString();
 }
 
 const TIPO_PERSONA_TO_SINCO: Record<string, string> = {
