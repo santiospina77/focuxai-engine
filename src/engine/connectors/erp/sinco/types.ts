@@ -419,16 +419,16 @@ export interface SincoCreateCompradorBody {
   aceptoPoliticaDeDatos?: number;
   /** Ingreso mensual promedio. Lab: campo informativo, acepta 0. */
   ingresoPromedioMensual?: number;
-  /** ID ciudad residencia catálogo Sinco. null = no proporcionada. */
-  idCiudadResidencia?: number | null;
-  // --- 7 financial defaults (Lab-validated: accept 0/false) ---
+  /** ID ciudad residencia catálogo Sinco. 0 = no proporcionada. */
+  idCiudadResidencia?: number;
+  // --- 7 financial defaults (Sinco expects System.Byte: 0/1, NOT boolean) ---
   valorArriendo?: number;
   valorArriendoNegocio?: number;
   valorServicios?: number;
-  viviendaPropia?: boolean;
+  viviendaPropia?: number;
   tipoContratoArrendador?: number;
   idTieneVehiculo?: number;
-  discapacidad?: boolean;
+  discapacidad?: number;
 }
 
 export const SincoCreateCompradorResponseSchema = z.number();
@@ -535,15 +535,15 @@ export function buildSincoCompradorBody(input: CompradorInput): SincoCreateCompr
     usoVivienda: mapUsoViviendaToSinco(input.usoVivienda),
     aceptoPoliticaDeDatos: input.aceptoPoliticaDatos ? 1 : 0,
     ingresoPromedioMensual: input.ingresoPromedioMensual ?? 0,
-    idCiudadResidencia: input.idCiudadResidencia ?? null,
-    // 7 financial defaults (Sinco Lab: all accept 0/false)
+    idCiudadResidencia: input.idCiudadResidencia ?? 0,
+    // 7 financial defaults (Sinco expects System.Byte: 0/1, NOT boolean)
     valorArriendo: 0,
     valorArriendoNegocio: 0,
     valorServicios: 0,
-    viviendaPropia: false,
+    viviendaPropia: 0,
     tipoContratoArrendador: 0,
     idTieneVehiculo: 0,
-    discapacidad: false,
+    discapacidad: 0,
   };
 }
 

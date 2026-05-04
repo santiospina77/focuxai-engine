@@ -46,10 +46,10 @@ describe('buildSincoCompradorBody', () => {
     assert.equal(body.valorArriendo, 0);
     assert.equal(body.valorArriendoNegocio, 0);
     assert.equal(body.valorServicios, 0);
-    assert.equal(body.viviendaPropia, false);
+    assert.equal(body.viviendaPropia, 0);
     assert.equal(body.tipoContratoArrendador, 0);
     assert.equal(body.idTieneVehiculo, 0);
-    assert.equal(body.discapacidad, false);
+    assert.equal(body.discapacidad, 0);
   });
 
   it('defaults genero to O', () => {
@@ -62,14 +62,14 @@ describe('buildSincoCompradorBody', () => {
     assert.equal(body.genero, 'O');
   });
 
-  it('sends null for idCiudadResidencia when not provided', () => {
+  it('sends 0 for idCiudadResidencia when not provided', () => {
     const body = buildSincoCompradorBody({
       tipoPersona: 'NATURAL',
       tipoIdentificacion: 'CC',
       numeroIdentificacion: '999',
       aceptoPoliticaDatos: true,
     });
-    assert.equal(body.idCiudadResidencia, null);
+    assert.equal(body.idCiudadResidencia, 0);
   });
 
   it('sends ingresoPromedioMensual 0 when not provided', () => {
