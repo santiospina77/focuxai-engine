@@ -1,9 +1,9 @@
 /**
- * WB-1 Tests — CR v7 (19 tests, all real — no it.todo)
+ * WB-1 Tests — CR v9 (21 tests, all real — no it.todo)
  *
  * Tests pure body builders (buildSincoCompradorBody, buildSincoConfirmacionBody),
  * Zod schema validation (DateStringSchema, RequiredNumberSchema, idEntidad whitespace),
- * and RESOURCE_NOT_FOUND contract.
+ * RESOURCE_NOT_FOUND contract, and Sinco 409 quirk matcher specificity.
  *
  * Uses node:test + node:assert (project standard).
  */
@@ -221,5 +221,39 @@ describe('RequiredNumberSchema', () => {
   it('rejects whitespace string instead of coercing to 0', () => {
     const result = RequiredNumberSchema.safeParse('   ');
     assert.equal(result.success, false);
+  });
+});
+
+// ==================== Sinco 409 matcher specificity (2 tests — v9 HIGH 1) ====================
+
+describe('Sinco 409 comprador-not-found matcher', () => {
+  /**
+   * These tests validate the LOGIC of the matcher, not SincoConnector directly
+   * (which would require mocking SincoHttpClient). We extract the exact matcher
+   * from SincoConnector.getCompradorByIdentificacion to verify it distinguishes
+   * comprador-not-found from unrelated 409 errors.
+   */
+  function isSincoCompradorNotFound409(httpStatus: number, body: unknown): boolean {
+    const bodyText =
+      typeof body === 'string' ? body.toLowerCase() : '';
+    return (
+      httpStatus === 409 &&
+      bodyText.includes('comprador') &&
+      bodyText.includes('no existe')
+    );
+  }
+
+  it('matches Sinco 409 "El comprador ingresado no existe." as not-found', () => {
+    assert.equal(
+      isSincoCompradorNotFound409(409, 'El comprador ingresado no existe.'),
+      true
+    );
+  });
+
+  it('does NOT match unrelated 409 "La agrupación ya se encuentra vendida."', () => {
+    assert.equal(
+      isSincoCompradorNotFound409(409, 'La agrupación ya se encuentra vendida.'),
+      false
+    );
   });
 });

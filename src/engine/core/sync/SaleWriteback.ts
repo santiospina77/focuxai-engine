@@ -81,7 +81,8 @@ export type LegalizacionInput = SeparacionInput;
 
 export interface SaleWritebackResult {
   readonly dealId: string;
-  readonly compradorExternalId: number;
+  /** Sinco comprador ID. undefined in dry-run (no write executed). */
+  readonly compradorExternalId?: number;
   readonly compradorWasCreated: boolean;
   readonly ventaConfirmada: boolean;
   readonly transactionId: string;
@@ -373,7 +374,7 @@ export class SaleWriteback {
 
     return ok({
       dealId: input.dealId,
-      compradorExternalId: compradorExternalId ?? 0,
+      compradorExternalId: compradorExternalId, // undefined in dry-run (no Sinco write)
       compradorWasCreated,
       ventaConfirmada: !dryRun,
       transactionId,
@@ -467,7 +468,7 @@ export class SaleWriteback {
 
     return ok({
       dealId: input.dealId,
-      compradorExternalId: 0, // ya existía
+      compradorExternalId: undefined, // legalizar no crea comprador — ID ya vive en el Deal
       compradorWasCreated: false,
       ventaConfirmada: true,
       transactionId,

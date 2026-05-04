@@ -166,10 +166,17 @@ export class SincoConnector implements IErpConnector {
         return ok(null);
       }
       // Sinco quirk: devuelve 409 (no 404) con "no existe" para compradores inexistentes.
+      // Matcher defensivo: 409 + body contiene "comprador" + "no existe".
+      // No matcheamos solo "no existe" para evitar falsos positivos con otros 409
+      // (ej: "La agrupación ya se encuentra vendida").
+      const bodyText =
+        typeof response.error.context.body === 'string'
+          ? response.error.context.body.toLowerCase()
+          : '';
       if (
         response.error.context.httpStatus === 409 &&
-        typeof response.error.context.body === 'string' &&
-        response.error.context.body.toLowerCase().includes('no existe')
+        bodyText.includes('comprador') &&
+        bodyText.includes('no existe')
       ) {
         return ok(null);
       }
