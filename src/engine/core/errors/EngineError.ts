@@ -32,6 +32,8 @@ export type ErrorCode =
   | 'BUSINESS_MISSING_COMPRADOR_ID'
   | 'BUSINESS_EVENT_LOG_INVALID_TRANSITION'
   | 'BUSINESS_WRITEBACK_ALREADY_FAILED'
+  | 'BUSINESS_WRITEBACK_NOT_APPROVED'                // WB-3.5: writeback_ready_fx ≠ true
+  | 'BUSINESS_WRITEBACK_REQUIRES_REVERSAL_REVIEW'    // WB-3.5: requires_sinco_reversal_fx = true
   // Capa ERP concurrencia
   | 'ERP_OPERATION_IN_PROGRESS'
   // Capa de autenticación CRM (AUTH_CRM_*)
@@ -490,6 +492,24 @@ export class BusinessError extends EngineError {
       'BUSINESS_WRITEBACK_ALREADY_FAILED',
       `Transacción ${transactionId} ya falló. Usar nuevo ID con suffix _retry_N`,
       { transactionId, dealId }
+    );
+  }
+
+  /** WB-3.5: writeback_ready_fx ≠ true en HubSpot. Requiere aprobación humana. */
+  static writebackNotApproved(dealId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_WRITEBACK_NOT_APPROVED',
+      `Deal ${dealId}: writeback_ready_fx no es true en HubSpot. Requiere aprobación explícita del asesor/admin antes de ejecutar write-back.`,
+      { dealId }
+    );
+  }
+
+  /** WB-3.5: requires_sinco_reversal_fx=true. Deal inconsistente, requiere revisión administrativa. */
+  static writebackRequiresReversalReview(dealId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_WRITEBACK_REQUIRES_REVERSAL_REVIEW',
+      `Deal ${dealId}: requires_sinco_reversal_fx=true. Requiere revisión administrativa antes de nuevo write-back.`,
+      { dealId }
     );
   }
 }

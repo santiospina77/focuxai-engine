@@ -92,6 +92,11 @@ const CuotaPlanPagoSchema = z.object({
 export const SeparacionRequestSchema = z.object({
   clientId: z.string().min(1),
   dealId: z.string().min(1),
+  /**
+   * WB-3.5: Hint de aprobación. NO ES FUENTE DE VERDAD.
+   * En modo real, Engine verifica writeback_ready_fx directamente en HubSpot.
+   */
+  writebackReady: z.boolean().optional().default(false),
   comprador: z.object({
     tipoPersona: z.enum(['NATURAL', 'JURIDICA']),
     tipoIdentificacion: z.string().min(1),
@@ -154,6 +159,7 @@ export async function POST(req: Request) {
   const input: SeparacionInput = {
     clientId: raw.clientId,
     dealId: raw.dealId,
+    writebackReady: raw.writebackReady,
     comprador: {
       tipoPersona: comp.tipoPersona,
       tipoIdentificacion: comp.tipoIdentificacion as TipoIdentificacion,

@@ -58,6 +58,12 @@ export interface SeparacionInput {
   readonly clientId: string;
   readonly dealId: string; // ID de HubSpot del Deal
   /**
+   * WB-3.5: Hint de aprobación del payload. NO ES FUENTE DE VERDAD.
+   * En modo real, Engine verifica directamente contra HubSpot Deal property.
+   * Solo se usa en dry-run para testing sin lectura CRM.
+   */
+  readonly writebackReady?: boolean;
+  /**
    * Datos del comprador principal — vienen del Contact asociado al Deal.
    */
   readonly comprador: {
@@ -106,6 +112,19 @@ export interface SaleWritebackResult {
   readonly transactionId: string;
   /** true cuando la operación ya había sido procesada (idempotencia). */
   readonly alreadyProcessed?: boolean;
+  /** WB-3.5: true si dry-run bypasó la verificación de writeback_ready_fx. */
+  readonly approvalBypassedBecauseDryRun?: boolean;
+}
+
+// ============================================================================
+// WB-3.5: Approval gate result
+// ============================================================================
+
+interface ApprovalGateResult {
+  /** true si dry-run bypasó la verificación */
+  readonly approvalBypassedBecauseDryRun: boolean;
+  /** true si HubSpot ya tiene writeback_status_fx=success (short-circuit) */
+  readonly alreadySuccessfulInHubSpot: boolean;
 }
 
 // ============================================================================
@@ -119,6 +138,8 @@ const DEAL_PROPS = {
   writebackTransactionId: 'writeback_transaction_id_fx',
   compradorIdSinco: 'id_comprador_sinco_fx',
   ventaIdSinco: 'id_venta_sinco_fx',
+  writebackReady: 'writeback_ready_fx',                    // WB-3.5: aprobación explícita
+  requiresSincoReversal: 'requires_sinco_reversal_fx',     // WB-3.5: movimiento regresivo
 } as const;
 
 export class SaleWriteback {
@@ -126,6 +147,99 @@ export class SaleWriteback {
     private readonly logger: Logger,
     private readonly eventLog: IEventLog
   ) {}
+
+  // ==========================================================================
+  // WB-3.5: Shared approval gate (used by separar + legalizar)
+  // ==========================================================================
+
+  /**
+   * Validates write-back guardrails by reading Deal from HubSpot.
+   *
+   * Checks (in order):
+   *   1. requires_sinco_reversal_fx — if true, block (deal is inconsistent)
+   *   2. writeback_status_fx — if 'success', short-circuit (already done)
+   *   3. writeback_ready_fx — if not true, block (not approved)
+   *
+   * In dry-run mode: skips HubSpot read entirely, returns bypass result.
+   */
+  private async validateWritebackApproval(
+    crm: ICrmAdapter,
+    log: Logger,
+    input: {
+      readonly dealId: string;
+      readonly dryRun: boolean;
+      readonly writebackReady?: boolean;
+    }
+  ): Promise<Result<ApprovalGateResult, EngineError>> {
+
+    // --- Dry-run: no lee HubSpot, bypass con log explícito ---
+    if (input.dryRun) {
+      log.info(
+        { writebackReady: input.writebackReady },
+        'Approval gate bypassed: dry-run mode'
+      );
+      return ok({ approvalBypassedBecauseDryRun: true, alreadySuccessfulInHubSpot: false });
+    }
+
+    // --- Real mode: lee Deal directamente de HubSpot ---
+    const dealResult = await crm.getRecord(
+      'deal',
+      input.dealId,
+      [DEAL_PROPS.writebackReady, DEAL_PROPS.writebackStatus, DEAL_PROPS.requiresSincoReversal]
+    );
+
+    if (dealResult.isErr()) {
+      log.error({ error: dealResult.error }, 'CRM read failed — cannot validate guardrails');
+      return err(dealResult.error);
+    }
+
+    if (dealResult.value === null) {
+      log.error({}, 'Deal not found in HubSpot — cannot validate guardrails');
+      return err(BusinessError.writebackNotApproved(input.dealId));
+    }
+
+    const props = dealResult.value.properties;
+
+    // 1. Guard reversal: Deal marcado como inconsistente → no se toca
+    const requiresReversal =
+      props[DEAL_PROPS.requiresSincoReversal] === true ||
+      props[DEAL_PROPS.requiresSincoReversal] === 'true';
+
+    if (requiresReversal) {
+      log.warn(
+        { requiresSincoReversal: props[DEAL_PROPS.requiresSincoReversal] },
+        'Write-back rejected: Deal requires reversal review'
+      );
+      return err(BusinessError.writebackRequiresReversalReview(input.dealId));
+    }
+
+    // 2. Short-circuit: si HubSpot ya dice success, no re-procesar
+    //    PgEventLog también lo atraparía, pero esto evita operaciones innecesarias.
+    const alreadySuccess = props[DEAL_PROPS.writebackStatus] === 'success';
+    if (alreadySuccess) {
+      log.info(
+        { source: 'hubspot_writeback_status' },
+        'writeback_status_fx=success in HubSpot — short-circuit before PgEventLog'
+      );
+      return ok({ approvalBypassedBecauseDryRun: false, alreadySuccessfulInHubSpot: true });
+    }
+
+    // 3. Aprobación explícita: writeback_ready_fx debe ser true EN HUBSPOT
+    const dealReady =
+      props[DEAL_PROPS.writebackReady] === true ||
+      props[DEAL_PROPS.writebackReady] === 'true';
+
+    if (!dealReady) {
+      log.warn(
+        { writebackReady: props[DEAL_PROPS.writebackReady] },
+        'Write-back rejected: writeback_ready_fx ≠ true in HubSpot'
+      );
+      return err(BusinessError.writebackNotApproved(input.dealId));
+    }
+
+    log.info({}, 'Approval gate passed: writeback_ready_fx=true, no reversal, not already success');
+    return ok({ approvalBypassedBecauseDryRun: false, alreadySuccessfulInHubSpot: false });
+  }
 
   /**
    * Write-back #1: Cuando el Deal pasa a "Unidad Separada".
@@ -154,7 +268,7 @@ export class SaleWriteback {
       mode,
     });
 
-    // === Gate 1: Feature flag ===
+    // === Gate 1: Feature flag (kill switch — no CRM reads if off) ===
     if (!writebackEnabled) {
       log.warn({}, 'Write-back deshabilitado (SINCO_WRITEBACK_ENABLED=false)');
       return err(
@@ -163,7 +277,27 @@ export class SaleWriteback {
       );
     }
 
-    // === Gate 2: Atomic reserve (replaces hasSucceeded + begin two-step) ===
+    // === Gate 2: Approval + reversal guard + success short-circuit (WB-3.5) ===
+    const approvalResult = await this.validateWritebackApproval(crm, log, {
+      dealId: input.dealId,
+      dryRun,
+      writebackReady: input.writebackReady,
+    });
+
+    if (approvalResult.isErr()) return err(approvalResult.error);
+
+    // Short-circuit: HubSpot already says success → idempotent return
+    if (approvalResult.value.alreadySuccessfulInHubSpot) {
+      return ok({
+        dealId: input.dealId,
+        compradorWasCreated: false,
+        ventaConfirmada: true,
+        transactionId,
+        alreadyProcessed: true,
+      });
+    }
+
+    // === Gate 3: Atomic reserve (PgEventLog — idempotency) ===
     const beginResult = await this.eventLog.begin({
       transactionId,
       clientId: input.clientId,
@@ -468,6 +602,7 @@ export class SaleWriteback {
       compradorWasCreated,
       ventaConfirmada: !dryRun,
       transactionId,
+      approvalBypassedBecauseDryRun: approvalResult.value.approvalBypassedBecauseDryRun || undefined,
     });
   }
 
@@ -478,21 +613,56 @@ export class SaleWriteback {
    * En Sinco no hay un endpoint separado de "actualizar venta confirmada":
    * el patrón es ejecutar PUT /ConfirmacionVenta otra vez con los datos finales.
    * Sinco internamente actualiza el plan de pagos.
+   *
+   * WB-3.5: Ahora protegido por los mismos 3 gates que separar():
+   *   Gate 1 (feature flag) → Gate 2 (approval) → Gate 3 (PgEventLog)
    */
   async legalizar(
     erp: IErpConnector,
     crm: ICrmAdapter,
     input: LegalizacionInput
   ): Promise<Result<SaleWritebackResult, EngineError>> {
-    const transactionId = `legalizar_${input.clientId}_${input.dealId}`;
+    const writebackEnabled = process.env.SINCO_WRITEBACK_ENABLED === 'true';
+    const dryRun = process.env.SINCO_WRITEBACK_DRY_RUN !== 'false';
+    const mode = dryRun ? 'dry_run' : 'real';
+    const transactionId = `legalizar_${mode}_${input.clientId}_${input.dealId}`;
     const log = this.logger.child({
       clientId: input.clientId,
       dealId: input.dealId,
       operation: 'writeback.legalizar',
       transactionId,
+      mode,
     });
 
-    // === Atomic reserve ===
+    // === Gate 1: Feature flag (kill switch — no CRM reads if off) ===
+    if (!writebackEnabled) {
+      log.warn({}, 'Write-back deshabilitado (SINCO_WRITEBACK_ENABLED=false)');
+      return err(
+        new ErpError('ERP_FEATURE_DISABLED', 'Write-back Sinco deshabilitado por feature flag',
+          { dealId: input.dealId, retryable: false })
+      );
+    }
+
+    // === Gate 2: Approval + reversal guard + success short-circuit (WB-3.5) ===
+    const approvalResult = await this.validateWritebackApproval(crm, log, {
+      dealId: input.dealId,
+      dryRun,
+      writebackReady: input.writebackReady,
+    });
+
+    if (approvalResult.isErr()) return err(approvalResult.error);
+
+    if (approvalResult.value.alreadySuccessfulInHubSpot) {
+      return ok({
+        dealId: input.dealId,
+        compradorWasCreated: false,
+        ventaConfirmada: true,
+        transactionId,
+        alreadyProcessed: true,
+      });
+    }
+
+    // === Gate 3: Atomic reserve (PgEventLog — idempotency) ===
     const beginResult = await this.eventLog.begin({
       transactionId,
       clientId: input.clientId,

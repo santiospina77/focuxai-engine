@@ -269,3 +269,67 @@ describe('formatSincoDate', () => {
     );
   });
 });
+
+// ==================== WB-3.5: BusinessError factories (2 tests) ====================
+
+describe('BusinessError — WB-3.5 factories', () => {
+  // Import dynamically to avoid circular deps at top level
+  const { BusinessError } = require('@/engine/core/errors/EngineError');
+
+  it('writebackNotApproved returns correct code and non-retryable', () => {
+    const error = BusinessError.writebackNotApproved('deal-123');
+    assert.equal(error.code, 'BUSINESS_WRITEBACK_NOT_APPROVED');
+    assert.equal(error.context.retryable, false);
+    assert.match(error.message, /writeback_ready_fx/);
+    assert.match(error.message, /deal-123/);
+  });
+
+  it('writebackRequiresReversalReview returns correct code and non-retryable', () => {
+    const error = BusinessError.writebackRequiresReversalReview('deal-456');
+    assert.equal(error.code, 'BUSINESS_WRITEBACK_REQUIRES_REVERSAL_REVIEW');
+    assert.equal(error.context.retryable, false);
+    assert.match(error.message, /requires_sinco_reversal_fx/);
+    assert.match(error.message, /deal-456/);
+  });
+});
+
+// ==================== WB-3.5: SeparacionRequestSchema writebackReady (3 tests) ====================
+
+describe('SeparacionRequestSchema — writebackReady', () => {
+  // Import the schema from route.ts
+  const { SeparacionRequestSchema } = require('@/app/api/engine/sale/separar/route');
+
+  // Minimal valid body (all required fields)
+  const validComprador = {
+    tipoPersona: 'NATURAL',
+    tipoIdentificacion: 'CC',
+    numeroIdentificacion: '1234567890',
+  };
+  const validVenta = {
+    idAgrupacionSinco: 100,
+    idProyectoSinco: 15,
+    fecha: '2026-05-03',
+    tipoVenta: 'CREDITO',
+    valorDescuento: 0,
+    valorDescuentoFinanciero: 0,
+    planPagos: [{ idConcepto: 0, fecha: '2026-05-03', valor: 5000000, numeroCuota: 1 }],
+  };
+  const validBody = { clientId: 'c1', dealId: 'd1', comprador: validComprador, venta: validVenta };
+
+  it('defaults writebackReady to false when not provided', () => {
+    const result = SeparacionRequestSchema.safeParse(validBody);
+    assert.equal(result.success, true);
+    assert.equal(result.data.writebackReady, false);
+  });
+
+  it('accepts writebackReady: true', () => {
+    const result = SeparacionRequestSchema.safeParse({ ...validBody, writebackReady: true });
+    assert.equal(result.success, true);
+    assert.equal(result.data.writebackReady, true);
+  });
+
+  it('rejects writebackReady: "yes" (must be boolean)', () => {
+    const result = SeparacionRequestSchema.safeParse({ ...validBody, writebackReady: 'yes' });
+    assert.equal(result.success, false);
+  });
+});
