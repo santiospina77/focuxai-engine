@@ -49,7 +49,7 @@ describe('buildSincoCompradorBody', () => {
     assert.equal(body.viviendaPropia, 0);
     assert.equal(body.tipoContratoArrendador, 0);
     assert.equal(body.idTieneVehiculo, 0);
-    assert.equal(body.discapacidad, 0);
+    assert.equal(body.discapacidad, false);
   });
 
   it('defaults genero to O', () => {

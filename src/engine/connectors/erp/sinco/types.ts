@@ -428,7 +428,7 @@ export interface SincoCreateCompradorBody {
   viviendaPropia?: number;
   tipoContratoArrendador?: number;
   idTieneVehiculo?: number;
-  discapacidad?: number;
+  discapacidad?: boolean;
 }
 
 export const SincoCreateCompradorResponseSchema = z.number();
@@ -543,7 +543,7 @@ export function buildSincoCompradorBody(input: CompradorInput): SincoCreateCompr
     viviendaPropia: 0,
     tipoContratoArrendador: 0,
     idTieneVehiculo: 0,
-    discapacidad: 0,
+    discapacidad: false,
   };
 }
 
