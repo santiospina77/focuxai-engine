@@ -28,9 +28,27 @@ import type {
 } from '@/engine/interfaces/IErpConnector';
 import type { ICrmAdapter } from '@/engine/interfaces/ICrmAdapter';
 import type { Logger } from '../logging/Logger';
-import { ErpError, type EngineError } from '../errors/EngineError';
+import { ErpError, BusinessError, type EngineError } from '../errors/EngineError';
 import type { IEventLog } from '../eventlog/EventLog';
 import { type Result, ok, err } from '../types/Result';
+
+// ============================================================================
+// HubSpot internal values para writeback_status_fx
+// ============================================================================
+
+/**
+ * Maps internal writeback status to HubSpot internal values.
+ * MUST match the enumeration options defined in writeback_status_fx.
+ */
+const WRITEBACK_STATUS_MAP = {
+  pending: 'pending',
+  success: 'success',
+  failed: 'failed',
+  dryRun: 'dry_run',
+  error: 'error',
+} as const;
+
+type WritebackStatusKey = keyof typeof WRITEBACK_STATUS_MAP;
 
 // ============================================================================
 // Inputs (lo que el caller le pasa al writeback)
@@ -81,11 +99,13 @@ export type LegalizacionInput = SeparacionInput;
 
 export interface SaleWritebackResult {
   readonly dealId: string;
-  /** Sinco comprador ID. undefined in dry-run (no write executed). */
+  /** Sinco comprador ID. undefined in dry-run or idempotent replay. */
   readonly compradorExternalId?: number;
   readonly compradorWasCreated: boolean;
   readonly ventaConfirmada: boolean;
   readonly transactionId: string;
+  /** true cuando la operación ya había sido procesada (idempotencia). */
+  readonly alreadyProcessed?: boolean;
 }
 
 // ============================================================================
@@ -143,19 +163,8 @@ export class SaleWriteback {
       );
     }
 
-    // === Gate 2: Idempotency ===
-    // NOTE: InMemoryEventLog — solo protege dentro de la misma invocación.
-    // PgEventLog (bloqueador de flip a real) protegerá cross-request.
-    if (await this.eventLog.hasSucceeded(transactionId)) {
-      log.warn({}, 'Separación ya ejecutada, no se repite');
-      return err(
-        new ErpError('ERP_BUSINESS_RULE_VIOLATION', 'Esta separación ya fue procesada (idempotencia)',
-          { dealId: input.dealId, transactionId, retryable: false })
-      );
-    }
-
-    // === Gate 3: Write-ahead — marcar en progreso ===
-    await this.eventLog.begin({
+    // === Gate 2: Atomic reserve (replaces hasSucceeded + begin two-step) ===
+    const beginResult = await this.eventLog.begin({
       transactionId,
       clientId: input.clientId,
       operation: 'writeback.separar',
@@ -166,6 +175,48 @@ export class SaleWriteback {
         mode,
       },
     });
+
+    if (beginResult.isErr()) {
+      // DB unreachable — cannot guarantee idempotency, abort
+      log.error({ error: beginResult.error }, 'EventLog.begin failed — aborting');
+      return err(beginResult.error);
+    }
+
+    switch (beginResult.value.kind) {
+      case 'ACQUIRED':
+        log.info({}, 'Transaction acquired — proceeding with write-back');
+        break;
+
+      case 'ALREADY_SUCCEEDED': {
+        // Idempotent return — reconstruct result from stored output
+        log.info({}, 'Transaction already succeeded — idempotent return');
+        const storedOutput = beginResult.value.event.output ?? {};
+        const ventaConfirmada = storedOutput.ventaConfirmada === true;
+
+        return ok({
+          dealId: input.dealId,
+          compradorExternalId: ventaConfirmada && storedOutput.compradorExternalId != null
+            ? Number(storedOutput.compradorExternalId)
+            : undefined,
+          compradorWasCreated: storedOutput.compradorWasCreated === true,
+          ventaConfirmada,
+          transactionId,
+          alreadyProcessed: true,
+        });
+      }
+
+      case 'IN_PROGRESS':
+        log.warn({}, 'Transaction in progress by another request — aborting');
+        return err(ErpError.operationInProgress(transactionId, {
+          dealId: input.dealId,
+        }));
+
+      case 'ALREADY_FAILED':
+        log.warn({}, 'Transaction previously failed — new transactionId required');
+        return err(BusinessError.writebackAlreadyFailed(transactionId, input.dealId));
+    }
+
+    // === ACQUIRED — proceed with validations and Sinco calls ===
 
     // === Validación: participación con epsilon ===
     const PARTICIPATION_EPSILON = 0.01;
@@ -179,9 +230,9 @@ export class SaleWriteback {
         code: 'BUSINESS_INVALID_PARTICIPATION',
         message: `Participación principal inválida: ${principalParticipacion}%`,
       });
-      return err(new ErpError('BUSINESS_INVALID_PARTICIPATION',
+      return err(new BusinessError('BUSINESS_INVALID_PARTICIPATION',
         `Participación principal inválida: ${principalParticipacion}%. Alternos suman ${alternosSum}%.`,
-        { dealId: input.dealId, principalParticipacion, retryable: false }));
+        { dealId: input.dealId, principalParticipacion }));
     }
 
     if (Math.abs((principalParticipacion + alternosSum) - 100) > PARTICIPATION_EPSILON) {
@@ -189,9 +240,9 @@ export class SaleWriteback {
         code: 'BUSINESS_INVALID_PARTICIPATION',
         message: `Participación total ≠ 100%`,
       });
-      return err(new ErpError('BUSINESS_INVALID_PARTICIPATION',
+      return err(new BusinessError('BUSINESS_INVALID_PARTICIPATION',
         `Participación total ${principalParticipacion + alternosSum}% ≠ 100%`,
-        { dealId: input.dealId, retryable: false }));
+        { dealId: input.dealId }));
     }
 
     // === Validación: idConcepto=0 en planPagos ===
@@ -201,9 +252,9 @@ export class SaleWriteback {
         code: 'BUSINESS_MISSING_SEPARACION_CONCEPTO',
         message: 'Plan de pagos sin cuota de separación',
       });
-      return err(new ErpError('BUSINESS_MISSING_SEPARACION_CONCEPTO',
+      return err(new BusinessError('BUSINESS_MISSING_SEPARACION_CONCEPTO',
         'Plan de pagos debe incluir cuota de separación (idConcepto=0)',
-        { dealId: input.dealId, retryable: false }));
+        { dealId: input.dealId }));
     }
 
     // === Warn: idCiudadResidencia ===
@@ -293,9 +344,9 @@ export class SaleWriteback {
           code: 'BUSINESS_MISSING_COMPRADOR_ID',
           message: 'No se puede confirmar venta sin comprador',
         });
-        return err(new ErpError('BUSINESS_MISSING_COMPRADOR_ID',
+        return err(new BusinessError('BUSINESS_MISSING_COMPRADOR_ID',
           'No se puede confirmar venta sin idCompradorSinco — comprador no fue creado ni encontrado',
-          { dealId: input.dealId, retryable: false }));
+          { dealId: input.dealId }));
       }
 
       log.info({}, 'Step 2: confirmarVenta');
@@ -321,19 +372,53 @@ export class SaleWriteback {
       }
 
       // EventLog succeed IMMEDIATELY after Sinco confirms (before CRM update)
-      await this.eventLog.succeed(transactionId, {
+      const succeedResult = await this.eventLog.succeed(transactionId, {
+        mode: 'real',
+        ventaConfirmada: true,
         compradorExternalId,
         compradorWasCreated,
         idAgrupacionSinco: input.venta.idAgrupacionSinco,
         idHubspot: input.dealId,
       });
+
+      if (succeedResult.isErr()) {
+        // CRITICAL: Sinco confirmed but EventLog didn't transition to success.
+        // State is inconsistent — event stays 'pending', which prevents doble-venta
+        // (begin() would return IN_PROGRESS), but requires operational intervention.
+        log.error(
+          {
+            transactionId,
+            error: succeedResult.error,
+            sincoAlreadyConfirmed: true,
+          },
+          'CRITICAL: Sinco confirmed but EventLog.succeed failed — state inconsistent',
+        );
+
+        // Best-effort: mark CRM as 'error' so ops team can investigate.
+        try {
+          await this.markDealStatus(
+            crm,
+            input.dealId,
+            'error',
+            `Sinco confirmado, pero EventLog falló: ${succeedResult.error.code}. Requiere intervención manual.`,
+            transactionId,
+          );
+        } catch (crmErr) {
+          log.error(
+            { dealId: input.dealId, transactionId, crmErr },
+            'Failed to mark CRM as error after EventLog.succeed failure (best-effort)',
+          );
+        }
+
+        return err(succeedResult.error);
+      }
     }
 
     // ---------------------------------------------------------------------
     // Step 3: Update Deal en HubSpot
     // ---------------------------------------------------------------------
     const baseProperties: Record<string, unknown> = {
-      [DEAL_PROPS.writebackStatus]: dryRun ? 'dry_run' : 'success',
+      [DEAL_PROPS.writebackStatus]: dryRun ? WRITEBACK_STATUS_MAP.dryRun : WRITEBACK_STATUS_MAP.success,
       [DEAL_PROPS.writebackError]: '',
       [DEAL_PROPS.writebackAttemptedAt]: new Date().toISOString(),
       [DEAL_PROPS.writebackTransactionId]: transactionId,
@@ -362,12 +447,17 @@ export class SaleWriteback {
       return err(crmUpdateResult.error);
     }
 
-    // Dry-run EventLog
+    // Dry-run EventLog — enriched output for idempotent replay
     if (dryRun) {
-      await this.eventLog.succeed(transactionId, {
+      const dryRunSucceedResult = await this.eventLog.succeed(transactionId, {
         mode: 'dry_run',
+        ventaConfirmada: false,
+        compradorWasCreated: false,
         dealId: input.dealId,
       });
+      if (dryRunSucceedResult.isErr()) {
+        log.error({ error: dryRunSucceedResult.error }, 'EventLog.succeed failed in dry-run (non-blocking)');
+      }
     }
 
     log.info({ compradorExternalId, compradorWasCreated, mode }, 'Separación completada');
@@ -402,23 +492,47 @@ export class SaleWriteback {
       transactionId,
     });
 
-    if (await this.eventLog.hasSucceeded(transactionId)) {
-      log.warn({}, 'Legalización ya ejecutada, no se repite');
-      return err(
-        new ErpError(
-          'ERP_BUSINESS_RULE_VIOLATION',
-          'Esta legalización ya fue procesada (idempotencia)',
-          { dealId: input.dealId, transactionId, retryable: false }
-        )
-      );
-    }
-
-    await this.eventLog.begin({
+    // === Atomic reserve ===
+    const beginResult = await this.eventLog.begin({
       transactionId,
       clientId: input.clientId,
       operation: 'writeback.legalizar',
       payload: { dealId: input.dealId },
     });
+
+    if (beginResult.isErr()) {
+      log.error({ error: beginResult.error }, 'EventLog.begin failed — aborting');
+      return err(beginResult.error);
+    }
+
+    switch (beginResult.value.kind) {
+      case 'ACQUIRED':
+        log.info({}, 'Transaction acquired — proceeding with legalización');
+        break;
+
+      case 'ALREADY_SUCCEEDED': {
+        log.info({}, 'Legalización already succeeded — idempotent return');
+        const storedOutput = beginResult.value.event.output ?? {};
+        return ok({
+          dealId: input.dealId,
+          compradorExternalId: undefined,
+          compradorWasCreated: false,
+          ventaConfirmada: storedOutput.ventaConfirmada === true,
+          transactionId,
+          alreadyProcessed: true,
+        });
+      }
+
+      case 'IN_PROGRESS':
+        log.warn({}, 'Legalización in progress by another request — aborting');
+        return err(ErpError.operationInProgress(transactionId, {
+          dealId: input.dealId,
+        }));
+
+      case 'ALREADY_FAILED':
+        log.warn({}, 'Legalización previously failed — new transactionId required');
+        return err(BusinessError.writebackAlreadyFailed(transactionId, input.dealId));
+    }
 
     // Para legalizar, el comprador y la venta YA deben existir (separación previa).
     // Solo re-ejecutamos PUT /ConfirmacionVenta con datos finales.
@@ -448,7 +562,30 @@ export class SaleWriteback {
     }
 
     // EventLog succeed IMMEDIATELY after Sinco confirms
-    await this.eventLog.succeed(transactionId, { ventaLegalizada: true });
+    const succeedResult = await this.eventLog.succeed(transactionId, {
+      mode: 'real',
+      ventaConfirmada: true,
+      ventaLegalizada: true,
+    });
+
+    if (succeedResult.isErr()) {
+      log.error(
+        { transactionId, error: succeedResult.error, sincoAlreadyConfirmed: true },
+        'CRITICAL: Sinco confirmed but EventLog.succeed failed — state inconsistent',
+      );
+      try {
+        await this.markDealStatus(
+          crm,
+          input.dealId,
+          'error',
+          `Sinco legalizado, pero EventLog falló: ${succeedResult.error.code}. Requiere intervención manual.`,
+          transactionId,
+        );
+      } catch (crmErr) {
+        log.error({ dealId: input.dealId, transactionId, crmErr }, 'Failed to mark CRM as error (best-effort)');
+      }
+      return err(succeedResult.error);
+    }
 
     const crmUpdateResult = await crm.updateRecord({
       id: input.dealId,
@@ -486,12 +623,12 @@ export class SaleWriteback {
   private async markDealStatus(
     crm: ICrmAdapter,
     dealId: string,
-    status: 'pending' | 'success' | 'failed' | 'dry_run',
+    status: WritebackStatusKey,
     errorMsg: string | undefined,
-    transactionId: string
+    transactionId: string,
   ): Promise<void> {
     const properties: Record<string, unknown> = {
-      [DEAL_PROPS.writebackStatus]: status,
+      [DEAL_PROPS.writebackStatus]: WRITEBACK_STATUS_MAP[status],
       [DEAL_PROPS.writebackAttemptedAt]: new Date().toISOString(),
       [DEAL_PROPS.writebackTransactionId]: transactionId,
     };
@@ -520,17 +657,17 @@ export class SaleWriteback {
     log: Logger,
     dealId: string,
     transactionId: string,
-    error: { code: string; message: string }
+    error: { code: string; message: string },
   ): Promise<void> {
     try {
       await this.markDealStatus(crm, dealId, 'failed', `${error.code}: ${error.message}`, transactionId);
     } catch (crmErr) {
       log.error({ dealId, crmErr }, 'Failed to mark Deal as failed in CRM (best-effort)');
     }
-    try {
-      await this.eventLog.fail(transactionId, error);
-    } catch (logErr) {
-      log.error({ dealId, logErr }, 'Failed to mark EventLog as failed (best-effort)');
+    // fail() now returns Result — no try/catch needed
+    const failResult = await this.eventLog.fail(transactionId, error);
+    if (failResult.isErr()) {
+      log.error({ dealId, error: failResult.error }, 'EventLog.fail failed (best-effort)');
     }
   }
 }

@@ -1,0 +1,2435 @@
+{
+  "generatedAt": "2026-05-03T13:25:41.957Z",
+  "clientId": "jimenez_demo",
+  "baseUrl": "https://www3.sincoerp.com/SincoJimenez_Nueva/V3",
+  "vendedores": {
+    "count": 59,
+    "fieldNames": [
+      "apellidos",
+      "celular",
+      "codigoAlterno",
+      "direccionResidencia",
+      "estado",
+      "id",
+      "nombres",
+      "numeroIdentificacion",
+      "sexo",
+      "tipoIdentificacion"
+    ],
+    "data": [
+      {
+        "id": 3,
+        "nombres": "Yolima Isabel",
+        "apellidos": "Cerchar Montaño",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "36697397",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "YICM"
+      },
+      {
+        "id": 4,
+        "nombres": "Nini Yojana",
+        "apellidos": "Henriquez Molinares",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "36696580",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "NYHM"
+      },
+      {
+        "id": 5,
+        "nombres": "Mabel Carolina",
+        "apellidos": "Cruz Torres",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082843721",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "MCCT"
+      },
+      {
+        "id": 6,
+        "nombres": "Yuli Patricia",
+        "apellidos": "Martinez Gonzalez",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082893732",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "YPMG"
+      },
+      {
+        "id": 7,
+        "nombres": "LEONOR ELISA",
+        "apellidos": "PARDO LOPEZ",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082861960",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "LEPL"
+      },
+      {
+        "id": 8,
+        "nombres": "Yuliana Marcela",
+        "apellidos": "Herrera Mercado",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082916806",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "YMHM"
+      },
+      {
+        "id": 9,
+        "nombres": "Diana Karina",
+        "apellidos": "Roa Patiño",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082841803",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "KRP"
+      },
+      {
+        "id": 10,
+        "nombres": "Deisy Milena",
+        "apellidos": "Angarita Rodriguez",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082877365",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "1",
+        "codigoAlterno": "DMAR"
+      },
+      {
+        "id": 11,
+        "nombres": "ERIKA KARINA",
+        "apellidos": "JACQUIN MELENDEZ",
+        "estado": 0,
+        "direccionResidencia": "MZ W CASA 10",
+        "numeroIdentificacion": "1082925829",
+        "tipoIdentificacion": "CC",
+        "celular": "3014518390",
+        "sexo": "2",
+        "codigoAlterno": "447"
+      },
+      {
+        "id": 12,
+        "nombres": "KATIANA PAOLA",
+        "apellidos": "NAVARRO CHINCHILLA",
+        "estado": 0,
+        "direccionResidencia": " CRA 33 # 17-06",
+        "numeroIdentificacion": "1082916621",
+        "tipoIdentificacion": "CC",
+        "celular": " 3016076139",
+        "sexo": "2",
+        "codigoAlterno": "1913"
+      },
+      {
+        "id": 13,
+        "nombres": "THISSCHA SAYACET",
+        "apellidos": "PAYARES DE LA HOZ",
+        "estado": 0,
+        "direccionResidencia": " MZ 84 CS 7 ",
+        "numeroIdentificacion": "1083025463",
+        "tipoIdentificacion": "CC",
+        "celular": "3165272822",
+        "sexo": "2",
+        "codigoAlterno": "1912"
+      },
+      {
+        "id": 14,
+        "nombres": "NORLYS PAOLA",
+        "apellidos": "TORREGROZA ECHEVERRIA",
+        "estado": 0,
+        "direccionResidencia": " MZ 4 CS 12 ",
+        "numeroIdentificacion": "1082985800",
+        "tipoIdentificacion": "CC",
+        "celular": " 3004690907",
+        "sexo": "2",
+        "codigoAlterno": "2013"
+      },
+      {
+        "id": 15,
+        "nombres": "AIDETH MARGARITA",
+        "apellidos": "PERTUZ BOLAÑO",
+        "estado": 0,
+        "direccionResidencia": " MZ B CS 15",
+        "numeroIdentificacion": "1143242214",
+        "tipoIdentificacion": "CC",
+        "celular": " 3165468206",
+        "sexo": "2",
+        "codigoAlterno": "2014"
+      },
+      {
+        "id": 16,
+        "nombres": "Johana milena ",
+        "apellidos": "Cataño García",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "36694114",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "20"
+      },
+      {
+        "id": 17,
+        "nombres": "Yiseth paola ",
+        "apellidos": "Vélez García",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082844065",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "17"
+      },
+      {
+        "id": 18,
+        "nombres": "YESIKA PAOLA",
+        "apellidos": "CUADRADO RODRIGUEZ",
+        "estado": 0,
+        "direccionResidencia": "CRA11 NO 115-42 B/ LA PAZ",
+        "numeroIdentificacion": "1082993035",
+        "tipoIdentificacion": "CC",
+        "celular": "3124015730",
+        "sexo": "2",
+        "codigoAlterno": "21"
+      },
+      {
+        "id": 19,
+        "nombres": "LIZETH PAOLA",
+        "apellidos": "GUTIERREZ",
+        "estado": 0,
+        "direccionResidencia": "LOPEZ",
+        "numeroIdentificacion": "1082914119",
+        "tipoIdentificacion": "CC",
+        "celular": "3222657062",
+        "sexo": "2",
+        "codigoAlterno": "30"
+      },
+      {
+        "id": 20,
+        "nombres": "MERLYN KATHERINE",
+        "apellidos": "RODRIGUEZ QUINTERO",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1098726152",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "23"
+      },
+      {
+        "id": 21,
+        "nombres": "MARIA ANGELICA",
+        "apellidos": "ACOSTA PEÑA",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082966193",
+        "tipoIdentificacion": "CC",
+        "celular": "3222657058",
+        "sexo": "2",
+        "codigoAlterno": "MAAP"
+      },
+      {
+        "id": 22,
+        "nombres": "MANUELA ",
+        "apellidos": "VELEZ VELASQUEZ",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1148706133",
+        "tipoIdentificacion": "CC",
+        "celular": "3205665211",
+        "sexo": "2",
+        "codigoAlterno": "MANUELA "
+      },
+      {
+        "id": 23,
+        "nombres": "ISABEL ",
+        "apellidos": "JARABA ANDRADE",
+        "estado": 0,
+        "direccionResidencia": "PARQUES DE BOLIVAR ETAPA 2 TOR",
+        "numeroIdentificacion": "1082913113",
+        "tipoIdentificacion": "CC",
+        "celular": "3007657868",
+        "sexo": "2",
+        "codigoAlterno": "40"
+      },
+      {
+        "id": 24,
+        "nombres": "ZULEY MARIA",
+        "apellidos": "COLLANTE POSADA",
+        "estado": 0,
+        "direccionResidencia": "MZA 6 CASA 1A APTO 2 VILLA FRA",
+        "numeroIdentificacion": "1082864544",
+        "tipoIdentificacion": "CC",
+        "celular": "3012163770",
+        "sexo": "2",
+        "codigoAlterno": "41"
+      },
+      {
+        "id": 25,
+        "nombres": "Danna Maria Karina",
+        "apellidos": "Reyes Hernadez",
+        "estado": 0,
+        "direccionResidencia": "carrea 1 # 28 -70",
+        "numeroIdentificacion": "1098783398",
+        "tipoIdentificacion": "CC",
+        "celular": "3003919458",
+        "sexo": "2",
+        "codigoAlterno": "Danna"
+      },
+      {
+        "id": 27,
+        "nombres": "ANGGIE MARIA",
+        "apellidos": "OROZCO PARRA",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1083017047",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "50"
+      },
+      {
+        "id": 28,
+        "nombres": "SUGEY ",
+        "apellidos": "MARTINEZ DE LA HOZ",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1045693842",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "1",
+        "codigoAlterno": "53"
+      },
+      {
+        "id": 29,
+        "nombres": "MARIA JOSE",
+        "apellidos": "DIAZ TAGLE",
+        "estado": 0,
+        "direccionResidencia": " ",
+        "numeroIdentificacion": "1082905920",
+        "tipoIdentificacion": "CC",
+        "celular": " ",
+        "sexo": "1",
+        "codigoAlterno": "3114"
+      },
+      {
+        "id": 30,
+        "nombres": "NERIDITH PAOLA",
+        "apellidos": "OROZCO POLO",
+        "estado": 0,
+        "direccionResidencia": " ",
+        "numeroIdentificacion": "57462925",
+        "tipoIdentificacion": "CC",
+        "celular": " ",
+        "sexo": "2",
+        "codigoAlterno": "3113"
+      },
+      {
+        "id": 31,
+        "nombres": "MARIBETH ESTHER",
+        "apellidos": "CAMARGO CHARRIS",
+        "estado": 0,
+        "direccionResidencia": " ",
+        "numeroIdentificacion": "1082860223",
+        "tipoIdentificacion": "CC",
+        "celular": " ",
+        "sexo": "2",
+        "codigoAlterno": "3112"
+      },
+      {
+        "id": 33,
+        "nombres": "GREY CAROLINA ",
+        "apellidos": "HERNANDEZ DANGOND ",
+        "estado": 0,
+        "direccionResidencia": "CRA 11 # 24 - 90 apto 201",
+        "numeroIdentificacion": "1082917925",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "1",
+        "codigoAlterno": "2"
+      },
+      {
+        "id": 34,
+        "nombres": "Maira Alejandra",
+        "apellidos": "Vives Carrillo",
+        "estado": 0,
+        "direccionResidencia": "Mz C CASA 1B VILLA UNIVERSITAR",
+        "numeroIdentificacion": "1047505245",
+        "tipoIdentificacion": "CC",
+        "celular": "3128135371",
+        "sexo": "2",
+        "codigoAlterno": "33"
+      },
+      {
+        "id": 35,
+        "nombres": "ADELA ISABEL",
+        "apellidos": "ORTIZ ALVAREZ",
+        "estado": 0,
+        "direccionResidencia": "Trans 9 # 17A-154 T3 APTO 1102",
+        "numeroIdentificacion": "1090386004",
+        "tipoIdentificacion": "CC",
+        "celular": "3045229993",
+        "sexo": "2",
+        "codigoAlterno": "34"
+      },
+      {
+        "id": 36,
+        "nombres": "ROXANA PAOLA",
+        "apellidos": "VASQUEZ MEDINA",
+        "estado": 0,
+        "direccionResidencia": "   MZ E CS 7 ",
+        "numeroIdentificacion": "1082960753",
+        "tipoIdentificacion": "CC",
+        "celular": " 3013755605",
+        "sexo": "2",
+        "codigoAlterno": "3280"
+      },
+      {
+        "id": 37,
+        "nombres": "LILIANA CAROLINA",
+        "apellidos": "BARRERA QUIÑONEZ",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082919383",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "45"
+      },
+      {
+        "id": 38,
+        "nombres": "VANESSA CAROLINA",
+        "apellidos": "PEREZ RIVERA",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1082950510",
+        "tipoIdentificacion": "CC",
+        "celular": "undefined",
+        "sexo": "2",
+        "codigoAlterno": "3561"
+      },
+      {
+        "id": 39,
+        "nombres": "IRINA  ISABEL",
+        "apellidos": "ORTEGA YACOMELO",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1082873554",
+        "tipoIdentificacion": "CC",
+        "celular": "undefined",
+        "sexo": "2",
+        "codigoAlterno": "3990"
+      },
+      {
+        "id": 40,
+        "nombres": "ORIANA MARGARITA",
+        "apellidos": "RECALDE DONADO",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "22699289",
+        "tipoIdentificacion": "CC",
+        "celular": "3013766952",
+        "sexo": "2",
+        "codigoAlterno": "3989"
+      },
+      {
+        "id": 41,
+        "nombres": "GEINY PAOLA",
+        "apellidos": "CARREÑO  CEDIEL",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1082973616",
+        "tipoIdentificacion": "CC",
+        "celular": "3218558256",
+        "sexo": "2",
+        "codigoAlterno": "3988"
+      },
+      {
+        "id": 42,
+        "nombres": "YULITZA  CAROLINA",
+        "apellidos": "CUETO  LOPEZ",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1083044435",
+        "tipoIdentificacion": "CC",
+        "celular": "3013114393",
+        "sexo": "2",
+        "codigoAlterno": "3993"
+      },
+      {
+        "id": 43,
+        "nombres": "LAURA",
+        "apellidos": "CANO",
+        "estado": 1,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1004376774",
+        "tipoIdentificacion": "",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "72"
+      },
+      {
+        "id": 44,
+        "nombres": "LIZ  CELIS",
+        "apellidos": "GOMEZ CERVANTES",
+        "estado": 0,
+        "direccionResidencia": " CRA 18  #7-14 ",
+        "numeroIdentificacion": "1082930550",
+        "tipoIdentificacion": "CC",
+        "celular": "3044808442",
+        "sexo": "2",
+        "codigoAlterno": "4071"
+      },
+      {
+        "id": 45,
+        "nombres": "GHERALDINE MARIA",
+        "apellidos": "PEÑARANDA IGUARAN",
+        "estado": 0,
+        "direccionResidencia": " CRA 13 #34  -226 ",
+        "numeroIdentificacion": "1083014014",
+        "tipoIdentificacion": "CC",
+        "celular": "3008076109",
+        "sexo": "2",
+        "codigoAlterno": "4072"
+      },
+      {
+        "id": 46,
+        "nombres": "LAURA  MARCELA",
+        "apellidos": "CANO  VERGEL",
+        "estado": 0,
+        "direccionResidencia": " No registr ",
+        "numeroIdentificacion": "1004376774",
+        "tipoIdentificacion": "CC",
+        "celular": "3106683628",
+        "sexo": "2",
+        "codigoAlterno": "3991"
+      },
+      {
+        "id": 47,
+        "nombres": "MONICA ANDREA",
+        "apellidos": "MORENO REALPHE",
+        "estado": 0,
+        "direccionResidencia": " CL 1 N. 28-16",
+        "numeroIdentificacion": "52255623",
+        "tipoIdentificacion": "CC",
+        "celular": " 3176797452",
+        "sexo": "1",
+        "codigoAlterno": "3104"
+      },
+      {
+        "id": 48,
+        "nombres": "CINDY MILENA",
+        "apellidos": "GONZALEZ TORRES",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1083004208",
+        "tipoIdentificacion": "CC",
+        "celular": "undefined",
+        "sexo": "2",
+        "codigoAlterno": "4186"
+      },
+      {
+        "id": 49,
+        "nombres": "JULIANA  ALEJANDRA",
+        "apellidos": "HERNANDEZ FONTALVO",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1082933752",
+        "tipoIdentificacion": "CC",
+        "celular": "3013530163",
+        "sexo": "2",
+        "codigoAlterno": "4282"
+      },
+      {
+        "id": 50,
+        "nombres": "ANGIE LIZZETTE",
+        "apellidos": "OLIVARES  RETAMOZO",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1082951289",
+        "tipoIdentificacion": "CC",
+        "celular": "3134407260",
+        "sexo": "2",
+        "codigoAlterno": "4528"
+      },
+      {
+        "id": 51,
+        "nombres": "LIZETH  DELGADO",
+        "apellidos": "FRANCO  DELGADO",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1082923388",
+        "tipoIdentificacion": "CC",
+        "celular": "3215744653",
+        "sexo": "2",
+        "codigoAlterno": "4529"
+      },
+      {
+        "id": 53,
+        "nombres": "JANINA  PAOLA",
+        "apellidos": "RENDON  VARELA",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1083000261",
+        "tipoIdentificacion": "CC",
+        "celular": "3012097410",
+        "sexo": "2",
+        "codigoAlterno": "4530"
+      },
+      {
+        "id": 54,
+        "nombres": "MARGARETH",
+        "apellidos": "MORENO PALENCIA",
+        "estado": 0,
+        "direccionResidencia": "undefined",
+        "numeroIdentificacion": "1065660196",
+        "tipoIdentificacion": "CC",
+        "celular": "3165370613",
+        "sexo": "2",
+        "codigoAlterno": "4531"
+      },
+      {
+        "id": 55,
+        "nombres": "GLORIA",
+        "apellidos": "CABANA GAVIRIA",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082992777 ",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "35"
+      },
+      {
+        "id": 56,
+        "nombres": "MARIA MECERDES",
+        "apellidos": "ACOSTA TETE",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1083028378",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "36"
+      },
+      {
+        "id": 57,
+        "nombres": "GELI FERNANDA",
+        "apellidos": "TUNAROSA DEARMAS",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082957807",
+        "tipoIdentificacion": "CC",
+        "celular": "3016257321",
+        "sexo": "2",
+        "codigoAlterno": "37"
+      },
+      {
+        "id": 58,
+        "nombres": "ADRIANA MARCELA",
+        "apellidos": "LOPEZ GONZALEZ",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1007820328",
+        "tipoIdentificacion": "CC",
+        "celular": "3114773989",
+        "sexo": "2",
+        "codigoAlterno": "38"
+      },
+      {
+        "id": 59,
+        "nombres": "ZHARIK NATALIA",
+        "apellidos": "RODRIGUEZ PACHECO",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1083042853",
+        "tipoIdentificacion": "CC",
+        "celular": "3162676555",
+        "sexo": "2",
+        "codigoAlterno": "39"
+      },
+      {
+        "id": 60,
+        "nombres": "OLGA PATRICIA",
+        "apellidos": "VIDES ALFARO",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1065594628",
+        "tipoIdentificacion": "CC",
+        "celular": "3209468148",
+        "sexo": "2",
+        "codigoAlterno": "42"
+      },
+      {
+        "id": 61,
+        "nombres": "GINA PAOLA",
+        "apellidos": "GARCIAS OROZCO",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1004424974",
+        "tipoIdentificacion": "CC",
+        "celular": "320 9472",
+        "sexo": "2",
+        "codigoAlterno": "43"
+      },
+      {
+        "id": 62,
+        "nombres": "MARGARITA",
+        "apellidos": "GARCIA LOPEZ",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082888808",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "44"
+      },
+      {
+        "id": 63,
+        "nombres": "ANGIE SOFIA",
+        "apellidos": "ROMERO TEHERAN",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1082991382",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "46"
+      },
+      {
+        "id": 64,
+        "nombres": "MARISABEL",
+        "apellidos": "GAMARRA ARIAS",
+        "estado": 0,
+        "direccionResidencia": "",
+        "numeroIdentificacion": "1001778671",
+        "tipoIdentificacion": "CC",
+        "celular": "",
+        "sexo": "2",
+        "codigoAlterno": "47"
+      }
+    ]
+  },
+  "conceptosPlanPagos": {
+    "count": 32,
+    "fieldNames": [
+      "afectaVenta",
+      "id",
+      "idTipoConceptoPlanPago",
+      "nombre",
+      "tipoConceptoPlanPago"
+    ],
+    "data": [
+      {
+        "id": 0,
+        "nombre": "Separación",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 1,
+        "nombre": "Cuota",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 2,
+        "nombre": "Ultimo Pago",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 3,
+        "nombre": "C:Credito",
+        "idTipoConceptoPlanPago": 2,
+        "tipoConceptoPlanPago": "Credito",
+        "afectaVenta": 0
+      },
+      {
+        "id": 4,
+        "nombre": "C:CreditoTer",
+        "idTipoConceptoPlanPago": 3,
+        "tipoConceptoPlanPago": "Credito Terceros",
+        "afectaVenta": 0
+      },
+      {
+        "id": 5,
+        "nombre": "Cesantias",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 6,
+        "nombre": "Subsidio",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 7,
+        "nombre": "Ahorro Prog.",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 9,
+        "nombre": "Reforma Escriturable",
+        "idTipoConceptoPlanPago": 10,
+        "tipoConceptoPlanPago": "Reformas",
+        "afectaVenta": 0
+      },
+      {
+        "id": 25,
+        "nombre": "Confirmación",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 40,
+        "nombre": "Confirmacion Venta",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 80,
+        "nombre": "Subsidio Municipal",
+        "idTipoConceptoPlanPago": 6,
+        "tipoConceptoPlanPago": "Subsidio",
+        "afectaVenta": 0
+      },
+      {
+        "id": 90,
+        "nombre": "Cuenta AFC",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 100,
+        "nombre": "Permutas",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 110,
+        "nombre": "Primer Anticipo Recaudo",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 111,
+        "nombre": "Segundo Anticipo Recaudo",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 112,
+        "nombre": "Tercer Anticipo Recaudo",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 113,
+        "nombre": "Subsidio Metrovivienda-Fonvivienda",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 121,
+        "nombre": "Ajuste de Cesion Capital",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 130,
+        "nombre": "Dto. Financiero",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 140,
+        "nombre": "CDT",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 170,
+        "nombre": "Canje",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 180,
+        "nombre": "Cuota-Arriendo",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 230,
+        "nombre": "Credito Reformas",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 240,
+        "nombre": "Ahorro Caja Militar",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 250,
+        "nombre": "AFC",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 262,
+        "nombre": "Subsidio Gobernación de Cundinamarca",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 265,
+        "nombre": "Reconocimiento Comercial Arras",
+        "idTipoConceptoPlanPago": null,
+        "tipoConceptoPlanPago": "",
+        "afectaVenta": 0
+      },
+      {
+        "id": 271,
+        "nombre": "Bono cuota inicial",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 313,
+        "nombre": "Subsidio Concurrente",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 314,
+        "nombre": "Prima",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      },
+      {
+        "id": 327,
+        "nombre": "Subsidio Secretaria Hábitat",
+        "idTipoConceptoPlanPago": 1,
+        "tipoConceptoPlanPago": "Cuota Inicial",
+        "afectaVenta": 0
+      }
+    ]
+  },
+  "tiposIdentificacion": {
+    "count": 15,
+    "data": [
+      {
+        "id": "CC",
+        "descripcion": "Cédula de Ciudadanía"
+      },
+      {
+        "id": "CE",
+        "descripcion": "Cédula de Extranjería"
+      },
+      {
+        "id": "EXT",
+        "descripcion": "Extranjero"
+      },
+      {
+        "id": "LM",
+        "descripcion": "Libreta Militar"
+      },
+      {
+        "id": "NIT",
+        "descripcion": "NIT"
+      },
+      {
+        "id": "NUIP",
+        "descripcion": "Número único de identificación personal"
+      },
+      {
+        "id": "PA",
+        "descripcion": "Pasaporte"
+      },
+      {
+        "id": "PE",
+        "descripcion": "Permiso especial de permanencia"
+      },
+      {
+        "id": "PT",
+        "descripcion": "Permiso Por Protección Temporal"
+      },
+      {
+        "id": "RC",
+        "descripcion": "Registro Civil"
+      },
+      {
+        "id": "SC",
+        "descripcion": " Salvoconducto de permanencia"
+      },
+      {
+        "id": "SE",
+        "descripcion": "Sociedad Extranjera"
+      },
+      {
+        "id": "TE",
+        "descripcion": "Tarjeta de Extranjería"
+      },
+      {
+        "id": "TI",
+        "descripcion": "Tarjeta de Identidad"
+      },
+      {
+        "id": "VI",
+        "descripcion": "Visa"
+      }
+    ]
+  },
+  "mediosPublicitarios": {
+    "count": 56,
+    "data": [
+      {
+        "id": -2,
+        "nombre": "NS/NR"
+      },
+      {
+        "id": 12,
+        "nombre": "Base de Datos Medellin"
+      },
+      {
+        "id": 13,
+        "nombre": "Centro Comercial Buenavista"
+      },
+      {
+        "id": 14,
+        "nombre": "Centro Comercial Ocean Mall"
+      },
+      {
+        "id": 15,
+        "nombre": "Centro Comercial Barranquilla"
+      },
+      {
+        "id": 16,
+        "nombre": "Cliente Antiguo"
+      },
+      {
+        "id": 17,
+        "nombre": "E-mailing"
+      },
+      {
+        "id": 18,
+        "nombre": "Ferias"
+      },
+      {
+        "id": 19,
+        "nombre": "Feria Construferia Barranquil"
+      },
+      {
+        "id": 20,
+        "nombre": "Feria Expoinmobiliaria Medelli"
+      },
+      {
+        "id": 21,
+        "nombre": "Feria Gran Salon inmobiliario "
+      },
+      {
+        "id": 22,
+        "nombre": "Inmobiliaria Show room Bogota"
+      },
+      {
+        "id": 23,
+        "nombre": "Inmobiliaria Show room Barranq"
+      },
+      {
+        "id": 24,
+        "nombre": "No Aplica"
+      },
+      {
+        "id": 25,
+        "nombre": "Oficina Centro"
+      },
+      {
+        "id": 26,
+        "nombre": "Pagina Web Constructora Jimene"
+      },
+      {
+        "id": 27,
+        "nombre": "Pagina Web facebook"
+      },
+      {
+        "id": 28,
+        "nombre": "Pagina Web Finca raiz"
+      },
+      {
+        "id": 29,
+        "nombre": "Pagina Web Google"
+      },
+      {
+        "id": 30,
+        "nombre": "Pagina Web Metrocuadrado"
+      },
+      {
+        "id": 31,
+        "nombre": "Pagina Web Two towers"
+      },
+      {
+        "id": 32,
+        "nombre": "Pagina Web Porto Vela"
+      },
+      {
+        "id": 33,
+        "nombre": "Periodico"
+      },
+      {
+        "id": 34,
+        "nombre": "Periodico El Tiempo"
+      },
+      {
+        "id": 35,
+        "nombre": "Periodico La Republica"
+      },
+      {
+        "id": 36,
+        "nombre": "Periodico El Heraldo"
+      },
+      {
+        "id": 37,
+        "nombre": "Periodico Hoy Diario El Magdal"
+      },
+      {
+        "id": 38,
+        "nombre": "Referido"
+      },
+      {
+        "id": 39,
+        "nombre": "Referido Cliente"
+      },
+      {
+        "id": 40,
+        "nombre": "Referido Gerencia"
+      },
+      {
+        "id": 41,
+        "nombre": "Revista"
+      },
+      {
+        "id": 42,
+        "nombre": "Revista Avianca"
+      },
+      {
+        "id": 43,
+        "nombre": "Revista Bocas"
+      },
+      {
+        "id": 44,
+        "nombre": "Revista Actual"
+      },
+      {
+        "id": 45,
+        "nombre": "Revista Explora"
+      },
+      {
+        "id": 46,
+        "nombre": "Revista Dinero"
+      },
+      {
+        "id": 47,
+        "nombre": "Revista Semana"
+      },
+      {
+        "id": 48,
+        "nombre": "Revista Golf"
+      },
+      {
+        "id": 49,
+        "nombre": "Sala de Ventas Puerto Banus"
+      },
+      {
+        "id": 50,
+        "nombre": "Sala de Ventas Bello Horizonte"
+      },
+      {
+        "id": 51,
+        "nombre": "Sala de Ventas"
+      },
+      {
+        "id": 52,
+        "nombre": "Telefono Fijo"
+      },
+      {
+        "id": 53,
+        "nombre": "Telefono Celular"
+      },
+      {
+        "id": 54,
+        "nombre": "Valla Lote"
+      },
+      {
+        "id": 55,
+        "nombre": "Valla Av de los Estudiantes"
+      },
+      {
+        "id": 56,
+        "nombre": "Valla Pescaribe"
+      },
+      {
+        "id": 57,
+        "nombre": "Valla Rodadero"
+      },
+      {
+        "id": 58,
+        "nombre": "Valla Rapimercar"
+      },
+      {
+        "id": 59,
+        "nombre": "Volante"
+      },
+      {
+        "id": 60,
+        "nombre": "Web"
+      },
+      {
+        "id": 61,
+        "nombre": "Pagina Web Porto Bellagio"
+      },
+      {
+        "id": 62,
+        "nombre": "Unicentro "
+      },
+      {
+        "id": 63,
+        "nombre": "facebook"
+      },
+      {
+        "id": 64,
+        "nombre": "Instagram"
+      },
+      {
+        "id": 65,
+        "nombre": "Estrenar Vivienda"
+      },
+      {
+        "id": 66,
+        "nombre": "Página Web"
+      }
+    ]
+  },
+  "entidadesFinancieras": {
+    "count": 57,
+    "data": [
+      {
+        "id": 0,
+        "descripcion": "Entidad Propia",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 1,
+        "descripcion": "Davivienda",
+        "nit": "860002527",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 59,
+        "descripcion": "Citibank",
+        "nit": "",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 115,
+        "descripcion": "Fidualianza",
+        "nit": "8003651477",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 116,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "132456",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 120,
+        "descripcion": "Entidad Propia",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 121,
+        "descripcion": "Caja de Vivienda Militar",
+        "nit": "",
+        "descripcionTipoEntidad": "Subsidio",
+        "codigoTipoEntidad": "SB"
+      },
+      {
+        "id": 122,
+        "descripcion": "Caja de Vivienda Militar",
+        "nit": "",
+        "descripcionTipoEntidad": "Cesantias",
+        "codigoTipoEntidad": "CS"
+      },
+      {
+        "id": 123,
+        "descripcion": "Caja de Vivienda Militar",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 124,
+        "descripcion": "Caja de Vivienda Militar",
+        "nit": "",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 125,
+        "descripcion": "Colsubsidio",
+        "nit": "",
+        "descripcionTipoEntidad": "Subsidio",
+        "codigoTipoEntidad": "SB"
+      },
+      {
+        "id": 130,
+        "descripcion": "Caja de Vivienda Militar",
+        "nit": "",
+        "descripcionTipoEntidad": "Pension",
+        "codigoTipoEntidad": "PE"
+      },
+      {
+        "id": 131,
+        "descripcion": "Caja de Vivienda Militar",
+        "nit": "",
+        "descripcionTipoEntidad": "Caja Comp.",
+        "codigoTipoEntidad": "CC"
+      },
+      {
+        "id": 132,
+        "descripcion": "Caja de Vivienda Militar",
+        "nit": "",
+        "descripcionTipoEntidad": "Ahorro Prog.",
+        "codigoTipoEntidad": "AP"
+      },
+      {
+        "id": 133,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "132456",
+        "descripcionTipoEntidad": "Cesantias",
+        "codigoTipoEntidad": "CS"
+      },
+      {
+        "id": 134,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "132456",
+        "descripcionTipoEntidad": "Pension",
+        "codigoTipoEntidad": "PE"
+      },
+      {
+        "id": 135,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "132456",
+        "descripcionTipoEntidad": "Caja Comp.",
+        "codigoTipoEntidad": "CC"
+      },
+      {
+        "id": 136,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 137,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "132456",
+        "descripcionTipoEntidad": "Ahorro Prog.",
+        "codigoTipoEntidad": "AP"
+      },
+      {
+        "id": 138,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "132456",
+        "descripcionTipoEntidad": "Subsidio",
+        "codigoTipoEntidad": "SB"
+      },
+      {
+        "id": 139,
+        "descripcion": "Fidualianza",
+        "nit": "8003651477",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 144,
+        "descripcion": "Entidad Propia",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 152,
+        "descripcion": "CONSTRUCTORA JIMENEZ S.A.",
+        "nit": "891702877",
+        "descripcionTipoEntidad": "Cesantias",
+        "codigoTipoEntidad": "CS"
+      },
+      {
+        "id": 153,
+        "descripcion": "CONSTRUCTORA JIMENEZ S.A.",
+        "nit": "891702877",
+        "descripcionTipoEntidad": "Pension",
+        "codigoTipoEntidad": "PE"
+      },
+      {
+        "id": 154,
+        "descripcion": "CONSTRUCTORA JIMENEZ S.A.",
+        "nit": "891702877",
+        "descripcionTipoEntidad": "Caja Comp.",
+        "codigoTipoEntidad": "CC"
+      },
+      {
+        "id": 155,
+        "descripcion": "CONSTRUCTORA JIMENEZ S.A.",
+        "nit": "891702877",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 156,
+        "descripcion": "CONSTRUCTORA JIMENEZ S.A.",
+        "nit": "891702877",
+        "descripcionTipoEntidad": "Ahorro Prog.",
+        "codigoTipoEntidad": "AP"
+      },
+      {
+        "id": 157,
+        "descripcion": "Bancolombia",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 158,
+        "descripcion": "Bancolombia",
+        "nit": "",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 159,
+        "descripcion": "Banco de bogota",
+        "nit": "09876546",
+        "descripcionTipoEntidad": "Ahorro Prog.",
+        "codigoTipoEntidad": "AP"
+      },
+      {
+        "id": 160,
+        "descripcion": "Bancolombia",
+        "nit": "98989898",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 161,
+        "descripcion": "Bancolombia",
+        "nit": "98989898",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 162,
+        "descripcion": "Fiduciaria Davivienda",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 163,
+        "descripcion": "Cavipetrol",
+        "nit": "",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 164,
+        "descripcion": "Fondo Nacional de Ahorro",
+        "nit": "132456",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 165,
+        "descripcion": "AVVillas",
+        "nit": "",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 166,
+        "descripcion": "BANCO DE PEPITO PERE< BELLO",
+        "nit": "757",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 167,
+        "descripcion": "Bancolombia",
+        "nit": "",
+        "descripcionTipoEntidad": "Pension",
+        "codigoTipoEntidad": "PE"
+      },
+      {
+        "id": 168,
+        "descripcion": "Bancolombia",
+        "nit": "",
+        "descripcionTipoEntidad": "Caja Comp.",
+        "codigoTipoEntidad": "CC"
+      },
+      {
+        "id": 169,
+        "descripcion": "Bancolombia",
+        "nit": "",
+        "descripcionTipoEntidad": "Subsidio",
+        "codigoTipoEntidad": "SB"
+      },
+      {
+        "id": 170,
+        "descripcion": "Cesantias",
+        "nit": "",
+        "descripcionTipoEntidad": "Cesantias",
+        "codigoTipoEntidad": "CS"
+      },
+      {
+        "id": 171,
+        "descripcion": "Cesantias",
+        "nit": "",
+        "descripcionTipoEntidad": "Pension",
+        "codigoTipoEntidad": "PE"
+      },
+      {
+        "id": 172,
+        "descripcion": "Cesantias",
+        "nit": "",
+        "descripcionTipoEntidad": "Caja Comp.",
+        "codigoTipoEntidad": "CC"
+      },
+      {
+        "id": 173,
+        "descripcion": "Cesantias",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 174,
+        "descripcion": "Cesantias",
+        "nit": "",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 175,
+        "descripcion": "Cesantias",
+        "nit": "",
+        "descripcionTipoEntidad": "Ahorro Prog.",
+        "codigoTipoEntidad": "AP"
+      },
+      {
+        "id": 176,
+        "descripcion": "Cesantias",
+        "nit": "",
+        "descripcionTipoEntidad": "Subsidio",
+        "codigoTipoEntidad": "SB"
+      },
+      {
+        "id": 177,
+        "descripcion": "MI CASA YA",
+        "nit": "",
+        "descripcionTipoEntidad": "Subsidio",
+        "codigoTipoEntidad": "SB"
+      },
+      {
+        "id": 178,
+        "descripcion": "MI CASA YA",
+        "nit": "",
+        "descripcionTipoEntidad": "Cesantias",
+        "codigoTipoEntidad": "CS"
+      },
+      {
+        "id": 179,
+        "descripcion": "MI CASA YA",
+        "nit": "",
+        "descripcionTipoEntidad": "Pension",
+        "codigoTipoEntidad": "PE"
+      },
+      {
+        "id": 180,
+        "descripcion": "MI CASA YA",
+        "nit": "",
+        "descripcionTipoEntidad": "Caja Comp.",
+        "codigoTipoEntidad": "CC"
+      },
+      {
+        "id": 181,
+        "descripcion": "MI CASA YA",
+        "nit": "",
+        "descripcionTipoEntidad": "Fiducia",
+        "codigoTipoEntidad": "FI"
+      },
+      {
+        "id": 182,
+        "descripcion": "MI CASA YA",
+        "nit": "",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 183,
+        "descripcion": "MI CASA YA",
+        "nit": "",
+        "descripcionTipoEntidad": "Ahorro Prog.",
+        "codigoTipoEntidad": "AP"
+      },
+      {
+        "id": 184,
+        "descripcion": "Protecciòn ",
+        "nit": "",
+        "descripcionTipoEntidad": "Cesantias",
+        "codigoTipoEntidad": "CS"
+      },
+      {
+        "id": 185,
+        "descripcion": "BBVA",
+        "nit": "860003020",
+        "descripcionTipoEntidad": "Banco",
+        "codigoTipoEntidad": "BC"
+      },
+      {
+        "id": 186,
+        "descripcion": "CAJAMAG",
+        "nit": "",
+        "descripcionTipoEntidad": "Subsidio",
+        "codigoTipoEntidad": "SB"
+      }
+    ]
+  },
+  "estadosCiviles": {
+    "count": 7,
+    "data": [
+      {
+        "codigo": "CD",
+        "nombre": "Casado(a) con Sociedad Conyudal D.y L."
+      },
+      {
+        "codigo": "CV",
+        "nombre": "Casado(a) con Sociedad Conyugal Vigente"
+      },
+      {
+        "codigo": "DI",
+        "nombre": "Divorciado con Sociedad Conyugal D.y L."
+      },
+      {
+        "codigo": "NA",
+        "nombre": "NO APLICA"
+      },
+      {
+        "codigo": "SO",
+        "nombre": "Soltero(a) sin Union Marital de Hecho"
+      },
+      {
+        "codigo": "UL",
+        "nombre": "Soltero(a) con Union Marital de Hecho"
+      },
+      {
+        "codigo": "VI",
+        "nombre": "Viudo(a)"
+      }
+    ]
+  },
+  "tipoInmuebleProyecto361": {
+    "count": 0,
+    "data": []
+  },
+  "tipoUnidad": {
+    "count": 11,
+    "data": [
+      {
+        "id": 1,
+        "nombre": "Casa",
+        "abreviatura": "CAS",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 2,
+        "nombre": "Apartamento",
+        "abreviatura": "APT",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 3,
+        "nombre": "Deposito",
+        "abreviatura": "DEP",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 5,
+        "nombre": "Garaje ",
+        "abreviatura": "GRJ",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 7,
+        "nombre": "Local ",
+        "abreviatura": "LOC",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 9,
+        "nombre": "Bodega",
+        "abreviatura": "BOD",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 12,
+        "nombre": "Util",
+        "abreviatura": "UTI",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 33,
+        "nombre": "INSCRIPCION",
+        "abreviatura": "INS",
+        "esReal": 0,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 34,
+        "nombre": "LOTE",
+        "abreviatura": "LOTE",
+        "esReal": 0,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 35,
+        "nombre": "OFICINA",
+        "abreviatura": "OFC",
+        "esReal": 0,
+        "esVirtual": 0,
+        "nomenclatura": null
+      },
+      {
+        "id": 36,
+        "nombre": "PARQUEADERO",
+        "abreviatura": "PARQ",
+        "esReal": 1,
+        "esVirtual": 0,
+        "nomenclatura": null
+      }
+    ]
+  },
+  "paises": {
+    "count": 239,
+    "data": [
+      {
+        "id": 1,
+        "nombre": "NIVE ISLA"
+      },
+      {
+        "id": 13,
+        "nombre": "AFGANISTAN"
+      },
+      {
+        "id": 17,
+        "nombre": "ALBANIA"
+      },
+      {
+        "id": 23,
+        "nombre": "ALEMANIA"
+      },
+      {
+        "id": 26,
+        "nombre": "ARMENIA"
+      },
+      {
+        "id": 27,
+        "nombre": "ARUBA"
+      },
+      {
+        "id": 29,
+        "nombre": "BOSNIA-HERZEGOVINA"
+      },
+      {
+        "id": 31,
+        "nombre": "BURKINA FASSO"
+      },
+      {
+        "id": 37,
+        "nombre": "ANDORRA"
+      },
+      {
+        "id": 40,
+        "nombre": "ANGOLA"
+      }
+    ]
+  },
+  "ciudades": {
+    "count": 0,
+    "sample": []
+  },
+  "ocupaciones": {
+    "count": 10,
+    "data": [
+      {
+        "id": 24,
+        "nombre": "EMPLEADO",
+        "codigoAlterno": "EMP"
+      },
+      {
+        "id": 25,
+        "nombre": "AMA DE CASA",
+        "codigoAlterno": "AMA"
+      },
+      {
+        "id": 26,
+        "nombre": "ESTUDIANTE",
+        "codigoAlterno": "EST"
+      },
+      {
+        "id": 27,
+        "nombre": "INDEPENDIENTE",
+        "codigoAlterno": "IND"
+      },
+      {
+        "id": 28,
+        "nombre": "SOCIO",
+        "codigoAlterno": "SOC"
+      },
+      {
+        "id": 29,
+        "nombre": "GERENTE",
+        "codigoAlterno": "GTE"
+      },
+      {
+        "id": 30,
+        "nombre": "ASESOR COMERCIAL",
+        "codigoAlterno": "ASC"
+      },
+      {
+        "id": 33,
+        "nombre": "PENSIONADO",
+        "codigoAlterno": "PE"
+      },
+      {
+        "id": 34,
+        "nombre": "INGENIERO CIVIL",
+        "codigoAlterno": "ING"
+      },
+      {
+        "id": 35,
+        "nombre": "ADMINISTRADORA HOTEL",
+        "codigoAlterno": "ADM. HOTL"
+      }
+    ]
+  },
+  "profesiones": {
+    "count": 15,
+    "data": [
+      {
+        "id": 3,
+        "nombre": "MEDICO",
+        "codigoAlterno": "MD"
+      },
+      {
+        "id": 4,
+        "nombre": "BACTERIOLOGA",
+        "codigoAlterno": "BACTE"
+      },
+      {
+        "id": 5,
+        "nombre": "ABOGADO",
+        "codigoAlterno": "ABO"
+      },
+      {
+        "id": 6,
+        "nombre": "ANESTECIOLOGO",
+        "codigoAlterno": "ANEST"
+      },
+      {
+        "id": 7,
+        "nombre": "ARQUITECTO",
+        "codigoAlterno": "ARQ"
+      },
+      {
+        "id": 8,
+        "nombre": "CONTADOR",
+        "codigoAlterno": "CONT"
+      },
+      {
+        "id": 9,
+        "nombre": "PERIODISTA",
+        "codigoAlterno": "PER"
+      },
+      {
+        "id": 10,
+        "nombre": "DISEÑADOR GRAFICO",
+        "codigoAlterno": "DG"
+      },
+      {
+        "id": 11,
+        "nombre": "ADMINISTRADOR DE EMPRESAS",
+        "codigoAlterno": "ADMON EMP"
+      },
+      {
+        "id": 12,
+        "nombre": "NEGOCIOS INTERNACIONALES",
+        "codigoAlterno": "NEG INT"
+      },
+      {
+        "id": 13,
+        "nombre": "ACTOR",
+        "codigoAlterno": "ACT"
+      },
+      {
+        "id": 14,
+        "nombre": "FUTBOLISTA PROFESIONAL",
+        "codigoAlterno": "FUT PROF"
+      },
+      {
+        "id": 15,
+        "nombre": "INGENIERO CIVIL",
+        "codigoAlterno": "ING CV"
+      },
+      {
+        "id": 16,
+        "nombre": "INGENIERO ELECTRONICO",
+        "codigoAlterno": "ING ELEC"
+      },
+      {
+        "id": 17,
+        "nombre": "ECONIMISTA",
+        "codigoAlterno": "ECO"
+      }
+    ]
+  },
+  "responsables": {
+    "count": 12,
+    "data": [
+      {
+        "id": 50,
+        "nombre": "Admin Sincosoft",
+        "email": "xxx@sinco.com.co",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": null,
+        "idPerfilDeAcceso": 1,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 547,
+        "nombre": "ADRIANA MARCELA LOPEZ GONZALEZ",
+        "email": "",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": 58,
+        "idPerfilDeAcceso": 70,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 101,
+        "nombre": "Capacitacion_OLD",
+        "email": "",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": null,
+        "idPerfilDeAcceso": 1,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 126,
+        "nombre": "CARLOS ANDRES JIMENEZ MONROY",
+        "email": "carlos@promotorajimenez.com",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": null,
+        "idPerfilDeAcceso": 2,
+        "esSuperUsuarioCBR": 0
+      },
+      {
+        "id": 546,
+        "nombre": "GELI FERNANDA TUNAROSA DEARMAS",
+        "email": "",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": 57,
+        "idPerfilDeAcceso": 70,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 48,
+        "nombre": "Implementación",
+        "email": "xxx@sinco.com.co",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": null,
+        "idPerfilDeAcceso": 1,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 108,
+        "nombre": "KARINA ELENA CASTILLO ARGOTE",
+        "email": "COMERCIAL@JCONSTRUCTORES.COM",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": null,
+        "idPerfilDeAcceso": 50,
+        "esSuperUsuarioCBR": 0
+      },
+      {
+        "id": 622,
+        "nombre": "MARGARITA GARCIA LOPEZ",
+        "email": "margarita.garcia@constructorajimenez.com",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": 62,
+        "idPerfilDeAcceso": 70,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 624,
+        "nombre": "MARISABEL GAMARRA ARIAS",
+        "email": "maria.gamarra@constructorajimenez.com",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": 64,
+        "idPerfilDeAcceso": 70,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 281,
+        "nombre": "MAYRA ALEJANDRA LEMUS FERNANDEZ DE CASTRO",
+        "email": "asesoracomercial1@urbanizadorajimenez.com",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": null,
+        "idPerfilDeAcceso": 70,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 112,
+        "nombre": "Wilfredo Jimenez Monroy",
+        "email": "wilfredo@urbanizadorajimenez.com",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": null,
+        "idPerfilDeAcceso": 4,
+        "esSuperUsuarioCBR": 1
+      },
+      {
+        "id": 548,
+        "nombre": "ZHARIK NATALIA RODRIGUEZ PACHECO",
+        "email": "",
+        "tieneSesionActiva": false,
+        "rutaFoto": null,
+        "idAsesor": 59,
+        "idPerfilDeAcceso": 70,
+        "esSuperUsuarioCBR": 1
+      }
+    ]
+  },
+  "compradorEjemplo": {
+    "fieldNames": [
+      "aceptoPoliticaDeDatos",
+      "autorizaEnvioCorreo",
+      "autorizaEnvioSMS",
+      "autorizaMensajeWhatsapp",
+      "cargo",
+      "cargoRepresentanteLegal",
+      "categoriaSisben",
+      "celular",
+      "celular2",
+      "celular3",
+      "ciudadExpedicionDocumento",
+      "ciudadaExpedicionDocumentoRepresentanteLegal",
+      "correo",
+      "correoRepresentanteLegal",
+      "dataCreditos",
+      "digitoVerificacionIdentificacion",
+      "direccion",
+      "direccionNegocio",
+      "direccionOficina",
+      "direccionRepresentanteLegal",
+      "discapacidad",
+      "empresa",
+      "escrituraNo",
+      "estadoCivil",
+      "fechaArrendo",
+      "fechaCreacion",
+      "fechaEscritura",
+      "fechaFinArrendo",
+      "fechaIngreso",
+      "fechaNacimiento",
+      "fechaVerificacionArrendo",
+      "genero",
+      "habeasData",
+      "horario",
+      "horarioAnterior",
+      "id",
+      "idBarrio",
+      "idCajaCompensacion",
+      "idCategoriaSisben",
+      "idCesantias",
+      "idCiudadEscritura",
+      "idCiudadOficina",
+      "idCiudadRepresentanteLegal",
+      "idCiudadResidencia",
+      "idNivelAcademico",
+      "idOcupacion",
+      "idPension",
+      "idZona",
+      "ingresoMensual",
+      "ingresoPromedioMensual",
+      "jefePersonal",
+      "marcaRepresentanteLegal",
+      "motivoRetiro",
+      "nombreArrendador",
+      "nombreCompleto",
+      "nombreConyugue",
+      "nombreRepresentanteLegal",
+      "notariaNo",
+      "numeroActaRepresentanteLegal",
+      "numeroContratoArrendador",
+      "numeroFamiliasViviendo",
+      "numeroHabitaciones",
+      "numeroHijos",
+      "numeroIdentificacion",
+      "numeroIdentificacionConyugue",
+      "numeroIdentificacionRepresentanteLegal",
+      "numeroPlaca",
+      "observaciones",
+      "origenCliente",
+      "personasCargo",
+      "primerApellido",
+      "primerNombre",
+      "profesion",
+      "referencias",
+      "segundoApellido",
+      "segundoNombre",
+      "siglaRepresentanteLegal",
+      "telefono",
+      "telefono2",
+      "telefonoArrendador",
+      "telefonoNegocio",
+      "telefonoOficina",
+      "telefonoRepresentanteLegal",
+      "tiempoActividad",
+      "tiempoArrendamiento",
+      "tiempoPermanencia",
+      "tiempoServicio",
+      "tiempoServicioAnterior",
+      "tieneVehiculo",
+      "tipoComprador",
+      "tipoContrato",
+      "tipoContratoArrendador",
+      "tipoHabitacion",
+      "tipoIdentificacion",
+      "tipoNegocio",
+      "tipoPersona",
+      "tipoVehiculo",
+      "tipoVivienda",
+      "trabajoAnterior",
+      "usoVivienda",
+      "usuario",
+      "usuarioVerifica",
+      "valorAhorroProgramado",
+      "valorArriendo",
+      "valorArriendoNegocio",
+      "valorCajaCompensacion",
+      "valorCesantias",
+      "valorServicios",
+      "viviendaPropia"
+    ],
+    "data": {
+      "id": 19890,
+      "nombreCompleto": "MEJIA RADA JOSE FABIAN",
+      "primerNombre": "JOSE",
+      "segundoNombre": "FABIAN",
+      "primerApellido": "MEJIA",
+      "segundoApellido": "RADA",
+      "tipoPersona": "N",
+      "tipoIdentificacion": "CC",
+      "numeroIdentificacion": "1079658240",
+      "fechaNacimiento": "1990-10-24T00:00:00",
+      "ciudadExpedicionDocumento": "CHIVOLO",
+      "digitoVerificacionIdentificacion": null,
+      "correo": "ing.josefabian@gmail.com",
+      "celular": "3132455516",
+      "telefono": "3132455516",
+      "tipoComprador": "C",
+      "observaciones": null,
+      "usuario": 398,
+      "fechaCreacion": "2024-01-29T10:13:00",
+      "estadoCivil": "CV",
+      "personasCargo": 0,
+      "direccion": "Carrera 66 calle 48A -128",
+      "idOcupacion": 24,
+      "tipoVivienda": -1,
+      "idNivelAcademico": 17,
+      "idCiudadResidencia": 902,
+      "idCiudadEscritura": 0,
+      "empresa": "MERCADO LIBRE",
+      "cargo": "Software Technical leader",
+      "profesion": "INGENIERO DE SISTEMAS",
+      "idCiudadOficina": -1,
+      "valorCesantias": 0,
+      "valorAhorroProgramado": 0,
+      "ingresoMensual": 21000000,
+      "escrituraNo": null,
+      "notariaNo": null,
+      "fechaEscritura": null,
+      "nombreConyugue": "",
+      "numeroIdentificacionConyugue": "",
+      "telefono2": null,
+      "celular2": null,
+      "celular3": null,
+      "idCesantias": null,
+      "idPension": null,
+      "idCajaCompensacion": null,
+      "valorCajaCompensacion": 0,
+      "fechaIngreso": null,
+      "tiempoServicio": "",
+      "direccionOficina": "",
+      "telefonoOficina": null,
+      "usoVivienda": null,
+      "numeroHijos": "0         ",
+      "origenCliente": "0",
+      "idZona": null,
+      "idBarrio": null,
+      "tipoNegocio": null,
+      "telefonoNegocio": null,
+      "direccionNegocio": null,
+      "tiempoActividad": null,
+      "ingresoPromedioMensual": 0,
+      "valorArriendoNegocio": 0,
+      "valorArriendo": 0,
+      "tiempoPermanencia": "",
+      "discapacidad": false,
+      "jefePersonal": null,
+      "horario": null,
+      "tipoContrato": null,
+      "trabajoAnterior": "",
+      "motivoRetiro": null,
+      "horarioAnterior": null,
+      "tiempoServicioAnterior": null,
+      "viviendaPropia": 0,
+      "nombreArrendador": "",
+      "telefonoArrendador": null,
+      "tipoContratoArrendador": "Verbal",
+      "numeroContratoArrendador": "",
+      "fechaArrendo": null,
+      "fechaFinArrendo": null,
+      "numeroHabitaciones": 0,
+      "tipoHabitacion": null,
+      "valorServicios": 0,
+      "tiempoArrendamiento": "",
+      "numeroFamiliasViviendo": 1,
+      "fechaVerificacionArrendo": null,
+      "usuarioVerifica": null,
+      "tieneVehiculo": "No",
+      "numeroPlaca": "",
+      "tipoVehiculo": null,
+      "nombreRepresentanteLegal": "",
+      "numeroIdentificacionRepresentanteLegal": "0",
+      "ciudadaExpedicionDocumentoRepresentanteLegal": "",
+      "telefonoRepresentanteLegal": null,
+      "direccionRepresentanteLegal": "",
+      "idCiudadRepresentanteLegal": 902,
+      "correoRepresentanteLegal": "ing.josefabian@gmail.com",
+      "marcaRepresentanteLegal": "",
+      "siglaRepresentanteLegal": "",
+      "cargoRepresentanteLegal": null,
+      "numeroActaRepresentanteLegal": null,
+      "autorizaEnvioCorreo": 1,
+      "autorizaEnvioSMS": true,
+      "habeasData": null,
+      "idCategoriaSisben": null,
+      "categoriaSisben": null,
+      "aceptoPoliticaDeDatos": 1,
+      "autorizaMensajeWhatsapp": true,
+      "genero": "Masculino",
+      "referencias": [],
+      "dataCreditos": [
+        {
+          "id": 6344,
+          "fecha": "2024-09-04T00:00:00",
+          "valor": 0
+        }
+      ]
+    }
+  },
+  "exploredEndpoints": {
+    "/Ventas": {
+      "status": "error_error"
+    },
+    "/Ventas/EstadosVenta": {
+      "status": "error_error"
+    },
+    "/Ventas/TiposVenta": {
+      "status": "error_error"
+    },
+    "/Oportunidades": {
+      "status": "error_error"
+    },
+    "/Oportunidades/IdProyecto/361": {
+      "status": "error_error"
+    },
+    "/Desistimientos": {
+      "status": "error_error"
+    },
+    "/Ventas/Desistimientos": {
+      "status": "error_error"
+    },
+    "/Recaudos": {
+      "status": "error_error"
+    },
+    "/Recaudos/IdProyecto/361": {
+      "status": "error_error"
+    },
+    "/Cartera": {
+      "status": "error_error"
+    },
+    "/Cartera/IdProyecto/361": {
+      "status": "error_error"
+    },
+    "/Ventas/PlanDePagos/IdAgrupacion/16561": {
+      "status": "error_error"
+    },
+    "/Bancos": {
+      "status": "error_error"
+    },
+    "/CuentasBancarias": {
+      "status": "error_error"
+    },
+    "/SalaVentas": {
+      "status": "error_error"
+    },
+    "/SalaVentas/Asesores": {
+      "status": "error_error"
+    },
+    "/SalaVentas/Equipos": {
+      "status": "error_error"
+    },
+    "/Unidades/Estados": {
+      "status": "error_400"
+    },
+    "/EstadosUnidad": {
+      "status": "error_error"
+    },
+    "/Compradores": {
+      "status": "error_405"
+    },
+    "/Compradores/IdProyecto/361": {
+      "status": "error_error"
+    },
+    "/Escrituras": {
+      "status": "error_error"
+    },
+    "/Escrituracion": {
+      "status": "error_error"
+    },
+    "/PeriodosVenta": {
+      "status": "error_error"
+    },
+    "/PeriodosVenta/IdProyecto/361": {
+      "status": "error_error"
+    },
+    "/Ventas/PeriodosVenta": {
+      "status": "error_error"
+    },
+    "/Facturas": {
+      "status": "error_error"
+    },
+    "/Facturas/IdProyecto/361": {
+      "status": "error_error"
+    },
+    "/Generos": {
+      "status": "error_error"
+    },
+    "/Parentescos": {
+      "status": "error_error"
+    },
+    "/Barrios": {
+      "status": "ok_empty_array",
+      "count": 0
+    },
+    "/Configuracion": {
+      "status": "error_error"
+    },
+    "/Parametros": {
+      "status": "error_error"
+    }
+  }
+}

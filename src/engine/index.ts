@@ -33,6 +33,7 @@ import {
 } from '@/engine/config/ClientConfigStore';
 import { ConsoleLogger, type Logger } from '@/engine/core/logging/Logger';
 import { InMemoryEventLog, type IEventLog } from '@/engine/core/eventlog/EventLog';
+import { PgEventLog } from '@/engine/core/eventlog/PgEventLog';
 import { InventorySync } from '@/engine/core/sync/InventorySync';
 import { SaleWriteback } from '@/engine/core/sync/SaleWriteback';
 
@@ -116,7 +117,25 @@ class EngineSingleton {
 
     this._configStore = new InMemoryClientConfigStore(CLIENTS);
     this._secretStore = new EnvSecretStore();
-    this._eventLog = new InMemoryEventLog(this._logger);
+    // EventLog wiring: PgEventLog for production (needs DATABASE_URL),
+    // InMemoryEventLog for dry-run/dev without DB.
+    // Real mode (DRY_RUN=false) without DATABASE_URL → PgEventLog will fail
+    // on first begin() with RESOURCE_EVENT_LOG_FAILED (typed, not crash).
+    const dryRun = process.env.SINCO_WRITEBACK_DRY_RUN !== 'false';
+    if (!dryRun && !process.env.DATABASE_URL) {
+      this._logger.error(
+        {},
+        'SINCO_WRITEBACK_DRY_RUN=false requires DATABASE_URL. Write-back calls will fail with RESOURCE_EVENT_LOG_FAILED.',
+      );
+    }
+    if (process.env.DATABASE_URL) {
+      this._eventLog = new PgEventLog(this._logger);
+    } else if (dryRun) {
+      this._eventLog = new InMemoryEventLog(this._logger);
+    } else {
+      // Real mode without DB — PgEventLog will fail on first begin()
+      this._eventLog = new PgEventLog(this._logger);
+    }
 
     this._factory = new ConnectorFactory({
       configStore: this._configStore,

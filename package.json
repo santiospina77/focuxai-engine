@@ -9,7 +9,8 @@
     "lint": "next lint",
     "test:hubspot-files": "node --import tsx --test src/engine/connectors/crm/hubspot/__tests__/hubspotFileManager.test.ts",
     "discover:sinco": "node --env-file=.env.local --import tsx scripts/discover-sinco-projects.ts",
-    "dump:sinco": "node --env-file=.env.local --import tsx scripts/raw-dump-sinco.ts"
+    "dump:sinco": "node --env-file=.env.local --import tsx scripts/raw-dump-sinco.ts",
+    "explore:sinco": "node --env-file=.env.local --import tsx scripts/explore-sinco-business.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

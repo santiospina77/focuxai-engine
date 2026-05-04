@@ -30,6 +30,10 @@ export type ErrorCode =
   | 'BUSINESS_INVALID_PARTICIPATION'
   | 'BUSINESS_MISSING_SEPARACION_CONCEPTO'
   | 'BUSINESS_MISSING_COMPRADOR_ID'
+  | 'BUSINESS_EVENT_LOG_INVALID_TRANSITION'
+  | 'BUSINESS_WRITEBACK_ALREADY_FAILED'
+  // Capa ERP concurrencia
+  | 'ERP_OPERATION_IN_PROGRESS'
   // Capa de autenticación CRM (AUTH_CRM_*)
   | 'AUTH_CRM_UNAUTHORIZED'
   // Capa de configuración (CONFIG_*)
@@ -75,6 +79,8 @@ export type ErrorCode =
   | 'SCHEMA_CRM_FILE_ACCESS_MISMATCH'
   | 'VALIDATION_CRM_FILE_UNSUPPORTED_OBJECT_TYPE'
   | 'VALIDATION_CRM_FILE_FOLDER_INVALID'
+  // — EventLog (Postgres) como recurso externo
+  | 'RESOURCE_EVENT_LOG_FAILED'
   // — PDF generation
   | 'RESOURCE_PDF_GENERATION_FAILED'
   // — Assets (renders, planos)
@@ -220,6 +226,14 @@ export class ErpError extends EngineError {
       { ...context, retryable: false }
     );
   }
+
+  static operationInProgress(transactionId: string, context: EngineErrorContext = {}): ErpError {
+    return new ErpError(
+      'ERP_OPERATION_IN_PROGRESS',
+      `Operation already in progress: ${transactionId}`,
+      { ...context, transactionId, retryable: true }
+    );
+  }
 }
 
 // ============================================================================
@@ -308,6 +322,15 @@ export class SchemaError extends EngineError {
 export class ResourceError extends EngineError {
   constructor(code: ErrorCode, message: string, context: EngineErrorContext = {}, cause?: unknown) {
     super(code, message, { ...context, retryable: false }, cause);
+  }
+
+  // ── EventLog (Postgres) como recurso externo ──
+
+  static eventLogFailed(message: string, context: EngineErrorContext = {}, cause?: unknown): ResourceError {
+    return new ResourceError(
+      'RESOURCE_EVENT_LOG_FAILED', message,
+      { ...context, retryable: true }, cause
+    );
   }
 
   // ── CRM (HubSpot) como recurso externo ──
@@ -432,6 +455,41 @@ export class ResourceError extends EngineError {
       'RESOURCE_ASSET_PLACEHOLDER_IMAGE',
       `Asset appears to be a placeholder image (${sizeBytes} bytes): ${url}`,
       { url, sizeBytes }
+    );
+  }
+}
+
+// ============================================================================
+// Errores de reglas de negocio (BUSINESS_*)
+// ============================================================================
+
+/**
+ * Errores de lógica de negocio que NO son de infraestructura (ERP/CRM/DB)
+ * ni de validación de datos. Son violaciones de reglas de dominio:
+ *   - Transición de estado inválida en EventLog
+ *   - Operación ya procesada (idempotencia)
+ *   - Participación inválida en write-back
+ *
+ * Nunca retryable — la regla de negocio no cambia con retry.
+ */
+export class BusinessError extends EngineError {
+  constructor(code: ErrorCode, message: string, context: EngineErrorContext = {}, cause?: unknown) {
+    super(code, message, { ...context, retryable: false }, cause);
+  }
+
+  static eventLogInvalidTransition(transactionId: string, expectedStatus: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_EVENT_LOG_INVALID_TRANSITION',
+      `Cannot transition transaction ${transactionId}: not in ${expectedStatus} state`,
+      { transactionId }
+    );
+  }
+
+  static writebackAlreadyFailed(transactionId: string, dealId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_WRITEBACK_ALREADY_FAILED',
+      `Transacción ${transactionId} ya falló. Usar nuevo ID con suffix _retry_N`,
+      { transactionId, dealId }
     );
   }
 }
