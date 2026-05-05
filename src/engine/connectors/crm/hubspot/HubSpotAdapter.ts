@@ -595,6 +595,42 @@ export class HubSpotAdapter implements ICrmAdapter {
     return ok({ successful, failed });
   }
 
+
+  // =========================================================================
+  // Associations — getAssociatedObjects (WB-5)
+  // =========================================================================
+
+  async getAssociatedObjects(
+    fromObjectType: CrmObjectType | string,
+    fromId: string,
+    toObjectType: CrmObjectType | string,
+    properties?: readonly string[]
+  ): Promise<Result<CrmRecord[], EngineError>> {
+    const fromType = this.resolver.resolveOrRaw(fromObjectType);
+    const toType = this.resolver.resolveOrRaw(toObjectType);
+
+    const response = await this.http.request({
+      method: 'GET',
+      path: `/crm/v4/objects/${fromType}/${fromId}/associations/${toType}`,
+      operation: 'crm.getAssociatedObjects',
+    });
+
+    if (response.isErr()) return err(response.error);
+
+    const body = response.value.body as { results?: Array<{ toObjectId: string }> };
+    const associatedIds = (body.results ?? []).map((r) => r.toObjectId);
+
+    if (associatedIds.length === 0) return ok([]);
+
+    const records: CrmRecord[] = [];
+    for (const id of associatedIds) {
+      const recordResult = await this.getRecord(toObjectType as CrmObjectType, id, properties);
+      if (recordResult.isErr()) return err(recordResult.error);
+      if (recordResult.value !== null) records.push(recordResult.value);
+    }
+
+    return ok(records);
+  }
   // =========================================================================
   // Schema — ensureProperties (idempotente)
   // =========================================================================

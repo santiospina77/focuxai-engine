@@ -34,6 +34,7 @@ export type ErrorCode =
   | 'BUSINESS_WRITEBACK_ALREADY_FAILED'
   | 'BUSINESS_WRITEBACK_NOT_APPROVED'                // WB-3.5: writeback_ready_fx ≠ true
   | 'BUSINESS_WRITEBACK_REQUIRES_REVERSAL_REVIEW'    // WB-3.5: requires_sinco_reversal_fx = true
+  | 'BUSINESS_MISSING_PAYMENT_PLAN_CONFIG'           // WB-5: no hay config de conceptos Sinco para este client
   // Capa ERP concurrencia
   | 'ERP_OPERATION_IN_PROGRESS'
   // Capa de autenticación CRM (AUTH_CRM_*)
@@ -55,6 +56,11 @@ export type ErrorCode =
   | 'VALIDATION_INVENTORY_INVALID_VALUE'
   // Capa de validación CRM (VALIDATION_CRM_*)
   | 'VALIDATION_CRM_DUPLICATE_DETECTED'
+  // Capa de validación webhook write-back (VALIDATION_WEBHOOK_*)
+  | 'VALIDATION_WEBHOOK_MISSING_FIELD'
+  | 'VALIDATION_WEBHOOK_INVALID_VALUE'
+  | 'VALIDATION_WEBHOOK_AMBIGUOUS_RESOURCE'
+  | 'VALIDATION_WEBHOOK_RESOURCE_NOT_FOUND'
   // Capa de recursos externos (RESOURCE_*)
   // — CRM (HubSpot) como dependencia externa
   | 'RESOURCE_CRM_NOT_FOUND'
@@ -512,6 +518,15 @@ export class BusinessError extends EngineError {
       { dealId }
     );
   }
+
+  /** WB-5: No hay configuración validada de conceptos de plan de pagos para este client. */
+  static missingPaymentPlanConfig(clientId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_MISSING_PAYMENT_PLAN_CONFIG',
+      `No payment concept configuration found for client: ${clientId}. Lab validation required.`,
+      { clientId }
+    );
+  }
 }
 
 // ============================================================================
@@ -569,6 +584,58 @@ export class ValidationError extends EngineError {
       'VALIDATION_INVENTORY_MAPPING_FAILED',
       message,
       context
+    );
+  }
+}
+
+// ============================================================================
+// Errores de validación del Webhook Write-back (WB-5)
+// ============================================================================
+
+/**
+ * Errores de validación específicos del webhook write-back endpoint.
+ * Cubren: campos faltantes, valores inválidos, recursos ambiguos, no encontrados.
+ *
+ * Nunca retryable — los datos del Deal no cambian con retry.
+ */
+export class WebhookValidationError extends EngineError {
+  constructor(code: ErrorCode, message: string, context: EngineErrorContext = {}, cause?: unknown) {
+    super(code, message, { ...context, retryable: false }, cause);
+  }
+
+  /** Campo obligatorio faltante en Deal/Contact props. */
+  static missingField(field: string, detail?: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_MISSING_FIELD',
+      detail ?? `Required field missing: ${field}`,
+      { field }
+    );
+  }
+
+  /** Campo presente pero valor inválido (enum desconocido, número inválido, fecha imposible). */
+  static invalidValue(field: string, detail: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_INVALID_VALUE',
+      `Invalid value for ${field}: ${detail}`,
+      { field }
+    );
+  }
+
+  /** Recurso ambiguo (múltiples contactos, múltiples agrupaciones sin mirror props). */
+  static ambiguousResource(resource: string, detail: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_AMBIGUOUS_RESOURCE',
+      `Ambiguous ${resource}: ${detail}`,
+      { resource }
+    );
+  }
+
+  /** Recurso no encontrado (Deal, Contact, Agrupación). */
+  static resourceNotFound(resource: string, detail: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_RESOURCE_NOT_FOUND',
+      `${resource} not found: ${detail}`,
+      { resource }
     );
   }
 }

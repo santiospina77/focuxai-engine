@@ -233,6 +233,21 @@ export interface ICrmAdapter {
     associations: readonly CrmAssociation[]
   ): Promise<Result<BatchResult<CrmAssociation>, EngineError>>;
 
+  /**
+   * WB-5: Read objects associated to a source object.
+   * Supports standard types ('contact', 'deal') and custom object schema names
+   * (e.g., 'agrupacion' which HubSpot maps to its internal objectTypeId).
+   *
+   * Returns all associated records with their requested properties.
+   * Empty array if no associations exist (not an error).
+   */
+  getAssociatedObjects(
+    fromObjectType: CrmObjectType | string,
+    fromId: string,
+    toObjectType: CrmObjectType | string,
+    properties?: readonly string[]
+  ): Promise<Result<CrmRecord[], EngineError>>;
+
   // -------------------------------------------------------------------------
   // Schema management (usado por el Adapter, no por apps en runtime)
   // -------------------------------------------------------------------------
