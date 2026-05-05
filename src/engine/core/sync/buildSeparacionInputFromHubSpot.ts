@@ -25,6 +25,14 @@ type TipoPersona = (typeof VALID_TIPO_PERSONA)[number];
 
 const VALID_TIPO_IDENTIFICACION: readonly TipoIdentificacion[] = ['CC', 'CE', 'NIT', 'PASAPORTE', 'TI'];
 const VALID_TIPO_VENTA: readonly TipoVenta[] = ['CONTADO', 'CREDITO', 'CREDITO_TERCEROS', 'LEASING'];
+
+// Reverse map: HubSpot stores numeric codes (written by InventorySync from Sinco tipoVentaCodigo)
+const TIPO_VENTA_FROM_CODE: Record<string, TipoVenta> = {
+  '0': 'CONTADO',
+  '1': 'CREDITO',
+  '2': 'CREDITO_TERCEROS',
+  '3': 'LEASING',
+};
 const VALID_GENERO = ['M', 'F', 'O'] as const;
 type Genero = (typeof VALID_GENERO)[number];
 
@@ -44,9 +52,14 @@ function parseTipoIdentificacion(value: string | null | undefined): Result<TipoI
 
 function parseTipoVenta(value: string | null | undefined): Result<TipoVenta, EngineError> {
   if (!value || value.trim() === '') return err(WebhookValidationError.missingField('tipo_venta_fx'));
-  const upper = value.toUpperCase().trim();
+  const trimmed = value.trim();
+  // Path 1: numeric code from HubSpot enumeration (written by InventorySync)
+  const fromCode = TIPO_VENTA_FROM_CODE[trimmed];
+  if (fromCode) return ok(fromCode);
+  // Path 2: string enum (manual entry or future migration)
+  const upper = trimmed.toUpperCase();
   if (VALID_TIPO_VENTA.includes(upper as TipoVenta)) return ok(upper as TipoVenta);
-  return err(WebhookValidationError.invalidValue('tipo_venta_fx', `Expected CONTADO|CREDITO|CREDITO_TERCEROS|LEASING, got: ${value}`));
+  return err(WebhookValidationError.invalidValue('tipo_venta_fx', `Expected CONTADO|CREDITO|CREDITO_TERCEROS|LEASING or code 0-3, got: ${value}`));
 }
 
 /**

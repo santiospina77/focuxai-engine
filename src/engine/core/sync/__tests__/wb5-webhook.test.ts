@@ -479,6 +479,30 @@ describe('buildSeparacionInputFromHubSpot', () => {
     assert.match(result.error.message, /CONTADO\|CREDITO/);
   });
 
+  it('maps HubSpot numeric tipo_venta_fx codes to domain enums', () => {
+    const codeMap: Record<string, string> = {
+      '0': 'CONTADO',
+      '1': 'CREDITO',
+      '2': 'CREDITO_TERCEROS',
+      '3': 'LEASING',
+    };
+    for (const [code, expected] of Object.entries(codeMap)) {
+      const params = baseParams();
+      (params.deal.properties as Record<string, unknown>).tipo_venta_fx = code;
+      const result = buildSeparacionInputFromHubSpot(params);
+      assert.equal(result.isOk(), true, `code '${code}' should parse OK`);
+      assert.equal(result.value.venta.tipoVenta, expected, `code '${code}' → ${expected}`);
+    }
+  });
+
+  it('rejects unknown numeric tipo_venta_fx code', () => {
+    const params = baseParams();
+    (params.deal.properties as Record<string, unknown>).tipo_venta_fx = '99';
+    const result = buildSeparacionInputFromHubSpot(params);
+    assert.equal(result.isErr(), true);
+    assert.match(result.error.message, /code 0-3/);
+  });
+
   it('accepts genero M/F/O', () => {
     const params = baseParams();
     (params.deal.properties as Record<string, unknown>).genero_fx = 'F';
