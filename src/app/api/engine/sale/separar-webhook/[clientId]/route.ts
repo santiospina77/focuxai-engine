@@ -1,10 +1,14 @@
 /**
  * POST /api/engine/sale/separar-webhook/[clientId]
  *
- * WB-5: Webhook receiver for HubSpot → Sinco separación.
+ * WB-5 + WB-6: Webhook receiver for HubSpot → Sinco write-back.
  *
- * Receives flat { dealId } from HubSpot workflow, reads Deal+Contact from CRM,
- * builds SeparacionInput, and delegates to SaleWriteback.separar().
+ * Supports two operations via `operation` field:
+ *   - "separar" (default) — ConfirmacionVenta.Separar
+ *   - "legalizar" — ConfirmacionVenta.Legalizar
+ *
+ * Receives flat { dealId, operation? } from HubSpot workflow, reads Deal+Contact
+ * from CRM, builds input, and delegates to SaleWriteback.
  *
  * Security layers:
  *   1. clientId validation (Engine.getCrmAdapter → CONFIG_CLIENT_NOT_FOUND)
@@ -12,7 +16,7 @@
  *   3. Zod strict schema (no extra fields)
  *   4. All builders return Result (zero fail-silent)
  *
- * Idempotent via PgEventLog.
+ * Idempotent via PgEventLog (distinct transactionId per operation).
  */
 
 import { z } from 'zod';
@@ -24,6 +28,9 @@ import { resolvePrimaryContact } from '@/engine/core/sync/resolvePrimaryContact'
 import { buildSeparacionInputFromHubSpot } from '@/engine/core/sync/buildSeparacionInputFromHubSpot';
 import { WRITEBACK_DEAL_PROPS } from '@/engine/core/sync/constants';
 import { WebhookValidationError } from '@/engine/core/errors/EngineError';
+import type { Result } from '@/engine/core/types/Result';
+import type { EngineError } from '@/engine/core/errors/EngineError';
+import type { SaleWritebackResult } from '@/engine/core/sync/SaleWriteback';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,6 +41,7 @@ export const maxDuration = 60;
 
 const WebhookRequestSchema = z.object({
   dealId: z.coerce.string().min(1),
+  operation: z.enum(['separar', 'legalizar']).default('separar'),
   workflowId: z.string().optional(),
   eventId: z.string().optional(),
 }).strict();
@@ -77,13 +85,14 @@ export async function POST(
     );
   }
 
-  const { dealId } = parsed.data;
+  const { dealId, operation, workflowId, eventId } = parsed.data;
   const log = Engine.logger.child({
-    operation: 'sale.separarWebhook',
+    operation: 'sale.writebackWebhook',
+    writebackOperation: operation,
     clientId,
     dealId,
-    workflowId: parsed.data.workflowId,
-    eventId: parsed.data.eventId,
+    workflowId,
+    eventId,
   });
   log.info({}, 'Webhook received');
 
@@ -113,7 +122,7 @@ export async function POST(
     return jsonError(contactResult.error);
   }
 
-  // 7. Build SeparacionInput (pure, contract-aligned, zero fail-silent)
+  // 7. Build input (pure, contract-aligned, zero fail-silent)
   const inputResult = buildSeparacionInputFromHubSpot({
     clientId,
     dealId,
@@ -127,13 +136,26 @@ export async function POST(
     return jsonError(inputResult.error);
   }
 
-  // 8. Delegate to SaleWriteback (idempotent via PgEventLog)
-  const result = await Engine.saleWriteback.separar(erp, crm, inputResult.value);
+  // 8. Dispatch based on operation (idempotent via PgEventLog, distinct transactionId)
+  let result: Result<SaleWritebackResult, EngineError>;
+  switch (operation) {
+    case 'separar':
+      result = await Engine.saleWriteback.separar(erp, crm, inputResult.value);
+      break;
+    case 'legalizar':
+      result = await Engine.saleWriteback.legalizar(erp, crm, inputResult.value);
+      break;
+    default: {
+      const exhaustive: never = operation;
+      return jsonError(WebhookValidationError.invalidValue('operation', `Unsupported: ${exhaustive}`));
+    }
+  }
+
   if (result.isErr()) {
-    log.error({ error: result.error }, 'SaleWriteback.separar failed');
+    log.error({ error: result.error }, `SaleWriteback.${operation} failed`);
     return jsonError(result.error);
   }
 
-  log.info({}, 'Webhook processed successfully');
+  log.info({}, `Webhook ${operation} processed successfully`);
   return jsonOk(result.value);
 }

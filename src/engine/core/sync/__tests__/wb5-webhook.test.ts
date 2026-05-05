@@ -1,12 +1,13 @@
 /**
- * WB-5 Webhook Receiver — Unit Tests
+ * WB-5 + WB-6 Webhook Receiver — Unit Tests
  *
- * 42 tests covering:
+ * 47 tests covering:
  * - verifyWebhookAuth (4 tests)
  * - resolveSincoIds (5 tests)
  * - resolvePrimaryContact (5 tests)
  * - buildPlanPagosFromDealProps (14 tests)
  * - buildSeparacionInputFromHubSpot (14 tests)
+ * - WB-6 WebhookRequestSchema operation field (5 tests)
  *
  * Uses node:test + node:assert (project standard).
  * Pure function tests — no CRM/ERP mocks needed for builders.
@@ -538,5 +539,58 @@ describe('buildSeparacionInputFromHubSpot', () => {
     const result = buildSeparacionInputFromHubSpot(params);
     assert.equal(result.isOk(), true);
     assert.equal(result.value.writebackReady, true);
+  });
+});
+
+// ============================================================================
+// WB-6: WebhookRequestSchema operation field
+// ============================================================================
+
+import { z } from 'zod';
+
+const WebhookRequestSchema = z.object({
+  dealId: z.coerce.string().min(1),
+  operation: z.enum(['separar', 'legalizar']).default('separar'),
+  workflowId: z.string().optional(),
+  eventId: z.string().optional(),
+}).strict();
+
+describe('WB-6: WebhookRequestSchema operation field', () => {
+
+  it('defaults operation to "separar" when omitted', () => {
+    const result = WebhookRequestSchema.safeParse({ dealId: '123' });
+    assert.equal(result.success, true);
+    assert.equal(result.data!.operation, 'separar');
+  });
+
+  it('accepts operation="separar" explicitly', () => {
+    const result = WebhookRequestSchema.safeParse({ dealId: '456', operation: 'separar' });
+    assert.equal(result.success, true);
+    assert.equal(result.data!.operation, 'separar');
+  });
+
+  it('accepts operation="legalizar"', () => {
+    const result = WebhookRequestSchema.safeParse({ dealId: '789', operation: 'legalizar' });
+    assert.equal(result.success, true);
+    assert.equal(result.data!.operation, 'legalizar');
+  });
+
+  it('rejects invalid operation value', () => {
+    const result = WebhookRequestSchema.safeParse({ dealId: '123', operation: 'anular' });
+    assert.equal(result.success, false);
+  });
+
+  it('preserves dealId and optional fields with legalizar', () => {
+    const result = WebhookRequestSchema.safeParse({
+      dealId: '999',
+      operation: 'legalizar',
+      workflowId: 'wf-001',
+      eventId: 'ev-002',
+    });
+    assert.equal(result.success, true);
+    assert.equal(result.data!.dealId, '999');
+    assert.equal(result.data!.operation, 'legalizar');
+    assert.equal(result.data!.workflowId, 'wf-001');
+    assert.equal(result.data!.eventId, 'ev-002');
   });
 });
