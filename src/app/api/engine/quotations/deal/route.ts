@@ -103,7 +103,7 @@ async function findOrCreateContact(
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify({
       filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: email }] }],
-      properties: ['email', 'firstname', 'lastname', 'lista_proyectos_fx', 'proyecto_activo_fx', 'canal_atribucion_fx', 'tipo_persona_fx'],
+      properties: ['email', 'firstname', 'lastname', 'lista_proyectos_fx', 'proyecto_activo_fx', 'canal_atribucion_fx', 'tipo_persona_fx', 'cedula_fx', 'tipo_documento_fx'],
       limit: 1,
     }),
   });
@@ -138,6 +138,11 @@ async function findOrCreateContact(
     // cedula_fx — llenar si vacío
     if (!props.cedula_fx && q.buyer_doc_number) {
       updateProps.cedula_fx = String(q.buyer_doc_number);
+    }
+
+    // tipo_documento_fx — llenar si vacío
+    if (!props.tipo_documento_fx && q.buyer_doc_type) {
+      updateProps.tipo_documento_fx = String(q.buyer_doc_type);
     }
 
     // tipo_persona_fx — llenar si vacío
