@@ -385,9 +385,9 @@ function transformResponse(res: ApiInventoryResponse): InventoryData {
 // Hook
 // ═══════════════════════════════════════════════════════════
 
-export function useInventoryData(clientId: string = 'jimenez_demo'): UseInventoryDataResult {
+export function useInventoryData(clientId: string | null = null): UseInventoryDataResult {
   const [data, setData] = useState<InventoryData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(clientId));
   const [error, setError] = useState<string | null>(null);
 
   // Track mount state to avoid setting state on unmounted component
@@ -396,6 +396,7 @@ export function useInventoryData(clientId: string = 'jimenez_demo'): UseInventor
   const fetchCountRef = useRef(0);
 
   const fetchInventory = useCallback(async () => {
+    if (!clientId) return; // idle when no clientId — no fetch, no error
     const thisFetch = ++fetchCountRef.current;
     setLoading(true);
     setError(null);
@@ -440,9 +441,15 @@ export function useInventoryData(clientId: string = 'jimenez_demo'): UseInventor
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchInventory();
+    if (clientId) {
+      fetchInventory();
+    } else {
+      setData(null);
+      setLoading(false);
+      setError(null);
+    }
     return () => { mountedRef.current = false; };
-  }, [fetchInventory]);
+  }, [clientId, fetchInventory]);
 
   return { data, loading, error, refetch: fetchInventory };
 }

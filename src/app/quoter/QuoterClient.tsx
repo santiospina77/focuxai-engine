@@ -77,6 +77,13 @@ const eColor = e => e===ESTADOS.D?"#16A34A":e===ESTADOS.B?"#D97706":e===ESTADOS.
 const eLabel = e => e===ESTADOS.D?"Disponible":e===ESTADOS.B?"Bloqueada":e===ESTADOS.C?"Cotizada":"Vendida";
 const validatePhone = (num: string, country: any) => { const digits = num.replace(/\D/g,""); return digits.length === country.len; };
 const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+// ── Safe parser for tipoPersona from external sources (stable — outside component) ──
+function parseTipoPersona(value: unknown): 'NATURAL' | 'JURIDICA' | null {
+  if (typeof value !== 'string') return null;
+  const upper = value.trim().toUpperCase();
+  if (upper === 'NATURAL' || upper === 'JURIDICA') return upper;
+  return null;
+}
 // ── MES REAL: "Mes 1 (Mayo 2026)" ──
 const MESES_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const mesLabel = (mesNum: number) => {
@@ -154,8 +161,24 @@ const S: any = {
 
 // ── MAIN COMPONENT ──
 export default function QuoterClient() {
+  // ── Client config resolution — blocks ALL rendering until URL is read ──
+  const [clientConfigResolved, setClientConfigResolved] = useState(false);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientIdError, setClientIdError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const cid = params.get('clientId')?.trim();
+    if (!cid) {
+      setClientIdError('Parámetro clientId es obligatorio. URL esperada: /quoter?clientId=<client>');
+    } else {
+      setClientId(cid);
+    }
+    setClientConfigResolved(true);
+  }, []);
+
   // ── Inventory data from endpoint ──
-  const { data: inventory, loading: invLoading, error: invError } = useInventoryData('jimenez_demo');
+  const { data: inventory, loading: invLoading, error: invError } = useInventoryData(clientId);
 
   // Derive from inventory — replaces MACROS, TORRES, getUnits, getParking, getStorage, CONFIG
   const MACROS = inventory?.macros ?? [];
@@ -191,6 +214,80 @@ export default function QuoterClient() {
   const [phoneCc, setPhoneCc] = useState(COUNTRIES[0]);
   const [phone, setPhone] = useState("");
   const [showCcDrop, setShowCcDrop] = useState(false);
+  // Buyer — Sinco required fields
+  const [tipoPersona, setTipoPersona] = useState<'NATURAL' | 'JURIDICA'>('NATURAL');
+
+  // ── Shared contact search + prefill (manual Buscar + auto ?email=) ──
+  const searchAndPrefillContact = useCallback(async (searchEmail: string) => {
+    if (!clientId) return;
+    setContactLoading(true);
+    setContactError("");
+    try {
+      const res = await fetch("/api/engine/contacts/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, email: searchEmail.trim().toLowerCase() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setContactExists(false);
+        setContactData(null);
+        setContactError(data.message || "Error buscando contacto");
+      } else if (data.found) {
+        const c = data.contact;
+        setContactExists(true);
+        setContactData({
+          hubspotId: c.hubspotId,
+          firstname: c.firstname,
+          lastname: c.lastname,
+          cedula: c.cedula,
+          phone: c.phone,
+          canal: c.canal,
+          proyectos: c.listaProyectos,
+        });
+        // Prefill ALL available fields
+        if (c.firstname) setNombre(c.firstname);
+        if (c.lastname) setApellido(c.lastname);
+        if (c.cedula) setCedula(c.cedula);
+        if (c.phone) setPhone(c.phone);
+        if (c.tipoDocumento) setTipoDoc(c.tipoDocumento);
+        const tp = parseTipoPersona(c.tipoPersona);
+        if (tp) setTipoPersona(tp);
+      } else {
+        setContactExists(false);
+        setContactData(null);
+      }
+    } catch (err) {
+      console.error("[Cotizador] Contact search failed:", err);
+      setContactExists(false);
+      setContactData(null);
+      setContactError("No se pudo conectar con el servidor");
+    } finally {
+      setContactSearched(true);
+      setContactLoading(false);
+    }
+  }, [clientId]);
+
+  // ── Auto-search if ?email= present (HubSpot card link) ──
+  useEffect(() => {
+    if (!clientId) return;
+    const params = new URLSearchParams(window.location.search);
+    const preEmail = params.get('email')?.trim().toLowerCase();
+    if (preEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(preEmail)) {
+      setEmail(preEmail);
+      searchAndPrefillContact(preEmail);
+      // Clean URL to prevent re-trigger on refresh — preserve other params
+      const cleanParams = new URLSearchParams(window.location.search);
+      cleanParams.delete('email');
+      const query = cleanParams.toString();
+      window.history.replaceState(
+        {},
+        '',
+        query ? `${window.location.pathname}?${query}` : window.location.pathname
+      );
+    }
+  }, [clientId, searchAndPrefillContact]);
+
   // Asesor
   const [asesor, setAsesor] = useState(ASESORES[0]);
   // Plan — initialized with defaults, reset when torre changes
@@ -348,6 +445,11 @@ export default function QuoterClient() {
   // ── Orquestador: Persistir → PDF → Deal → Success ──
   const handleSubmitDeal = useCallback(async () => {
     if (submitting) return;
+    // ── Fail-hard if clientId missing (should never happen — UI blocks, but defense in depth) ──
+    if (!clientId) {
+      setSubmitError('Error interno: falta clientId. Recargue la página.');
+      return;
+    }
     setSubmitting(true);
     setSubmitError("");
     setDealResult(null);
@@ -362,11 +464,12 @@ export default function QuoterClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: 'jimenez_demo',
+          clientId,
           cotNumber: currentCotNum,
           buyer: {
             name: nombre, lastname: apellido, docType: tipoDoc, docNumber: cedula,
             email, phone, phoneCc: phoneCc.code,
+            tipoPersona,
             hubspotContactId: contactData?.hubspotId || null,
           },
           property: {
@@ -411,7 +514,7 @@ export default function QuoterClient() {
         const pdfRes = await fetch('/api/engine/quotations/pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId: 'jimenez_demo', cotNumber: currentCotNum }),
+          body: JSON.stringify({ clientId, cotNumber: currentCotNum }),
         });
         if (pdfRes.ok) {
           const blob = await pdfRes.blob();
@@ -423,7 +526,7 @@ export default function QuoterClient() {
       const dealRes = await fetch('/api/engine/quotations/deal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: 'jimenez_demo', cotNumber: currentCotNum }),
+        body: JSON.stringify({ clientId, cotNumber: currentCotNum }),
       });
       if (!dealRes.ok) {
         const errData = await dealRes.json().catch(() => ({}));
@@ -438,7 +541,7 @@ export default function QuoterClient() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, cotNum, torre, macro, nombre, apellido, tipoDoc, cedula, email, phone, phoneCc, contactData, selectedUnit, selectedParking, selectedStorage, incluyeParq, incluyeDep, asesor, tipoVenta, subtotal, dtoComercial, dtoFinanciero, totalDescuentos, valorNeto, separacion, cuotaInicialTotal, numCuotas, valorCuota, saldoFinal, planRows, abonos, observaciones, CONFIG]);
+  }, [submitting, cotNum, torre, macro, nombre, apellido, tipoDoc, cedula, email, phone, phoneCc, tipoPersona, clientId, contactData, selectedUnit, selectedParking, selectedStorage, incluyeParq, incluyeDep, asesor, tipoVenta, subtotal, dtoComercial, dtoFinanciero, totalDescuentos, valorNeto, separacion, cuotaInicialTotal, numCuotas, valorCuota, saldoFinal, planRows, abonos, observaciones, CONFIG]);
 
   const allStats = useMemo(()=>{
     if(!macro) return { total:0, disp:0, bloq:0, vend:0 };
@@ -452,7 +555,7 @@ export default function QuoterClient() {
     return { total:units.length, disp:units.filter(u=>u.estado===ESTADOS.D).length, bloq:units.filter(u=>u.estado===ESTADOS.B).length, vend:units.filter(u=>u.estado===ESTADOS.V).length };
   },[torre,units]);
 
-  const steps = ["Macroproyecto","Proyecto","Inventario","Agrupación","Comprador","Plan de Pagos","Cotización"];
+  const steps = ["Comprador","Macroproyecto","Proyecto","Inventario","Agrupación","Plan de Pagos","Cotización"];
 
   const MoneyInput = ({ label, value, onChange, placeholder }: { label:string, value:number, onChange:(v:number)=>void, placeholder?:string }) => (
     <div>
@@ -464,6 +567,25 @@ export default function QuoterClient() {
       </div>
     </div>
   );
+
+  // ── Gate: nothing renders until config is resolved ──
+  if (!clientConfigResolved) {
+    return null;
+  }
+
+  if (clientIdError) {
+    return (
+      <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ textAlign:"center", maxWidth:480, padding:"48px 40px", background:C.white, borderRadius:12, boxShadow:"0 8px 32px rgba(0,0,0,.08)" }}>
+          <div style={{ width:56, height:56, borderRadius:"50%", background:C.redBg, border:`2px solid ${C.red}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:24, color:C.red }}>!</div>
+          <div style={{ fontSize:18, fontWeight:500, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginBottom:8 }}>Configuración requerida</div>
+          <div style={{ fontSize:13, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", lineHeight:1.6 }}>{clientIdError}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── From here, clientId is guaranteed non-null ──
 
   return (
     <div style={{ fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", background:C.bg, minHeight:"100vh", color:C.text }}>
@@ -551,8 +673,8 @@ export default function QuoterClient() {
           </div>
         )}
 
-        {/* ══════ STEP 0: MACROPROYECTO ══════ */}
-        {step===0 && !invLoading && !invError && (
+        {/* ══════ STEP 1: MACROPROYECTO ══════ */}
+        {step===1 && !invLoading && !invError && (
           <div className="fu">
             <h1 style={S.sectionTitle}>Seleccionar Macroproyecto</h1>
             <p style={S.sectionSub}>Elige el desarrollo para cotizar</p>
@@ -575,20 +697,20 @@ export default function QuoterClient() {
               })}
             </div>
             <div style={{ marginTop:24, display:"flex", justifyContent:"flex-end" }}>
-              <button style={S.btn("primary",!macro)} disabled={!macro} onClick={()=>setStep(1)}>Continuar →</button>
+              <button style={S.btn("primary",!macro)} disabled={!macro} onClick={()=>setStep(2)}>Continuar →</button>
             </div>
           </div>
         )}
 
-        {/* ══════ STEP 1: TORRE ══════ */}
-        {step===1 && macro && (
+        {/* ══════ STEP 2: TORRE ══════ */}
+        {step===2 && macro && (
           <div className="fu">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
               <div>
                 <h1 style={S.sectionTitle}>{macro.nombre}</h1>
                 <p style={S.sectionSub}>{macro.zona}, {macro.ciudad} — Seleccionar torre / proyecto</p>
               </div>
-              <button style={S.btn("outline")} onClick={()=>setStep(0)}>← Macroproyectos</button>
+              <button style={S.btn("outline")} onClick={()=>setStep(1)}>← Macroproyectos</button>
             </div>
             <div style={{ ...S.goldBar, marginBottom:24 }} />
 
@@ -642,20 +764,20 @@ export default function QuoterClient() {
               })}
             </div>
             <div style={{ marginTop:24, display:"flex", justifyContent:"flex-end" }}>
-              <button style={S.btn("primary",!torre)} disabled={!torre} onClick={()=>setStep(2)}>Ver inventario →</button>
+              <button style={S.btn("primary",!torre)} disabled={!torre} onClick={()=>setStep(3)}>Ver inventario →</button>
             </div>
           </div>
         )}
 
-        {/* ══════ STEP 2: INVENTORY (Torre + Tabla) ══════ */}
-        {step===2 && torre && (
+        {/* ══════ STEP 3: INVENTORY (Torre + Tabla) ══════ */}
+        {step===3 && torre && (
           <div className="fu">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
               <div>
                 <h1 style={{ ...S.sectionTitle, fontSize:22 }}>{torre.nombre} — Inventario</h1>
                 <p style={S.sectionSub}>{macro.nombre} · {torreStats?.disp} disponibles de {torreStats?.total} · Data Sinco producción</p>
               </div>
-              <button style={S.btn("outline")} onClick={()=>setStep(1)}>← Torres</button>
+              <button style={S.btn("outline")} onClick={()=>setStep(2)}>← Torres</button>
             </div>
             {/* Absorption bar */}
             {torreStats && torreStats.total>0 && (()=>{
@@ -722,7 +844,7 @@ export default function QuoterClient() {
                             <div key={pos}
                               onMouseEnter={()=>setHoveredUnit(unit)}
                               onMouseLeave={()=>setHoveredUnit(null)}
-                              onClick={()=>{ if(isDisp){setSelectedUnit(unit);setStep(3);} }}
+                              onClick={()=>{ if(isDisp){setSelectedUnit(unit);setStep(4);} }}
                               style={{
                                 width:36, height:30, borderRadius:4,
                                 cursor: isDisp ? "pointer" : "default",
@@ -758,7 +880,7 @@ export default function QuoterClient() {
                       </div>
                     ))}
                     {hoveredUnit.estado===ESTADOS.D && (
-                      <button style={{...S.btn("sm"), marginLeft:"auto"}} onClick={()=>{setSelectedUnit(hoveredUnit);setStep(3);}}>Seleccionar →</button>
+                      <button style={{...S.btn("sm"), marginLeft:"auto"}} onClick={()=>{setSelectedUnit(hoveredUnit);setStep(4);}}>Seleccionar →</button>
                     )}
                   </div>
                 )}
@@ -799,7 +921,7 @@ export default function QuoterClient() {
                           <td style={S.td}>{u.banos}</td>
                           <td style={{...S.td,fontWeight:600}}>{fmtS(u.precio)}</td>
                           <td style={S.td}><span style={S.dot(eColor(u.estado))}/>{eLabel(u.estado)}</td>
-                          <td style={S.td}>{u.estado===ESTADOS.D&&<button style={S.btn("sm")} onClick={()=>{setSelectedUnit(u);setStep(3);}}>Seleccionar</button>}</td>
+                          <td style={S.td}>{u.estado===ESTADOS.D&&<button style={S.btn("sm")} onClick={()=>{setSelectedUnit(u);setStep(4);}}>Seleccionar</button>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -809,11 +931,11 @@ export default function QuoterClient() {
             )}
           </div>
         )}
-        {step===3 && selectedUnit && (
+        {step===4 && selectedUnit && (
           <div className="fu">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
               <h1 style={{ ...S.sectionTitle, fontSize:22 }}>Armar Agrupación</h1>
-              <button style={S.btn("outline")} onClick={()=>setStep(2)}>← Inventario</button>
+              <button style={S.btn("outline")} onClick={()=>setStep(3)}>← Inventario</button>
             </div>
             {/* Selected APT */}
             <div style={{ ...S.card, marginBottom:16 }}>
@@ -894,17 +1016,29 @@ export default function QuoterClient() {
                 <div style={S.label}>Valor total agrupación</div>
                 <div style={{ fontSize:26, fontWeight:400, color:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{fmt(subtotal)}</div>
               </div>
-              <button style={S.btn("primary")} onClick={()=>setStep(4)}>Continuar →</button>
+            </div>
+            {/* Tipo de Venta — CREDITO_TERCEROS (code 2) excluded: Jiménez does not use it.
+                TODO (B.2+): move tipoVenta options to client config so each client defines their own set.
+                Full enum in IErpConnector.TipoVenta: CONTADO | CREDITO | CREDITO_TERCEROS | LEASING */}
+            <div style={{ ...S.card, padding:"18px 20px", marginTop:12 }}>
+              <label style={{...S.label,display:"block",marginBottom:8}}>Tipo de Venta</label>
+              <select style={S.select} value={tipoVenta} onChange={e=>setTipoVenta(+e.target.value)}>
+                <option value={0}>Contado</option>
+                <option value={1}>Crédito Hipotecario</option>
+                <option value={3}>Leasing</option>
+              </select>
+            </div>
+            <div style={{ marginTop:12, display:"flex", justifyContent:"flex-end" }}>
+              <button style={S.btn("primary")} onClick={()=>setStep(5)}>Continuar →</button>
             </div>
           </div>
         )}
 
-        {/* ══════ STEP 4: BUYER (HubSpot fields) ══════ */}
-        {step===4 && (
+        {/* ══════ STEP 0: BUYER (HubSpot fields) ══════ */}
+        {step===0 && !clientIdError && (
           <div className="fu">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
               <h1 style={{ ...S.sectionTitle, fontSize:22 }}>Datos del Comprador</h1>
-              <button style={S.btn("outline")} onClick={()=>setStep(3)}>← Agrupación</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
               {/* Buyer card */}
@@ -918,52 +1052,7 @@ export default function QuoterClient() {
                       <input style={{...S.input, flex:1, borderColor:emailError?C.red:contactExists?C.green:C.border}} type="email" placeholder="correo@ejemplo.com" value={email}
                         onChange={e=>{setEmail(e.target.value);setEmailError(e.target.value&&!validateEmail(e.target.value)?"Email inválido":"");setContactExists(false);setContactData(null);setContactSearched(false);setContactError("");}} />
                       <button style={{...S.btn("primary"), padding:"10px 18px", fontSize:11, letterSpacing:"1.5px", whiteSpace:"nowrap", opacity:!email||emailError?.5:1}} disabled={!email||!!emailError}
-                        onClick={async ()=>{
-                          setContactLoading(true);
-                          setContactError("");
-                          try {
-                            // TODO: clientId debería venir de un contexto/config del Quoter, no hardcodeado
-                            const res = await fetch("/api/engine/contacts/search", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ clientId: "jimenez_demo", email: email.trim().toLowerCase() }),
-                            });
-                            const data = await res.json();
-                            if (!res.ok) {
-                              console.error("[Cotizador] Contact search error:", data);
-                              setContactExists(false);
-                              setContactData(null);
-                              setContactError(data.message || "Error buscando contacto");
-                            } else if (data.found) {
-                              const c = data.contact;
-                              setContactExists(true);
-                              setContactData({
-                                firstname: c.firstname,
-                                lastname: c.lastname,
-                                cedula: c.cedula,
-                                phone: c.phone,
-                                canal: c.canal,
-                                proyectos: c.listaProyectos,
-                              });
-                              if (c.firstname) setNombre(c.firstname);
-                              if (c.lastname) setApellido(c.lastname);
-                              if (c.cedula) setCedula(c.cedula);
-                              if (c.phone) setPhone(c.phone);
-                              if (c.tipoDocumento) setTipoDoc(c.tipoDocumento);
-                            } else {
-                              setContactExists(false);
-                              setContactData(null);
-                            }
-                          } catch (err) {
-                            console.error("[Cotizador] Contact search failed:", err);
-                            setContactExists(false);
-                            setContactData(null);
-                            setContactError("No se pudo conectar con el servidor");
-                          } finally {
-                            setContactSearched(true);
-                            setContactLoading(false);
-                          }
-                        }}>
+                        onClick={() => searchAndPrefillContact(email)}>
                         {contactLoading ? "..." : "Buscar"}
                       </button>
                     </div>
@@ -1035,15 +1124,44 @@ export default function QuoterClient() {
                     </div>
                     {phoneError && <div style={{ fontSize:10, color:C.red, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:2 }}>{phoneError}</div>}
                   </div>
-                  {/* Canal de atribución — only shown if contact doesn't exist or has no canal */}
-                  {(!contactExists || (contactExists && !contactData?.canal)) && (
+                  {/* Tipo de Persona — required for Sinco CompradorExterno */}
                   <div>
-                    <label style={{...S.label,display:"block",marginBottom:4}}>Canal de Atribución</label>
-                    <select style={S.select} value={canalAtribucion} onChange={e=>setCanalAtribucion(e.target.value)}>
-                      {canalesAtribucion.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}
+                    <label style={{...S.label,display:"block",marginBottom:4}}>Tipo de Persona</label>
+                    <select style={S.select} value={tipoPersona} onChange={e=>{
+                      const tp = parseTipoPersona(e.target.value);
+                      if (tp) setTipoPersona(tp);
+                    }}>
+                      <option value="NATURAL">Persona Natural</option>
+                      <option value="JURIDICA">Persona Jurídica</option>
                     </select>
                   </div>
-                  )}
+                  {/* Canal de Atribución — disabled + grey if contact already has canal */}
+                  {(() => {
+                    const lockedCanal = contactExists ? contactData?.canal : undefined;
+                    const isLocked = Boolean(lockedCanal);
+                    const currentCanal = lockedCanal ?? canalAtribucion;
+                    const options = canalesAtribucion.some(c => c.value === currentCanal)
+                      ? canalesAtribucion
+                      : [{ value: currentCanal, label: currentCanal }, ...canalesAtribucion];
+                    return (
+                      <div>
+                        <label style={{...S.label,display:"block",marginBottom:4}}>
+                          Canal de Atribución
+                          {isLocked && (
+                            <span style={{ fontSize:9, color:C.textTer, marginLeft:6, fontWeight:400 }}>(existente — no editable)</span>
+                          )}
+                        </label>
+                        <select
+                          style={{...S.select, ...(isLocked ? { opacity:0.5, cursor:"not-allowed", background:C.bg } : {})}}
+                          value={currentCanal}
+                          onChange={e => setCanalAtribucion(e.target.value)}
+                          disabled={isLocked}
+                        >
+                          {options.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               {/* Asesor card — read-only from login (HubSpot OAuth) */}
@@ -1067,24 +1185,26 @@ export default function QuoterClient() {
                     Precargado del login. El Deal se asignará a este asesor como owner + id_vendedor_sinco_fx para write-back.
                   </div>
                 </div>
-                <div style={{ ...S.card, marginTop:16, padding:16, background:C.white }}>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                    <div><div style={S.label}>Proyecto</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{macro?.nombre} — {torre?.nombre}</div></div>
-                    <div><div style={S.label}>Unidad</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>APT {selectedUnit?.numero} · {selectedUnit?.tipologia}</div></div>
-                    <div><div style={S.label}>Valor</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.gold }}>{fmt(subtotal)}</div></div>
-                    <div><div style={S.label}>Complementos</div><div style={{ fontSize:13, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{selectedParking.length>0?`${selectedParking.length} parq seleccionado${selectedParking.length>1?"s":""}`:incluyeParq?"Parq. incluido *":"Sin parq."} · {selectedStorage.length>0?`${selectedStorage.length} dep seleccionado${selectedStorage.length>1?"s":""}`:incluyeDep?"Dep. incluido *":"Sin dep."}</div></div>
+                {macro && torre && selectedUnit ? (
+                  <div style={{ ...S.card, marginTop:16, padding:16, background:C.white }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                      <div><div style={S.label}>Proyecto</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{macro.nombre} — {torre.nombre}</div></div>
+                      <div><div style={S.label}>Unidad</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>APT {selectedUnit.numero} · {selectedUnit.tipologia}</div></div>
+                      <div><div style={S.label}>Valor</div><div style={{ fontSize:13, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.gold }}>{fmt(subtotal)}</div></div>
+                      <div><div style={S.label}>Complementos</div><div style={{ fontSize:13, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:C.navy }}>{selectedParking.length>0?`${selectedParking.length} parq seleccionado${selectedParking.length>1?"s":""}`:incluyeParq?"Parq. incluido *":"Sin parq."} · {selectedStorage.length>0?`${selectedStorage.length} dep seleccionado${selectedStorage.length>1?"s":""}`:incluyeDep?"Dep. incluido *":"Sin dep."}</div></div>
+                    </div>
                   </div>
-                </div>
-                <div style={{ marginTop:16 }}>
-                  <label style={{...S.label,display:"block",marginBottom:4}}>Tipo de Venta</label>
-                  <select style={S.select} value={tipoVenta} onChange={e=>setTipoVenta(+e.target.value)}>
-                    <option value={0}>Contado</option><option value={1}>Crédito Hipotecario</option><option value={3}>Leasing</option>
-                  </select>
-                </div>
+                ) : (
+                  <div style={{ ...S.card, marginTop:16, padding:16, background:C.bg, textAlign:"center" }}>
+                    <div style={{ fontSize:12, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
+                      Seleccione un proyecto para ver el resumen del inmueble
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ marginTop:20, display:"flex", justifyContent:"flex-end" }}>
-              <button style={S.btn("primary",!cedula||!nombre||!apellido)} disabled={!cedula||!nombre||!apellido} onClick={()=>setStep(5)}>Continuar →</button>
+              <button style={S.btn("primary",!cedula||!nombre||!apellido)} disabled={!cedula||!nombre||!apellido} onClick={()=>setStep(1)}>Seleccionar proyecto →</button>
             </div>
           </div>
         )}
@@ -1094,7 +1214,7 @@ export default function QuoterClient() {
           <div className="fu">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:16 }}>
               <h1 style={{ ...S.sectionTitle, fontSize:22 }}>Plan de Pagos</h1>
-              <button style={S.btn("outline")} onClick={()=>setStep(4)}>← Comprador</button>
+              <button style={S.btn("outline")} onClick={()=>setStep(4)}>← Agrupación</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:20 }}>
               {/* Left: Config */}
@@ -1553,7 +1673,7 @@ export default function QuoterClient() {
               <p style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", margin:0, lineHeight:1.5 }}>40 años construyendo legado · Lo hacemos realidad</p>
             </div>
 
-            <button style={{ ...S.btn("primary") }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setContactSearched(false);setContactError("");setCotNum("");setSeparacionMode("$");setSeparacionFijo(3000000);}}>
+            <button style={{ ...S.btn("primary") }} onClick={()=>{setShowSuccess(false);setStep(0);setMacro(null);setTorre(null);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);setCedula("");setNombre("");setApellido("");setEmail("");setPhone("");setTipoPersona('NATURAL');setDtoComercial(0);setDtoFinanciero(0);setAbonos([]);setShowPlan(false);setShowDescuentos(false);setContactExists(false);setContactData(null);setContactSearched(false);setContactError("");setCotNum("");setSeparacionMode("$");setSeparacionFijo(3000000);}}>
               Nueva cotización
             </button>
           </div>

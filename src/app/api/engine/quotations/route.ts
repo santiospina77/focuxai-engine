@@ -18,6 +18,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getDb } from '@/engine/core/db/neon';
 import type { QuotationInput, QuotationCreated, QuotationDetail, ErrorResponse } from './types';
 
@@ -61,6 +62,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!property?.unitNumber) return errorResponse(400, 'MISSING_UNIT', 'property.unitNumber es obligatorio.');
   if (!financial?.netValue) return errorResponse(400, 'MISSING_NET_VALUE', 'financial.netValue es obligatorio.');
 
+  // ── Validate + parse tipoPersona with Zod ──
+  const TipoPersonaSchema = z.enum(['NATURAL', 'JURIDICA']).default('NATURAL');
+  const parsedTipoPersona = TipoPersonaSchema.safeParse(buyer.tipoPersona);
+  if (!parsedTipoPersona.success) {
+    return errorResponse(400, 'INVALID_TIPO_PERSONA', 'buyer.tipoPersona debe ser NATURAL o JURIDICA.');
+  }
+  const buyerTipoPersona = parsedTipoPersona.data;
+
   // ── Calcular expiración ──
   const vigenciaDias = config?.vigenciaDias ?? 7;
   const expiresAt = new Date();
@@ -74,7 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       INSERT INTO quotations (
         cot_number, client_id,
         buyer_name, buyer_lastname, buyer_doc_type, buyer_doc_number,
-        buyer_email, buyer_phone, buyer_phone_cc, hubspot_contact_id,
+        buyer_email, buyer_phone, buyer_phone_cc, buyer_tipo_persona, hubspot_contact_id,
         macro_id, macro_name, torre_id, torre_name,
         unit_number, unit_tipologia, unit_piso, unit_area,
         unit_habs, unit_banos, unit_price,
@@ -91,7 +100,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ) VALUES (
         ${cotNumber}, ${clientId},
         ${buyer.name}, ${buyer.lastname}, ${buyer.docType || 'CC'}, ${buyer.docNumber},
-        ${buyer.email}, ${buyer.phone}, ${buyer.phoneCc || '+57'}, ${buyer.hubspotContactId || null},
+        ${buyer.email}, ${buyer.phone}, ${buyer.phoneCc || '+57'}, ${buyerTipoPersona}, ${buyer.hubspotContactId || null},
         ${property.macroId}, ${property.macroName}, ${property.torreId}, ${property.torreName},
         ${property.unitNumber}, ${property.unitTipologia || null}, ${property.unitPiso ?? null}, ${property.unitArea},
         ${property.unitHabs ?? null}, ${property.unitBanos ?? null}, ${property.unitPrice},

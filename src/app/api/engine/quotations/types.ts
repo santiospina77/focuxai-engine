@@ -18,6 +18,7 @@ export interface QuotationInput {
     email: string;
     phone: string;
     phoneCc: string;
+    tipoPersona?: 'NATURAL' | 'JURIDICA';
     hubspotContactId?: string;
   };
 
@@ -98,6 +99,7 @@ export interface QuotationRow {
   buyer_email: string;
   buyer_phone: string;
   buyer_phone_cc: string;
+  buyer_tipo_persona: string | null;
   hubspot_contact_id: string | null;
   macro_id: number;
   macro_name: string;

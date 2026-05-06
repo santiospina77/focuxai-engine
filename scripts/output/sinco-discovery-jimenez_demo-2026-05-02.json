@@ -1,0 +1,1346 @@
+{
+  "clientId": "jimenez_demo",
+  "generatedAt": "2026-05-02T17:44:48.510Z",
+  "duration": "34.2s",
+  "totalMacroproyectos": 37,
+  "totalProyectos": 14,
+  "totalAgrupaciones": 1875,
+  "totalUnidadesDisponibles": 1875,
+  "summary": {
+    "ready": 1,
+    "needsTypologyRules": 10,
+    "needsReview": 1,
+    "blocked": 2
+  },
+  "proyectos": [
+    {
+      "sincoId": 306,
+      "nombre": "TORRE 1 VIS VENECIA DEL SOL",
+      "activo": true,
+      "macroproyectoId": 46,
+      "macroproyectoNombre": "VENECIA DEL SOL",
+      "totalAgrupaciones": 64,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 64
+      },
+      "totalUnidades": 64,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 64
+      },
+      "unidadesPorEstado": {
+        "DISPONIBLE": 11,
+        "VENDIDA": 53
+      },
+      "disponibles": 64,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 57.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 1
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 57.04,
+          "habs": 0,
+          "banos": 0,
+          "count": 46
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 10
+        }
+      ],
+      "precioMin": 140900000,
+      "precioMax": 236000000,
+      "areaMin": 57.03,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "3 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [
+        "Unidad 21654 (APT-APTO202): area_construida=0",
+        "Unidad 21673 (APT-APTO403): area_construida=0",
+        "Unidad 21677 (APT-APTO407): area_construida=0",
+        "Unidad 21757 (APT-APTO507): area_construida=0",
+        "Unidad 21758 (APT-APTO607): area_construida=0",
+        "Unidad 21759 (APT-APTO803): area_construida=0",
+        "Unidad 22103 (APT-APTO708): area_construida=0"
+      ],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 312,
+      "nombre": "TORRE 2 VIS VENECIA DE SOL ",
+      "activo": true,
+      "macroproyectoId": 46,
+      "macroproyectoNombre": "VENECIA DEL SOL",
+      "totalAgrupaciones": 48,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 48
+      },
+      "totalUnidades": 48,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 48
+      },
+      "unidadesPorEstado": {
+        "DISPONIBLE": 8,
+        "VENDIDA": 40
+      },
+      "disponibles": 48,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 57.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 4
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 57.04,
+          "habs": 0,
+          "banos": 0,
+          "count": 21
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 57.15,
+          "habs": 0,
+          "banos": 0,
+          "count": 9
+        },
+        {
+          "tipologia": "A4",
+          "areaConstruida": 64,
+          "habs": 0,
+          "banos": 0,
+          "count": 4
+        },
+        {
+          "tipologia": "A5",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 5
+        }
+      ],
+      "precioMin": 152000000,
+      "precioMax": 219076650,
+      "areaMin": 57.03,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "5 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [
+        "Unidad 22145 (APT-APTO506): area_construida=0",
+        "Unidad 22146 (APT-APTO601): area_construida=0",
+        "Unidad 22148 (APT-APTO603): area_construida=0",
+        "Unidad 22149 (APT-APTO604): area_construida=0",
+        "Unidad 22157 (APT-APTO706): area_construida=0"
+      ],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 314,
+      "nombre": "TORRE 3 VIS VENECIA DEL SOL ",
+      "activo": true,
+      "macroproyectoId": 46,
+      "macroproyectoNombre": "VENECIA DEL SOL",
+      "totalAgrupaciones": 48,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 48
+      },
+      "totalUnidades": 48,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 48
+      },
+      "unidadesPorEstado": {
+        "VENDIDA": 46,
+        "DISPONIBLE": 2
+      },
+      "disponibles": 48,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 57.04,
+          "habs": 0,
+          "banos": 0,
+          "count": 2
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 57.15,
+          "habs": 0,
+          "banos": 0,
+          "count": 2
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 64,
+          "habs": 0,
+          "banos": 0,
+          "count": 13
+        },
+        {
+          "tipologia": "A4",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 23
+        }
+      ],
+      "precioMin": 189486000,
+      "precioMax": 236000000,
+      "areaMin": 57.04,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "4 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [
+        "Unidad 22310 (APT-APTO301): area_construida=0",
+        "Unidad 22311 (APT-APTO302): area_construida=0",
+        "Unidad 22315 (APT-APTO306): area_construida=0",
+        "Unidad 22322 (APT-APTO501): area_construida=0",
+        "Unidad 22327 (APT-APTO506): area_construida=0",
+        "Unidad 22336 (APT-APTO703): area_construida=0",
+        "Unidad 22339 (APT-APTO706): area_construida=0",
+        "Unidad 22343 (APT-APTO804): area_construida=0"
+      ],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 317,
+      "nombre": "TORRE 4 VIS VENECIA DEL SOL ",
+      "activo": true,
+      "macroproyectoId": 46,
+      "macroproyectoNombre": "VENECIA DEL SOL",
+      "totalAgrupaciones": 64,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 64
+      },
+      "totalUnidades": 64,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 64
+      },
+      "unidadesPorEstado": {
+        "DISPONIBLE": 5,
+        "VENDIDA": 59
+      },
+      "disponibles": 64,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 40
+        }
+      ],
+      "precioMin": 158000000,
+      "precioMax": 236372175,
+      "areaMin": 64.03,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_review",
+      "quoterReadyReason": "Datos de área incompletos — pocas tipologías",
+      "riesgos": [
+        "Unidad 22424 (APT-APTO101): area_construida=0",
+        "Unidad 22437 (APT-APTO206): area_construida=0",
+        "Unidad 22439 (APT-APTO208): area_construida=0",
+        "Unidad 22444 (APT-APTO305): area_construida=0",
+        "Unidad 22445 (APT-APTO306): area_construida=0",
+        "Unidad 22446 (APT-APTO307): area_construida=0",
+        "Unidad 22447 (APT-APTO308): area_construida=0",
+        "Unidad 22448 (APT-APTO401): area_construida=0",
+        "Unidad 22451 (APT-APTO404): area_construida=0",
+        "Unidad 22454 (APT-APTO407): area_construida=0",
+        "... y 14 más"
+      ],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 318,
+      "nombre": "VENECIA DE LA SIERRA TORRE 1",
+      "activo": true,
+      "macroproyectoId": 47,
+      "macroproyectoNombre": "VENECIA DE LA SIERRA",
+      "totalAgrupaciones": 56,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 56
+      },
+      "totalUnidades": 56,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 48,
+        "OTRO": 8
+      },
+      "unidadesPorEstado": {
+        "VENDIDA": 56
+      },
+      "disponibles": 56,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 64,
+          "habs": 0,
+          "banos": 0,
+          "count": 16
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 32
+        }
+      ],
+      "precioMin": 185000000,
+      "precioMax": 236000000,
+      "areaMin": 64,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "2 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 320,
+      "nombre": "VENECIA DE LA SIERRA TORRE 2",
+      "activo": true,
+      "macroproyectoId": 47,
+      "macroproyectoNombre": "VENECIA DE LA SIERRA",
+      "totalAgrupaciones": 53,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 53
+      },
+      "totalUnidades": 53,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 48,
+        "OTRO": 5
+      },
+      "unidadesPorEstado": {
+        "VENDIDA": 49,
+        "DISPONIBLE": 4
+      },
+      "disponibles": 53,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 64,
+          "habs": 0,
+          "banos": 0,
+          "count": 13
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 29
+        }
+      ],
+      "precioMin": 189486000,
+      "precioMax": 224000000,
+      "areaMin": 64,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "2 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [
+        "Unidad 22671 (APT-APTO105): area_construida=0",
+        "Unidad 22674 (APT-APTO202): area_construida=0",
+        "Unidad 22694 (APT-APTO504): area_construida=0",
+        "Unidad 22700 (APT-APTO604): area_construida=0",
+        "Unidad 22711 (APT-APTO803): area_construida=0",
+        "Unidad 22714 (APT-APTO806): area_construida=0"
+      ],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 324,
+      "nombre": "VENECIA DE LA SIERRA TORRE 3",
+      "activo": true,
+      "macroproyectoId": 47,
+      "macroproyectoNombre": "VENECIA DE LA SIERRA",
+      "totalAgrupaciones": 52,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 52
+      },
+      "totalUnidades": 52,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 48,
+        "OTRO": 4
+      },
+      "unidadesPorEstado": {
+        "VENDIDA": 47,
+        "DISPONIBLE": 5
+      },
+      "disponibles": 52,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 64,
+          "habs": 0,
+          "banos": 0,
+          "count": 17
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 31
+        }
+      ],
+      "precioMin": 192172500,
+      "precioMax": 236000000,
+      "areaMin": 64,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "2 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 330,
+      "nombre": "VENECIA DE LA SIERRA TORRE 4",
+      "activo": true,
+      "macroproyectoId": 47,
+      "macroproyectoNombre": "VENECIA DE LA SIERRA",
+      "totalAgrupaciones": 50,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 50
+      },
+      "totalUnidades": 50,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 48,
+        "OTRO": 2
+      },
+      "unidadesPorEstado": {
+        "DISPONIBLE": 1,
+        "VENDIDA": 49
+      },
+      "disponibles": 50,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 64,
+          "habs": 0,
+          "banos": 0,
+          "count": 16
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 64.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 32
+        }
+      ],
+      "precioMin": 189486000,
+      "precioMax": 236000000,
+      "areaMin": 64,
+      "areaMax": 64.03,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "2 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 345,
+      "nombre": "MARENA TORRE 2",
+      "activo": true,
+      "macroproyectoId": 54,
+      "macroproyectoNombre": "MARENA",
+      "totalAgrupaciones": 315,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 315
+      },
+      "totalUnidades": 365,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 365
+      },
+      "unidadesPorEstado": {
+        "VENDIDA": 301,
+        "DISPONIBLE": 64
+      },
+      "disponibles": 315,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 25.84,
+          "habs": 0,
+          "banos": 0,
+          "count": 16
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 30.98,
+          "habs": 0,
+          "banos": 0,
+          "count": 20
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 31.39,
+          "habs": 0,
+          "banos": 0,
+          "count": 20
+        },
+        {
+          "tipologia": "A4",
+          "areaConstruida": 31.99,
+          "habs": 0,
+          "banos": 0,
+          "count": 20
+        },
+        {
+          "tipologia": "A5",
+          "areaConstruida": 32.34,
+          "habs": 0,
+          "banos": 0,
+          "count": 20
+        },
+        {
+          "tipologia": "A6",
+          "areaConstruida": 37.28,
+          "habs": 0,
+          "banos": 0,
+          "count": 77
+        },
+        {
+          "tipologia": "A7",
+          "areaConstruida": 38.26,
+          "habs": 0,
+          "banos": 0,
+          "count": 77
+        },
+        {
+          "tipologia": "A8",
+          "areaConstruida": 47.93,
+          "habs": 0,
+          "banos": 0,
+          "count": 7
+        },
+        {
+          "tipologia": "A9",
+          "areaConstruida": 50.59,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "B1",
+          "areaConstruida": 59.05,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B2",
+          "areaConstruida": 63.21,
+          "habs": 0,
+          "banos": 0,
+          "count": 19
+        },
+        {
+          "tipologia": "B3",
+          "areaConstruida": 73.83,
+          "habs": 0,
+          "banos": 0,
+          "count": 32
+        },
+        {
+          "tipologia": "B4",
+          "areaConstruida": 77.48,
+          "habs": 0,
+          "banos": 0,
+          "count": 28
+        }
+      ],
+      "precioMin": 280226166,
+      "precioMax": 980441707,
+      "areaMin": 25.84,
+      "areaMax": 77.48,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "13 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [
+        "Unidad 25178 (APT-710B): area_construida=0",
+        "Unidad 25179 (APT-910A): area_construida=0",
+        "Unidad 25180 (APT-910B): area_construida=0"
+      ],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 355,
+      "nombre": "MARENA TORRE 3",
+      "activo": true,
+      "macroproyectoId": 54,
+      "macroproyectoNombre": "MARENA",
+      "totalAgrupaciones": 0,
+      "agrupacionesPorEstado": {},
+      "totalUnidades": 0,
+      "unidadesPorTipo": {},
+      "unidadesPorEstado": {},
+      "disponibles": 0,
+      "tipologiasUnicas": [],
+      "precioMin": 0,
+      "precioMax": 0,
+      "areaMin": 0,
+      "areaMax": 0,
+      "camposFaltantes": [],
+      "quoterReady": "blocked",
+      "quoterReadyReason": "Sin agrupaciones en Sinco",
+      "riesgos": [],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 356,
+      "nombre": "MARENA TORRE 1",
+      "activo": true,
+      "macroproyectoId": 54,
+      "macroproyectoNombre": "MARENA",
+      "totalAgrupaciones": 328,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 328
+      },
+      "totalUnidades": 328,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 328
+      },
+      "unidadesPorEstado": {
+        "DISPONIBLE": 129,
+        "VENDIDA": 199
+      },
+      "disponibles": 328,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 25.84,
+          "habs": 0,
+          "banos": 0,
+          "count": 19
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 30.98,
+          "habs": 0,
+          "banos": 0,
+          "count": 40
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 32.34,
+          "habs": 0,
+          "banos": 0,
+          "count": 40
+        },
+        {
+          "tipologia": "A4",
+          "areaConstruida": 37.28,
+          "habs": 0,
+          "banos": 0,
+          "count": 57
+        },
+        {
+          "tipologia": "A5",
+          "areaConstruida": 38.26,
+          "habs": 0,
+          "banos": 0,
+          "count": 38
+        },
+        {
+          "tipologia": "A6",
+          "areaConstruida": 43.06,
+          "habs": 0,
+          "banos": 0,
+          "count": 20
+        },
+        {
+          "tipologia": "A7",
+          "areaConstruida": 47.93,
+          "habs": 0,
+          "banos": 0,
+          "count": 17
+        },
+        {
+          "tipologia": "A8",
+          "areaConstruida": 50.59,
+          "habs": 0,
+          "banos": 0,
+          "count": 2
+        },
+        {
+          "tipologia": "A9",
+          "areaConstruida": 63.21,
+          "habs": 0,
+          "banos": 0,
+          "count": 36
+        },
+        {
+          "tipologia": "B1",
+          "areaConstruida": 73.83,
+          "habs": 0,
+          "banos": 0,
+          "count": 10
+        },
+        {
+          "tipologia": "B2",
+          "areaConstruida": 77.48,
+          "habs": 0,
+          "banos": 0,
+          "count": 10
+        },
+        {
+          "tipologia": "B3",
+          "areaConstruida": 77.9,
+          "habs": 0,
+          "banos": 0,
+          "count": 1
+        },
+        {
+          "tipologia": "B4",
+          "areaConstruida": 80.03,
+          "habs": 0,
+          "banos": 0,
+          "count": 2
+        },
+        {
+          "tipologia": "B5",
+          "areaConstruida": 80.36,
+          "habs": 0,
+          "banos": 0,
+          "count": 2
+        },
+        {
+          "tipologia": "B6",
+          "areaConstruida": 84.42,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "B7",
+          "areaConstruida": 84.69,
+          "habs": 0,
+          "banos": 0,
+          "count": 2
+        },
+        {
+          "tipologia": "B8",
+          "areaConstruida": 87.15,
+          "habs": 0,
+          "banos": 0,
+          "count": 7
+        },
+        {
+          "tipologia": "B9",
+          "areaConstruida": 89.05,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "C1",
+          "areaConstruida": 91.82,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        }
+      ],
+      "precioMin": 283309760,
+      "precioMax": 1244862935,
+      "areaMin": 25.84,
+      "areaMax": 91.82,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "19 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [
+        "Unidad 25531 (APT-APTO2017): area_construida=0"
+      ],
+      "yaConfigurado": false
+    },
+    {
+      "sincoId": 360,
+      "nombre": "PORTO SABBIA RESIDENCIAL",
+      "activo": true,
+      "macroproyectoId": 58,
+      "macroproyectoNombre": "PORTO SABBIA",
+      "totalAgrupaciones": 0,
+      "agrupacionesPorEstado": {},
+      "totalUnidades": 478,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 195,
+        "OTRO": 283
+      },
+      "unidadesPorEstado": {
+        "DISPONIBLE": 434,
+        "VENDIDA": 44
+      },
+      "disponibles": 0,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 51.11,
+          "habs": 0,
+          "banos": 0,
+          "count": 9
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 51.7,
+          "habs": 0,
+          "banos": 0,
+          "count": 9
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 65.64,
+          "habs": 0,
+          "banos": 0,
+          "count": 9
+        },
+        {
+          "tipologia": "A4",
+          "areaConstruida": 68.57,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "A5",
+          "areaConstruida": 68.84,
+          "habs": 0,
+          "banos": 0,
+          "count": 10
+        },
+        {
+          "tipologia": "A6",
+          "areaConstruida": 69.72,
+          "habs": 0,
+          "banos": 0,
+          "count": 10
+        },
+        {
+          "tipologia": "A7",
+          "areaConstruida": 69.8,
+          "habs": 0,
+          "banos": 0,
+          "count": 10
+        },
+        {
+          "tipologia": "A8",
+          "areaConstruida": 71.82,
+          "habs": 0,
+          "banos": 0,
+          "count": 11
+        },
+        {
+          "tipologia": "A9",
+          "areaConstruida": 72.37,
+          "habs": 0,
+          "banos": 0,
+          "count": 9
+        },
+        {
+          "tipologia": "B1",
+          "areaConstruida": 72.86,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "B2",
+          "areaConstruida": 73.69,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "B3",
+          "areaConstruida": 74.62,
+          "habs": 0,
+          "banos": 0,
+          "count": 5
+        },
+        {
+          "tipologia": "B4",
+          "areaConstruida": 76.91,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "B5",
+          "areaConstruida": 81.72,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "B6",
+          "areaConstruida": 84.21,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B7",
+          "areaConstruida": 86.34,
+          "habs": 0,
+          "banos": 0,
+          "count": 5
+        },
+        {
+          "tipologia": "B8",
+          "areaConstruida": 103.59,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "B9",
+          "areaConstruida": 104.48,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "C1",
+          "areaConstruida": 107.71,
+          "habs": 0,
+          "banos": 0,
+          "count": 8
+        },
+        {
+          "tipologia": "C2",
+          "areaConstruida": 109.55,
+          "habs": 0,
+          "banos": 0,
+          "count": 4
+        },
+        {
+          "tipologia": "C3",
+          "areaConstruida": 121.28,
+          "habs": 0,
+          "banos": 0,
+          "count": 4
+        },
+        {
+          "tipologia": "C4",
+          "areaConstruida": 133.42,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        }
+      ],
+      "precioMin": 543211500,
+      "precioMax": 2200243461,
+      "areaMin": 51.11,
+      "areaMax": 133.42,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "blocked",
+      "quoterReadyReason": "Sin agrupaciones en Sinco",
+      "riesgos": [],
+      "yaConfigurado": true
+    },
+    {
+      "sincoId": 361,
+      "nombre": "PORTO SABBIA SUITE",
+      "activo": true,
+      "macroproyectoId": 58,
+      "macroproyectoNombre": "PORTO SABBIA",
+      "totalAgrupaciones": 316,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 316
+      },
+      "totalUnidades": 316,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 316
+      },
+      "unidadesPorEstado": {
+        "VENDIDA": 103,
+        "DISPONIBLE": 213
+      },
+      "disponibles": 316,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 34.21,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 35.11,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 39.34,
+          "habs": 0,
+          "banos": 0,
+          "count": 17
+        },
+        {
+          "tipologia": "A4",
+          "areaConstruida": 40.92,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "A5",
+          "areaConstruida": 41.28,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "A6",
+          "areaConstruida": 41.53,
+          "habs": 0,
+          "banos": 0,
+          "count": 36
+        },
+        {
+          "tipologia": "A7",
+          "areaConstruida": 42.53,
+          "habs": 0,
+          "banos": 0,
+          "count": 13
+        },
+        {
+          "tipologia": "A8",
+          "areaConstruida": 43.12,
+          "habs": 0,
+          "banos": 0,
+          "count": 16
+        },
+        {
+          "tipologia": "A9",
+          "areaConstruida": 43.46,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B1",
+          "areaConstruida": 43.49,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B2",
+          "areaConstruida": 43.5,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B3",
+          "areaConstruida": 45.04,
+          "habs": 0,
+          "banos": 0,
+          "count": 16
+        },
+        {
+          "tipologia": "B4",
+          "areaConstruida": 46.01,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B5",
+          "areaConstruida": 46.33,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B6",
+          "areaConstruida": 46.38,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B7",
+          "areaConstruida": 46.76,
+          "habs": 0,
+          "banos": 0,
+          "count": 18
+        },
+        {
+          "tipologia": "B8",
+          "areaConstruida": 54.19,
+          "habs": 0,
+          "banos": 0,
+          "count": 17
+        }
+      ],
+      "precioMin": 387428250,
+      "precioMax": 791841373,
+      "areaMin": 34.21,
+      "areaMax": 54.19,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "ready",
+      "quoterReadyReason": "Ya configurado en cotizador",
+      "riesgos": [
+        "Unidad 25847 (APT-1716): area_construida=0",
+        "Unidad 25848 (APT-2116): area_construida=0",
+        "Unidad 25849 (APT-2216): area_construida=0"
+      ],
+      "yaConfigurado": true
+    },
+    {
+      "sincoId": 362,
+      "nombre": "RODADERO LIVING",
+      "activo": true,
+      "macroproyectoId": 59,
+      "macroproyectoNombre": "RODADERO LIVING",
+      "totalAgrupaciones": 481,
+      "agrupacionesPorEstado": {
+        "DISPONIBLE": 481
+      },
+      "totalUnidades": 481,
+      "unidadesPorTipo": {
+        "APARTAMENTO": 481
+      },
+      "unidadesPorEstado": {
+        "DISPONIBLE": 331,
+        "VENDIDA": 150
+      },
+      "disponibles": 481,
+      "tipologiasUnicas": [
+        {
+          "tipologia": "A1",
+          "areaConstruida": 30.99,
+          "habs": 0,
+          "banos": 0,
+          "count": 38
+        },
+        {
+          "tipologia": "A2",
+          "areaConstruida": 32.46,
+          "habs": 0,
+          "banos": 0,
+          "count": 39
+        },
+        {
+          "tipologia": "A3",
+          "areaConstruida": 32.48,
+          "habs": 0,
+          "banos": 0,
+          "count": 36
+        },
+        {
+          "tipologia": "A4",
+          "areaConstruida": 33.24,
+          "habs": 0,
+          "banos": 0,
+          "count": 39
+        },
+        {
+          "tipologia": "A5",
+          "areaConstruida": 33.25,
+          "habs": 0,
+          "banos": 0,
+          "count": 40
+        },
+        {
+          "tipologia": "A6",
+          "areaConstruida": 33.3,
+          "habs": 0,
+          "banos": 0,
+          "count": 132
+        },
+        {
+          "tipologia": "A7",
+          "areaConstruida": 33.43,
+          "habs": 0,
+          "banos": 0,
+          "count": 19
+        },
+        {
+          "tipologia": "A8",
+          "areaConstruida": 33.48,
+          "habs": 0,
+          "banos": 0,
+          "count": 1
+        },
+        {
+          "tipologia": "A9",
+          "areaConstruida": 33.55,
+          "habs": 0,
+          "banos": 0,
+          "count": 19
+        },
+        {
+          "tipologia": "B1",
+          "areaConstruida": 50.28,
+          "habs": 0,
+          "banos": 0,
+          "count": 11
+        },
+        {
+          "tipologia": "B2",
+          "areaConstruida": 54.31,
+          "habs": 0,
+          "banos": 0,
+          "count": 28
+        },
+        {
+          "tipologia": "B3",
+          "areaConstruida": 55.65,
+          "habs": 0,
+          "banos": 0,
+          "count": 7
+        },
+        {
+          "tipologia": "B4",
+          "areaConstruida": 55.75,
+          "habs": 0,
+          "banos": 0,
+          "count": 7
+        },
+        {
+          "tipologia": "B5",
+          "areaConstruida": 59.33,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "B6",
+          "areaConstruida": 59.36,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "B7",
+          "areaConstruida": 59.45,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "B8",
+          "areaConstruida": 59.52,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "B9",
+          "areaConstruida": 75.3,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "C1",
+          "areaConstruida": 75.6,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "C2",
+          "areaConstruida": 78.81,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "C3",
+          "areaConstruida": 78.99,
+          "habs": 0,
+          "banos": 0,
+          "count": 6
+        },
+        {
+          "tipologia": "C4",
+          "areaConstruida": 83.09,
+          "habs": 0,
+          "banos": 0,
+          "count": 14
+        },
+        {
+          "tipologia": "C5",
+          "areaConstruida": 333,
+          "habs": 0,
+          "banos": 0,
+          "count": 1
+        },
+        {
+          "tipologia": "C6",
+          "areaConstruida": 3324,
+          "habs": 0,
+          "banos": 0,
+          "count": 1
+        },
+        {
+          "tipologia": "C7",
+          "areaConstruida": 5028,
+          "habs": 0,
+          "banos": 0,
+          "count": 1
+        }
+      ],
+      "precioMin": 288207000,
+      "precioMax": 1178734765,
+      "areaMin": 30.99,
+      "areaMax": 5028,
+      "camposFaltantes": [
+        "cantidadBanos"
+      ],
+      "quoterReady": "needs_typology_rules",
+      "quoterReadyReason": "25 tipologías detectadas — necesita archivo typologyRules",
+      "riesgos": [],
+      "yaConfigurado": false
+    }
+  ],
+  "errors": [
+    "Error unidades proyecto 355: Sinco rejected request (HTTP 409)",
+    "Error agrupaciones proyecto 360: Sinco response does not match expected schema: erp.getAgrupacionesByProyecto"
+  ]
+}
