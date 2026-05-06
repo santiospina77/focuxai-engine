@@ -1148,17 +1148,18 @@ export default function QuoterClient() {
                         <label style={{...S.label,display:"block",marginBottom:4}}>
                           Canal de Atribución
                           {isLocked && (
-                            <span style={{ fontSize:9, color:C.textTer, marginLeft:6, fontWeight:400 }}>(existente — no editable)</span>
+                            <span style={{ fontSize:9, color:C.textTer, marginLeft:6, fontWeight:400 }}>(existente)</span>
                           )}
                         </label>
-                        <select
-                          style={{...S.select, ...(isLocked ? { opacity:0.5, cursor:"not-allowed", background:C.bg } : {})}}
-                          value={currentCanal}
-                          onChange={e => setCanalAtribucion(e.target.value)}
-                          disabled={isLocked}
-                        >
-                          {options.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                        </select>
+                        {isLocked ? (
+                          <div style={{...S.input, color:C.textSec, background:C.bg, cursor:"default"}}>
+                            {currentCanal}
+                          </div>
+                        ) : (
+                          <select style={S.select} value={currentCanal} onChange={e => setCanalAtribucion(e.target.value)}>
+                            {options.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          </select>
+                        )}
                       </div>
                     );
                   })()}

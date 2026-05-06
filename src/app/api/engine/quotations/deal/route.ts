@@ -142,7 +142,7 @@ async function findOrCreateContact(
 
     // tipo_persona_fx — llenar si vacío
     if (!props.tipo_persona_fx && q.buyer_tipo_persona) {
-      updateProps.tipo_persona_fx = q.buyer_tipo_persona;
+      updateProps.tipo_persona_fx = q.buyer_tipo_persona.toLowerCase();
     }
 
     try {
@@ -169,7 +169,7 @@ async function findOrCreateContact(
     proyecto_activo_fx: macroName,
     lista_proyectos_fx: macroName,
     canal_atribucion_fx: 'Sala de Ventas Física',
-    tipo_persona_fx: q.buyer_tipo_persona || 'NATURAL',
+    tipo_persona_fx: (q.buyer_tipo_persona || 'NATURAL').toLowerCase(),
   };
 
   const standardProps: Record<string, string> = {
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     tipo_venta_fx: saleTypeValue,
     numero_documento_fx: quotation.buyer_doc_number,
-    tipo_persona_fx: quotation.buyer_tipo_persona || 'NATURAL',
+    tipo_persona_fx: (quotation.buyer_tipo_persona || 'NATURAL').toLowerCase(),
     origen_fx: 'cotizador',
     pdf_cotizacion_url_fx: `${baseUrl}/api/engine/quotations/pdf?clientId=${clientId}&cotNumber=${cotNumber}`,
     fecha_creacion_cotizacion_fx: toMidnightUtc(quotation.created_at),
