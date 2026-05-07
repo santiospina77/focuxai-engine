@@ -1135,14 +1135,10 @@ export default function QuoterClient() {
                       <option value="JURIDICA">Persona Jurídica</option>
                     </select>
                   </div>
-                  {/* Canal de Atribución — disabled + grey if contact already has canal */}
+                  {/* Canal de Atribución — text-only grey if contact already has canal, dropdown if empty */}
                   {(() => {
                     const lockedCanal = contactExists ? contactData?.canal : undefined;
                     const isLocked = Boolean(lockedCanal);
-                    const currentCanal = lockedCanal ?? canalAtribucion;
-                    const options = canalesAtribucion.some(c => c.value === currentCanal)
-                      ? canalesAtribucion
-                      : [{ value: currentCanal, label: currentCanal }, ...canalesAtribucion];
                     return (
                       <div>
                         <label style={{...S.label,display:"block",marginBottom:4}}>
@@ -1153,12 +1149,12 @@ export default function QuoterClient() {
                         </label>
                         {isLocked ? (
                           <div style={{...S.input, color:C.textSec, background:C.bg, cursor:"default"}}>
-                            {currentCanal}
+                            {lockedCanal}
                           </div>
                         ) : (
-                          <select style={S.select} value={currentCanal} onChange={e => setCanalAtribucion(e.target.value)}>
-                            {!currentCanal && <option value="">— Seleccionar canal —</option>}
-                            {options.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          <select style={S.select} value={canalAtribucion} onChange={e => setCanalAtribucion(e.target.value)}>
+                            <option value="" disabled>— Seleccionar canal —</option>
+                            {canalesAtribucion.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                           </select>
                         )}
                       </div>
