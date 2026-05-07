@@ -1593,24 +1593,6 @@ export default function QuoterClient() {
               </div>
             </div>
 
-            {/* Pipeline — hidden in print */}
-            <div className="no-print" style={{ ...S.card, marginTop:16, padding:"16px 20px" }}>
-              <div style={{ ...S.label, marginBottom:12, color:C.gold }}>Pipeline — Deal se creará en:</div>
-              <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-                {[{n:"Cotización enviada",p:"20%",a:true,amt:"$0"},{n:"Unidad bloqueada",p:"40%",amt:"$0"},{n:"Unidad separada",p:"70%",amt:"→ amount"},{n:"Negocio legalizado",p:"100%"},{n:"En cartera",p:"100%"}].map((s:any,i:number)=>(
-                  <Fragment key={i}>
-                    {i>0&&<span style={{color:C.textTer}}>→</span>}
-                    <div style={{ padding:"6px 12px", borderRadius:6, background:s.a?C.goldBg:C.borderLight, border:`1px solid ${s.a?C.goldBorder:C.border}`, fontSize:11, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", color:s.a?C.gold:C.textSec }}>
-                      {s.n} <span style={{opacity:.5}}>({s.p})</span>
-                      {s.amt && <span style={{ marginLeft:4, fontSize:9, padding:"1px 5px", borderRadius:3, background:s.amt==="$0"?C.yellowBg:`${C.green}15`, color:s.amt==="$0"?C.yellow:C.green, border:`1px solid ${s.amt==="$0"?C.yellowBorder:C.greenBorder}` }}>{s.amt}</span>}
-                    </div>
-                  </Fragment>
-                ))}
-              </div>
-              <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:8 }}>
-                Amount del Deal = $0 hasta Unidad Separada. Workflow WF-D2 copia valor_total_neto_fx → amount al separar. No infla forecast con cotizaciones.
-              </div>
-            </div>
           </div>
         )}
       </div>
