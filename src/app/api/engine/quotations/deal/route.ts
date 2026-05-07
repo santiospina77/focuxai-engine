@@ -87,23 +87,24 @@ function getBaseUrl(): string {
 }
 
 // ═══════════════════════════════════════════════════════════
-// HubSpot Contact — Search or Create
+// HubSpot Contact — Search or Create (resolves contactId only)
 // ═══════════════════════════════════════════════════════════
 
 async function findOrCreateContact(
   token: string,
-  q: QuotationRow,
-  macroName: string,
+  email: string,
+  name: string,
+  lastname: string,
+  phone: string,
 ): Promise<{ contactId: string; created: boolean }> {
-  const email = String(q.buyer_email).trim().toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
 
-  // ── Step 1: Search by email ──
   const searchRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify({
-      filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: email }] }],
-      properties: ['email', 'firstname', 'lastname', 'lista_proyectos_fx', 'proyecto_activo_fx', 'canal_atribucion_fx', 'tipo_persona_fx', 'cedula_fx', 'tipo_documento_fx'],
+      filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: normalizedEmail }] }],
+      properties: ['email'],
       limit: 1,
     }),
   });
@@ -114,129 +115,18 @@ async function findOrCreateContact(
 
   const searchData = await searchRes.json();
 
-  // ── Contact found → update proyecto_activo + append lista_proyectos ──
   if (searchData.results?.length > 0) {
-    const existing = searchData.results[0];
-    const contactId = existing.id;
-    const props = existing.properties ?? {};
-
-    // Append macro to lista_proyectos if not already there
-    const currentList = props.lista_proyectos_fx || '';
-    const projectsSet = new Set(currentList.split(';').map((s: string) => s.trim()).filter(Boolean));
-    projectsSet.add(macroName);
-
-    const updateProps: Record<string, string> = {
-      proyecto_activo_fx: macroName,
-      lista_proyectos_fx: [...projectsSet].join(';'),
-    };
-
-    // canal_atribucion_fx — NUNCA se pisa si ya tiene valor (regla v17)
-    if (!props.canal_atribucion_fx) {
-      updateProps.canal_atribucion_fx = 'Sala de Ventas Física';
-    }
-
-    // cedula_fx — llenar si vacío
-    if (!props.cedula_fx && q.buyer_doc_number) {
-      updateProps.cedula_fx = String(q.buyer_doc_number);
-    }
-
-    // tipo_documento_fx — llenar si vacío
-    if (!props.tipo_documento_fx && q.buyer_doc_type) {
-      updateProps.tipo_documento_fx = String(q.buyer_doc_type);
-    }
-
-    // tipo_persona_fx — llenar si vacío
-    if (!props.tipo_persona_fx && q.buyer_tipo_persona) {
-      updateProps.tipo_persona_fx = q.buyer_tipo_persona.toLowerCase();
-    }
-
-    try {
-      await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ properties: updateProps }),
-      });
-    } catch {
-      console.warn(`[deal] Contact update failed (non-fatal) for ${contactId}`);
-    }
-
-    return { contactId, created: false };
+    return { contactId: searchData.results[0].id, created: false };
   }
 
-  // ── Contact not found → create (try full props, fallback to standard-only) ──
-  const fullProps: Record<string, string> = {
-    email,
-    firstname: q.buyer_name || '',
-    lastname: q.buyer_lastname || '',
-    phone: q.buyer_phone ? `${q.buyer_phone_cc || '+57'}${q.buyer_phone}` : '',
-    cedula_fx: String(q.buyer_doc_number || ''),
-    tipo_documento_fx: String(q.buyer_doc_type || 'CC'),
-    proyecto_activo_fx: macroName,
-    lista_proyectos_fx: macroName,
-    canal_atribucion_fx: 'Sala de Ventas Física',
-    tipo_persona_fx: (q.buyer_tipo_persona || 'NATURAL').toLowerCase(),
-  };
-
-  const standardProps: Record<string, string> = {
-    email,
-    firstname: fullProps.firstname,
-    lastname: fullProps.lastname,
-    phone: fullProps.phone,
-  };
-
-  // Attempt 1: full properties (includes custom _fx fields)
-  let createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+  // Contact not found → create with standard props only
+  const createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ properties: fullProps }),
+    body: JSON.stringify({
+      properties: { email: normalizedEmail, firstname: name || '', lastname: lastname || '', phone: phone || '' },
+    }),
   });
-
-  // Attempt 2: if 400 (likely missing custom properties), retry with standard-only then PATCH _fx
-  if (createRes.status === 400) {
-    const errText = await createRes.text();
-    console.warn(`[deal] Contact create with _fx props failed (400): ${errText}. Retrying standard-only + PATCH.`);
-    createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ properties: standardProps }),
-    });
-
-    if (createRes.ok) {
-      const fallbackData = await createRes.json();
-      // Best-effort PATCH each _fx property individually so one missing prop doesn't block others
-      const fxProps: Record<string, string> = {};
-      for (const [k, v] of Object.entries(fullProps)) {
-        if (k.endsWith('_fx') && v) fxProps[k] = v;
-      }
-      if (Object.keys(fxProps).length > 0) {
-        try {
-          const patchRes = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${fallbackData.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ properties: fxProps }),
-          });
-          if (!patchRes.ok) {
-            console.warn(`[deal] PATCH _fx props failed (${patchRes.status}), trying one-by-one`);
-            // Try each property individually
-            for (const [k, v] of Object.entries(fxProps)) {
-              try {
-                await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${fallbackData.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                  body: JSON.stringify({ properties: { [k]: v } }),
-                });
-              } catch {
-                console.warn(`[deal] PATCH single prop ${k} failed (non-fatal)`);
-              }
-            }
-          }
-        } catch {
-          console.warn(`[deal] PATCH _fx props failed (non-fatal)`);
-        }
-      }
-      return { contactId: fallbackData.id, created: true };
-    }
-  }
 
   if (!createRes.ok) {
     const errBody = await createRes.text();
@@ -245,6 +135,108 @@ async function findOrCreateContact(
 
   const createData = await createRes.json();
   return { contactId: createData.id, created: true };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Ensure critical _fx properties on Contact
+// Runs ALWAYS — even if contactId was already known.
+// Casing: Contact tipo_persona_fx = UPPERCASE (NATURAL/JURIDICA)
+//         Deal tipo_persona_fx = lowercase (natural/juridica)
+// ═══════════════════════════════════════════════════════════
+
+const CRITICAL_CONTACT_PROPS = ['cedula_fx', 'tipo_documento_fx', 'tipo_persona_fx'] as const;
+
+interface EnsureContactResult {
+  ok: boolean;
+  attempted: Record<string, string>;
+  failed: string[];
+}
+
+async function ensureContactFxProps(
+  token: string,
+  contactId: string,
+  q: QuotationRow,
+  macroName: string,
+): Promise<EnsureContactResult> {
+  // 1. Read current contact state
+  const searchRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({
+      filterGroups: [{ filters: [{ propertyName: 'hs_object_id', operator: 'EQ', value: contactId }] }],
+      properties: ['lista_proyectos_fx', 'proyecto_activo_fx', 'canal_atribucion_fx', 'tipo_persona_fx', 'cedula_fx', 'tipo_documento_fx'],
+      limit: 1,
+    }),
+  });
+
+  const props = searchRes.ok
+    ? ((await searchRes.json()).results?.[0]?.properties ?? {})
+    : {};
+
+  // 2. Build update — only fill empty fields (never overwrite)
+  const updateProps: Record<string, string> = {
+    proyecto_activo_fx: macroName,
+  };
+
+  // Append macro to lista_proyectos
+  const currentList = props.lista_proyectos_fx || '';
+  const projectsSet = new Set(currentList.split(';').map((s: string) => s.trim()).filter(Boolean));
+  projectsSet.add(macroName);
+  updateProps.lista_proyectos_fx = [...projectsSet].join(';');
+
+  // canal — never overwrite
+  if (!props.canal_atribucion_fx) {
+    updateProps.canal_atribucion_fx = 'Sala de Ventas Física';
+  }
+
+  // Critical props — CONTACT uses UPPERCASE for tipo_persona_fx
+  if (!props.cedula_fx && q.buyer_doc_number) {
+    updateProps.cedula_fx = String(q.buyer_doc_number);
+  }
+  if (!props.tipo_documento_fx && q.buyer_doc_type) {
+    updateProps.tipo_documento_fx = String(q.buyer_doc_type);
+  }
+  if (!props.tipo_persona_fx && q.buyer_tipo_persona) {
+    updateProps.tipo_persona_fx = (q.buyer_tipo_persona || 'NATURAL').toUpperCase();
+  }
+
+  // 3. Bulk PATCH
+  const patchRes = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ properties: updateProps }),
+  });
+
+  if (patchRes.ok) {
+    return { ok: true, attempted: updateProps, failed: [] };
+  }
+
+  // 4. Bulk failed → try one-by-one
+  const bulkErr = await patchRes.text();
+  console.warn(`[deal] Contact bulk PATCH failed (${patchRes.status}): ${bulkErr}`);
+
+  const failed: string[] = [];
+  for (const [k, v] of Object.entries(updateProps)) {
+    try {
+      const singleRes = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ properties: { [k]: v } }),
+      });
+      if (!singleRes.ok) {
+        const singleErr = await singleRes.text();
+        console.warn(`[deal] Contact PATCH "${k}"="${v}" failed (${singleRes.status}): ${singleErr}`);
+        failed.push(k);
+      }
+    } catch {
+      console.warn(`[deal] Contact PATCH "${k}" network error`);
+      failed.push(k);
+    }
+  }
+
+  // 5. Check if any CRITICAL prop failed
+  const failedCritical = failed.filter(k => (CRITICAL_CONTACT_PROPS as readonly string[]).includes(k));
+  return { ok: failedCritical.length === 0, attempted: updateProps, failed };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -302,16 +294,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!contactId && quotation.buyer_email) {
     try {
-      const result = await findOrCreateContact(token, quotation, String(quotation.macro_name));
+      const phone = quotation.buyer_phone ? `${quotation.buyer_phone_cc || '+57'}${quotation.buyer_phone}` : '';
+      const result = await findOrCreateContact(
+        token,
+        String(quotation.buyer_email),
+        String(quotation.buyer_name || ''),
+        String(quotation.buyer_lastname || ''),
+        phone,
+      );
       contactId = result.contactId;
       contactCreated = result.created;
 
       // Persist contact ID back to quotation
       await sql`UPDATE quotations SET hubspot_contact_id = ${contactId} WHERE id = ${quotation.id}`;
     } catch (err) {
-      // Contact failure is non-fatal — Deal still gets created, but we surface the error
       contactError = err instanceof Error ? err.message : String(err);
       console.warn(`[deal] Contact find/create failed (non-fatal): ${contactError}`);
+    }
+  }
+
+  // ── 2b. Ensure critical _fx properties on contact (ALWAYS — even if contactId was cached) ──
+  let contactFxResult: EnsureContactResult | null = null;
+  if (contactId) {
+    try {
+      contactFxResult = await ensureContactFxProps(token, contactId, quotation, String(quotation.macro_name));
+      if (!contactFxResult.ok) {
+        const failedCritical = contactFxResult.failed.filter(k =>
+          (CRITICAL_CONTACT_PROPS as readonly string[]).includes(k)
+        );
+        if (failedCritical.length > 0) {
+          return errorResponse(
+            502,
+            'HUBSPOT_CONTACT_CRITICAL_PROPS_FAILED',
+            `No se pudieron escribir propiedades críticas del contacto: ${failedCritical.join(', ')}. El deal NO fue creado.`,
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(`[deal] ensureContactFxProps failed (non-fatal): ${err instanceof Error ? err.message : err}`);
     }
   }
 
