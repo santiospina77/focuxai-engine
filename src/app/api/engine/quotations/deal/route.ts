@@ -298,7 +298,7 @@ async function ensureContactFxProps(
   updateProps.lista_proyectos_fx = [...projectsSet].join(';');
 
   if (!props.canal_atribucion_fx) {
-    updateProps.canal_atribucion_fx = 'Sala de Ventas Física';
+    updateProps.canal_atribucion_fx = 'sala_de_ventas_fisica';
   }
 
   // Critical props — normalized values
