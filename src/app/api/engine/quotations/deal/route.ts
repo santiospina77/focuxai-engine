@@ -162,6 +162,33 @@ function normalizeTipoPersonaDealForHubSpot(value: string | null | undefined): s
   return upper === 'JURIDICA' ? 'juridica' : 'natural';
 }
 
+/**
+ * Mapeo macro_name (Sinco inventario) → slug HubSpot (proyecto_activo_fx / lista_proyectos_fx).
+ * Estos campos son enumeration en HubSpot — no aceptan texto libre.
+ * Fuente: generate_globales.py + HubSpot portal Jiménez.
+ */
+const MACRO_NAME_TO_HUBSPOT_SLUG: Record<string, string> = {
+  'VENECIA DE LA SIERRA': 'venecia_de_la_sierra',
+  'CORALINA SUNSET': 'coralina_sunset',
+  'CORALINA DEL SOL': 'coralina_del_sol',
+  'MARENA': 'marena',
+  'RODADERO LIVING': 'rodadero_living',
+  'PORTO SABBIA SUITES': 'porto_sabbia_suites',
+  'PORTO SABBIA': 'porto_sabbia_suites',
+  'CORALINA SUITES': 'coralina_suites',
+  'CORALINA CARIBE': 'coralina_caribe',
+  'PORTO SABBIA RESIDENCES': 'porto_sabbia_residences',
+};
+
+function macroNameToHubSpotSlug(macroName: string): string {
+  const upper = macroName.trim().toUpperCase();
+  if (MACRO_NAME_TO_HUBSPOT_SLUG[upper]) {
+    return MACRO_NAME_TO_HUBSPOT_SLUG[upper];
+  }
+  // Fallback: slugify (lowercase, spaces→underscores, strip non-alphanumeric)
+  return upper.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
 // ═══════════════════════════════════════════════════════════
 // HubSpot Contact — Search or Create (resolves contactId only)
 // ═══════════════════════════════════════════════════════════
@@ -259,13 +286,15 @@ async function ensureContactFxProps(
   const props: Record<string, string | null | undefined> = getData.properties ?? {};
 
   // 2. Build update — only fill empty fields (never overwrite)
+  const macroSlug = macroNameToHubSpotSlug(macroName);
+
   const updateProps: Record<string, string> = {
-    proyecto_activo_fx: macroName,
+    proyecto_activo_fx: macroSlug,
   };
 
   const currentList = props.lista_proyectos_fx || '';
   const projectsSet = new Set(currentList.split(';').map((s: string) => s.trim()).filter(Boolean));
-  projectsSet.add(macroName);
+  projectsSet.add(macroSlug);
   updateProps.lista_proyectos_fx = [...projectsSet].join(';');
 
   if (!props.canal_atribucion_fx) {
