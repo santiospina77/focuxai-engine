@@ -191,14 +191,51 @@ async function findOrCreateContact(
     body: JSON.stringify({ properties: fullProps }),
   });
 
-  // Attempt 2: if 400 (likely missing custom properties), retry with standard-only
+  // Attempt 2: if 400 (likely missing custom properties), retry with standard-only then PATCH _fx
   if (createRes.status === 400) {
-    console.warn(`[deal] Contact create with _fx props failed (400), retrying with standard props only`);
+    const errText = await createRes.text();
+    console.warn(`[deal] Contact create with _fx props failed (400): ${errText}. Retrying standard-only + PATCH.`);
     createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ properties: standardProps }),
     });
+
+    if (createRes.ok) {
+      const fallbackData = await createRes.json();
+      // Best-effort PATCH each _fx property individually so one missing prop doesn't block others
+      const fxProps: Record<string, string> = {};
+      for (const [k, v] of Object.entries(fullProps)) {
+        if (k.endsWith('_fx') && v) fxProps[k] = v;
+      }
+      if (Object.keys(fxProps).length > 0) {
+        try {
+          const patchRes = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${fallbackData.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ properties: fxProps }),
+          });
+          if (!patchRes.ok) {
+            console.warn(`[deal] PATCH _fx props failed (${patchRes.status}), trying one-by-one`);
+            // Try each property individually
+            for (const [k, v] of Object.entries(fxProps)) {
+              try {
+                await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${fallbackData.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({ properties: { [k]: v } }),
+                });
+              } catch {
+                console.warn(`[deal] PATCH single prop ${k} failed (non-fatal)`);
+              }
+            }
+          }
+        } catch {
+          console.warn(`[deal] PATCH _fx props failed (non-fatal)`);
+        }
+      }
+      return { contactId: fallbackData.id, created: true };
+    }
   }
 
   if (!createRes.ok) {
