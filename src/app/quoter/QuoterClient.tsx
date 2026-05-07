@@ -1157,6 +1157,7 @@ export default function QuoterClient() {
                           </div>
                         ) : (
                           <select style={S.select} value={currentCanal} onChange={e => setCanalAtribucion(e.target.value)}>
+                            {!currentCanal && <option value="">— Seleccionar canal —</option>}
                             {options.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                           </select>
                         )}
