@@ -44,6 +44,13 @@ function httpStatusForCode(code: string): number {
   if (code === 'ERP_BUSINESS_RULE_VIOLATION') return 422;
   if (code === 'ERP_SALES_PERIOD_CLOSED') return 422;
 
+  // WB-5: Webhook validation errors
+  if (code === 'VALIDATION_WEBHOOK_MISSING_FIELD') return 400;
+  if (code === 'VALIDATION_WEBHOOK_INVALID_VALUE') return 400;
+  if (code === 'VALIDATION_WEBHOOK_AMBIGUOUS_RESOURCE') return 422;
+  if (code === 'VALIDATION_WEBHOOK_RESOURCE_NOT_FOUND') return 404;
+  if (code === 'BUSINESS_MISSING_PAYMENT_PLAN_CONFIG') return 422;
+
   // 5xx — error del Engine o upstream
   if (code === 'ERP_TIMEOUT' || code === 'ERP_NETWORK_ERROR') return 502;
   if (code === 'RESOURCE_CRM_NETWORK_ERROR' || code === 'RESOURCE_CRM_TIMEOUT') return 502;

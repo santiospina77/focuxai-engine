@@ -9,3 +9,6 @@ out/
 next-env.d.ts
 .env*.local
 .env.local
+
+# Discovery output (data operativa, no va en git)
+scripts/output/

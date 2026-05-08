@@ -47,8 +47,14 @@ export interface HubSpotObjectTypeResolverConfig {
   readonly customObjectTypeIds: HubSpotCustomObjectTypeIds;
 }
 
+const CRM_OBJECT_TYPE_SET = new Set<string>(["contact", "deal", "macroproyecto", "proyecto", "unidad", "agrupacion"]);
+
 export class HubSpotObjectTypeResolver {
   constructor(private readonly config: HubSpotObjectTypeResolverConfig) {}
+
+  canResolve(objectType: string): objectType is CrmObjectType {
+    return CRM_OBJECT_TYPE_SET.has(objectType);
+  }
 
   resolve(objectType: CrmObjectType): string {
     switch (objectType) {
@@ -70,7 +76,37 @@ export class HubSpotObjectTypeResolver {
       }
     }
   }
+
+  resolveOrRaw(objectType: CrmObjectType | string): string {
+    return this.canResolve(objectType)
+      ? this.resolve(objectType)
+      : objectType;
+  }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ============================================================================
 // Schemas Zod para responses de HubSpot API

@@ -9,14 +9,18 @@
  *   - timestamps + duration
  *   - input/output payload para debugging
  *
- * Hoy: implementación in-memory (suficiente para syncs idempotentes en Vercel
- * que terminan dentro de la invocación).
+ * IEventLog retorna Result<T, EngineError> — Engine never throws.
  *
- * Mañana: implementación contra Vercel KV o Postgres para persistir entre
- * invocaciones serverless. El contrato (IEventLog) no cambia.
+ * Implementaciones:
+ *   - InMemoryEventLog: suficiente para dry-run y tests unitarios.
+ *   - PgEventLog: persistencia cross-request con Neon Postgres (real mode).
+ *
+ * FocuxAI Engine™ — Deterministic. Auditable. Unstoppable.
  */
 
 import type { Logger } from '../logging/Logger';
+import { type Result, ok, err } from '../types/Result';
+import { BusinessError, type EngineError } from '../errors/EngineError';
 
 export type EventStatus = 'pending' | 'success' | 'failed';
 
@@ -42,54 +46,88 @@ export interface EventLogQuery {
   readonly limit?: number;
 }
 
+/**
+ * Discriminated union para el resultado de begin().
+ * El caller hace switch(result.kind) para decidir cómo proceder.
+ *
+ *   ACQUIRED         → esta request ganó la reserva, puede proceder
+ *   IN_PROGRESS      → otra request tiene la reserva, bail
+ *   ALREADY_SUCCEEDED → ya se completó con éxito, retornar idempotente
+ *   ALREADY_FAILED   → ya falló, necesita nuevo transactionId con _retry_N
+ */
+export type BeginEventResult =
+  | { readonly kind: 'ACQUIRED'; readonly event: EngineEvent }
+  | { readonly kind: 'IN_PROGRESS'; readonly event: EngineEvent }
+  | { readonly kind: 'ALREADY_SUCCEEDED'; readonly event: EngineEvent }
+  | { readonly kind: 'ALREADY_FAILED'; readonly event: EngineEvent };
+
 export interface IEventLog {
   /**
    * Verifica si un transactionId ya fue procesado exitosamente.
-   * Si retorna true, la operación NO debe ejecutarse de nuevo.
+   * NOTA: NO usar como gate primario — usar begin() directamente.
+   * Mantenido para queries de status en endpoints informativos.
    */
-  hasSucceeded(transactionId: string): Promise<boolean>;
+  hasSucceeded(transactionId: string): Promise<Result<boolean, EngineError>>;
 
   /**
-   * Marca el inicio de una operación. Retorna un handle para luego cerrarla.
+   * Atomic reserve: intenta reservar un transactionId.
+   * Returns discriminated union — caller MUST switch on kind:
+   *   ACQUIRED → proceed with operation
+   *   IN_PROGRESS → another request is executing, bail
+   *   ALREADY_SUCCEEDED → idempotent return, no-op
+   *   ALREADY_FAILED → terminal, new txId required
    */
   begin(input: {
     transactionId: string;
     clientId: string;
     operation: string;
     payload?: Record<string, unknown>;
-  }): Promise<EngineEvent>;
+  }): Promise<Result<BeginEventResult, EngineError>>;
 
   /**
-   * Marca el fin exitoso de una operación.
+   * Marca éxito. Solo transiciona pending → success.
+   * 0 rows affected = typed BusinessError.
    */
-  succeed(transactionId: string, output?: Record<string, unknown>): Promise<void>;
+  succeed(
+    transactionId: string,
+    output?: Record<string, unknown>,
+  ): Promise<Result<EngineEvent, EngineError>>;
 
   /**
-   * Marca el fin con error de una operación.
+   * Marca fallo. Solo transiciona pending → failed. Failed es TERMINAL.
+   * 0 rows affected = typed BusinessError.
    */
-  fail(transactionId: string, error: { code: string; message: string }): Promise<void>;
+  fail(
+    transactionId: string,
+    error: { code: string; message: string },
+  ): Promise<Result<EngineEvent, EngineError>>;
 
   /**
-   * Consulta de eventos para debugging / dashboards.
+   * Query de eventos para debugging / dashboards.
+   * Limit capped: min 1, max 200, default 50.
    */
-  query(q: EventLogQuery): Promise<readonly EngineEvent[]>;
+  query(q: EventLogQuery): Promise<Result<readonly EngineEvent[], EngineError>>;
 }
+
+// ============================================================================
+// InMemoryEventLog — para dry-run y tests unitarios (NO para real mode)
+// ============================================================================
 
 /**
  * Implementación in-memory. Suficiente para idempotencia DENTRO de una
- * misma invocación de Vercel (sync orchestrator).
+ * misma invocación de Vercel (sync orchestrator) y para tests unitarios.
  *
  * IMPORTANTE: NO persiste entre invocaciones. Para idempotencia cross-request,
- * implementar VercelKvEventLog o PgEventLog en el futuro.
+ * usar PgEventLog.
  */
 export class InMemoryEventLog implements IEventLog {
   private readonly events = new Map<string, EngineEvent>();
 
   constructor(private readonly logger: Logger) {}
 
-  async hasSucceeded(transactionId: string): Promise<boolean> {
+  async hasSucceeded(transactionId: string): Promise<Result<boolean, EngineError>> {
     const event = this.events.get(transactionId);
-    return event?.status === 'success';
+    return ok(event?.status === 'success');
   }
 
   async begin(input: {
@@ -97,7 +135,20 @@ export class InMemoryEventLog implements IEventLog {
     clientId: string;
     operation: string;
     payload?: Record<string, unknown>;
-  }): Promise<EngineEvent> {
+  }): Promise<Result<BeginEventResult, EngineError>> {
+    const existing = this.events.get(input.transactionId);
+
+    if (existing) {
+      switch (existing.status) {
+        case 'pending':
+          return ok({ kind: 'IN_PROGRESS', event: existing });
+        case 'success':
+          return ok({ kind: 'ALREADY_SUCCEEDED', event: existing });
+        case 'failed':
+          return ok({ kind: 'ALREADY_FAILED', event: existing });
+      }
+    }
+
     const event: EngineEvent = {
       transactionId: input.transactionId,
       clientId: input.clientId,
@@ -113,14 +164,19 @@ export class InMemoryEventLog implements IEventLog {
         clientId: input.clientId,
         operation: input.operation,
       },
-      'Event begin'
+      'Event begin',
     );
-    return event;
+    return ok({ kind: 'ACQUIRED', event });
   }
 
-  async succeed(transactionId: string, output?: Record<string, unknown>): Promise<void> {
+  async succeed(
+    transactionId: string,
+    output?: Record<string, unknown>,
+  ): Promise<Result<EngineEvent, EngineError>> {
     const event = this.events.get(transactionId);
-    if (!event) return;
+    if (!event || event.status !== 'pending') {
+      return err(BusinessError.eventLogInvalidTransition(transactionId, 'pending'));
+    }
     const endedAt = new Date();
     const updated: EngineEvent = {
       ...event,
@@ -136,16 +192,19 @@ export class InMemoryEventLog implements IEventLog {
         operation: event.operation,
         durationMs: updated.durationMs,
       },
-      'Event succeed'
+      'Event succeed',
     );
+    return ok(updated);
   }
 
   async fail(
     transactionId: string,
-    error: { code: string; message: string }
-  ): Promise<void> {
+    error: { code: string; message: string },
+  ): Promise<Result<EngineEvent, EngineError>> {
     const event = this.events.get(transactionId);
-    if (!event) return;
+    if (!event || event.status !== 'pending') {
+      return err(BusinessError.eventLogInvalidTransition(transactionId, 'pending'));
+    }
     const endedAt = new Date();
     const updated: EngineEvent = {
       ...event,
@@ -164,11 +223,13 @@ export class InMemoryEventLog implements IEventLog {
         errorCode: error.code,
         errorMessage: error.message,
       },
-      'Event fail'
+      'Event fail',
     );
+    return ok(updated);
   }
 
-  async query(q: EventLogQuery): Promise<readonly EngineEvent[]> {
+  async query(q: EventLogQuery): Promise<Result<readonly EngineEvent[], EngineError>> {
+    const safeLimit = Math.min(Math.max(q.limit ?? 50, 1), 200);
     let results = Array.from(this.events.values());
     if (q.transactionId) {
       results = results.filter((e) => e.transactionId === q.transactionId);
@@ -177,7 +238,6 @@ export class InMemoryEventLog implements IEventLog {
     if (q.operation) results = results.filter((e) => e.operation === q.operation);
     if (q.status) results = results.filter((e) => e.status === q.status);
     results.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
-    if (q.limit) results = results.slice(0, q.limit);
-    return results;
+    return ok(results.slice(0, safeLimit));
   }
 }

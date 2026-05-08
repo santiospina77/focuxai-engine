@@ -25,6 +25,18 @@ export type ErrorCode =
   | 'ERP_TIMEOUT'
   | 'ERP_SCHEMA_MISMATCH'
   | 'ERP_SALES_PERIOD_CLOSED'
+  | 'ERP_FEATURE_DISABLED'
+  // Capa de validación de negocio write-back (BUSINESS_*)
+  | 'BUSINESS_INVALID_PARTICIPATION'
+  | 'BUSINESS_MISSING_SEPARACION_CONCEPTO'
+  | 'BUSINESS_MISSING_COMPRADOR_ID'
+  | 'BUSINESS_EVENT_LOG_INVALID_TRANSITION'
+  | 'BUSINESS_WRITEBACK_ALREADY_FAILED'
+  | 'BUSINESS_WRITEBACK_NOT_APPROVED'                // WB-3.5: writeback_ready_fx ≠ true
+  | 'BUSINESS_WRITEBACK_REQUIRES_REVERSAL_REVIEW'    // WB-3.5: requires_sinco_reversal_fx = true
+  | 'BUSINESS_MISSING_PAYMENT_PLAN_CONFIG'           // WB-5: no hay config de conceptos Sinco para este client
+  // Capa ERP concurrencia
+  | 'ERP_OPERATION_IN_PROGRESS'
   // Capa de autenticación CRM (AUTH_CRM_*)
   | 'AUTH_CRM_UNAUTHORIZED'
   // Capa de configuración (CONFIG_*)
@@ -44,6 +56,11 @@ export type ErrorCode =
   | 'VALIDATION_INVENTORY_INVALID_VALUE'
   // Capa de validación CRM (VALIDATION_CRM_*)
   | 'VALIDATION_CRM_DUPLICATE_DETECTED'
+  // Capa de validación webhook write-back (VALIDATION_WEBHOOK_*)
+  | 'VALIDATION_WEBHOOK_MISSING_FIELD'
+  | 'VALIDATION_WEBHOOK_INVALID_VALUE'
+  | 'VALIDATION_WEBHOOK_AMBIGUOUS_RESOURCE'
+  | 'VALIDATION_WEBHOOK_RESOURCE_NOT_FOUND'
   // Capa de recursos externos (RESOURCE_*)
   // — CRM (HubSpot) como dependencia externa
   | 'RESOURCE_CRM_NOT_FOUND'
@@ -70,6 +87,8 @@ export type ErrorCode =
   | 'SCHEMA_CRM_FILE_ACCESS_MISMATCH'
   | 'VALIDATION_CRM_FILE_UNSUPPORTED_OBJECT_TYPE'
   | 'VALIDATION_CRM_FILE_FOLDER_INVALID'
+  // — EventLog (Postgres) como recurso externo
+  | 'RESOURCE_EVENT_LOG_FAILED'
   // — PDF generation
   | 'RESOURCE_PDF_GENERATION_FAILED'
   // — Assets (renders, planos)
@@ -215,6 +234,14 @@ export class ErpError extends EngineError {
       { ...context, retryable: false }
     );
   }
+
+  static operationInProgress(transactionId: string, context: EngineErrorContext = {}): ErpError {
+    return new ErpError(
+      'ERP_OPERATION_IN_PROGRESS',
+      `Operation already in progress: ${transactionId}`,
+      { ...context, transactionId, retryable: true }
+    );
+  }
 }
 
 // ============================================================================
@@ -303,6 +330,15 @@ export class SchemaError extends EngineError {
 export class ResourceError extends EngineError {
   constructor(code: ErrorCode, message: string, context: EngineErrorContext = {}, cause?: unknown) {
     super(code, message, { ...context, retryable: false }, cause);
+  }
+
+  // ── EventLog (Postgres) como recurso externo ──
+
+  static eventLogFailed(message: string, context: EngineErrorContext = {}, cause?: unknown): ResourceError {
+    return new ResourceError(
+      'RESOURCE_EVENT_LOG_FAILED', message,
+      { ...context, retryable: true }, cause
+    );
   }
 
   // ── CRM (HubSpot) como recurso externo ──
@@ -432,6 +468,68 @@ export class ResourceError extends EngineError {
 }
 
 // ============================================================================
+// Errores de reglas de negocio (BUSINESS_*)
+// ============================================================================
+
+/**
+ * Errores de lógica de negocio que NO son de infraestructura (ERP/CRM/DB)
+ * ni de validación de datos. Son violaciones de reglas de dominio:
+ *   - Transición de estado inválida en EventLog
+ *   - Operación ya procesada (idempotencia)
+ *   - Participación inválida en write-back
+ *
+ * Nunca retryable — la regla de negocio no cambia con retry.
+ */
+export class BusinessError extends EngineError {
+  constructor(code: ErrorCode, message: string, context: EngineErrorContext = {}, cause?: unknown) {
+    super(code, message, { ...context, retryable: false }, cause);
+  }
+
+  static eventLogInvalidTransition(transactionId: string, expectedStatus: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_EVENT_LOG_INVALID_TRANSITION',
+      `Cannot transition transaction ${transactionId}: not in ${expectedStatus} state`,
+      { transactionId }
+    );
+  }
+
+  static writebackAlreadyFailed(transactionId: string, dealId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_WRITEBACK_ALREADY_FAILED',
+      `Transacción ${transactionId} ya falló. Usar nuevo ID con suffix _retry_N`,
+      { transactionId, dealId }
+    );
+  }
+
+  /** WB-3.5: writeback_ready_fx ≠ true en HubSpot. Requiere aprobación humana. */
+  static writebackNotApproved(dealId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_WRITEBACK_NOT_APPROVED',
+      `Deal ${dealId}: writeback_ready_fx no es true en HubSpot. Requiere aprobación explícita del asesor/admin antes de ejecutar write-back.`,
+      { dealId }
+    );
+  }
+
+  /** WB-3.5: requires_sinco_reversal_fx=true. Deal inconsistente, requiere revisión administrativa. */
+  static writebackRequiresReversalReview(dealId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_WRITEBACK_REQUIRES_REVERSAL_REVIEW',
+      `Deal ${dealId}: requires_sinco_reversal_fx=true. Requiere revisión administrativa antes de nuevo write-back.`,
+      { dealId }
+    );
+  }
+
+  /** WB-5: No hay configuración validada de conceptos de plan de pagos para este client. */
+  static missingPaymentPlanConfig(clientId: string): BusinessError {
+    return new BusinessError(
+      'BUSINESS_MISSING_PAYMENT_PLAN_CONFIG',
+      `No payment concept configuration found for client: ${clientId}. Lab validation required.`,
+      { clientId }
+    );
+  }
+}
+
+// ============================================================================
 // Errores de validación de datos de inventario
 // ============================================================================
 
@@ -486,6 +584,58 @@ export class ValidationError extends EngineError {
       'VALIDATION_INVENTORY_MAPPING_FAILED',
       message,
       context
+    );
+  }
+}
+
+// ============================================================================
+// Errores de validación del Webhook Write-back (WB-5)
+// ============================================================================
+
+/**
+ * Errores de validación específicos del webhook write-back endpoint.
+ * Cubren: campos faltantes, valores inválidos, recursos ambiguos, no encontrados.
+ *
+ * Nunca retryable — los datos del Deal no cambian con retry.
+ */
+export class WebhookValidationError extends EngineError {
+  constructor(code: ErrorCode, message: string, context: EngineErrorContext = {}, cause?: unknown) {
+    super(code, message, { ...context, retryable: false }, cause);
+  }
+
+  /** Campo obligatorio faltante en Deal/Contact props. */
+  static missingField(field: string, detail?: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_MISSING_FIELD',
+      detail ?? `Required field missing: ${field}`,
+      { field }
+    );
+  }
+
+  /** Campo presente pero valor inválido (enum desconocido, número inválido, fecha imposible). */
+  static invalidValue(field: string, detail: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_INVALID_VALUE',
+      `Invalid value for ${field}: ${detail}`,
+      { field }
+    );
+  }
+
+  /** Recurso ambiguo (múltiples contactos, múltiples agrupaciones sin mirror props). */
+  static ambiguousResource(resource: string, detail: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_AMBIGUOUS_RESOURCE',
+      `Ambiguous ${resource}: ${detail}`,
+      { resource }
+    );
+  }
+
+  /** Recurso no encontrado (Deal, Contact, Agrupación). */
+  static resourceNotFound(resource: string, detail: string): WebhookValidationError {
+    return new WebhookValidationError(
+      'VALIDATION_WEBHOOK_RESOURCE_NOT_FOUND',
+      `${resource} not found: ${detail}`,
+      { resource }
     );
   }
 }

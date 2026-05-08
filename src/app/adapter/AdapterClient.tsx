@@ -320,7 +320,7 @@ function buildDealOnlyProperties(config) {
     { name: "tipo_venta_fx", label: "Tipo de Venta", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Contado", value: "contado" }, { label: "Crédito", value: "credito" }, { label: "Leasing", value: "leasing" }] },
     { name: "fecha_bloqueo_fx", label: "Fecha de Bloqueo", type: "date", fieldType: "date", group: "focux" },
     { name: "dias_bloqueo_fx", label: "Días de Bloqueo", type: "number", fieldType: "number", group: "focux" },
-    { name: "writeback_status_fx", label: "Estado Write-back Sinco", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Pendiente", value: "pending" }, { label: "Exitoso", value: "success" }, { label: "Fallido", value: "failed" }] },
+    { name: "writeback_status_fx", label: "Estado Write-back Sinco", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Pendiente", value: "pending" }, { label: "Exitoso", value: "success" }, { label: "Fallido", value: "failed" }, { label: "Dry Run", value: "dry_run" }, { label: "Error (Inconsistente)", value: "error" }] },
     { name: "origen_fx", label: "Origen de la Cotización", type: "enumeration", fieldType: "select", group: "focux", options: [{ label: "Cotizador", value: "cotizador" }, { label: "Import", value: "import" }, { label: "Manual", value: "manual" }] },
     { name: "descuento_fx", label: "Descuento Aplicado", type: "number", fieldType: "number", group: "focux" },
     { name: "vigencia_cotizacion_fx", label: "Vigencia Cotización (días)", type: "number", fieldType: "number", group: "focux" },
