@@ -52,6 +52,7 @@ const CONTACT_PROPERTIES = [
   'email',
   'cedula_fx',
   'tipo_documento_fx',
+  'tipo_persona_fx',
   'canal_atribucion_fx',
   'lista_proyectos_fx',
   'proyecto_activo_fx',
@@ -76,6 +77,7 @@ interface ContactFound {
     email: string;
     cedula: string;
     tipoDocumento: string;
+    tipoPersona: string;
     canal: string;
     listaProyectos: string;
     proyectoActivo: string;
@@ -215,6 +217,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         email: props.email ?? email,
         cedula: props.cedula_fx ?? '',
         tipoDocumento: props.tipo_documento_fx ?? '',
+        tipoPersona: props.tipo_persona_fx ?? '',
         canal: props.canal_atribucion_fx ?? '',
         listaProyectos: props.lista_proyectos_fx ?? '',
         proyectoActivo: props.proyecto_activo_fx ?? '',

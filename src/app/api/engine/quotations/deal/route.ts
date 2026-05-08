@@ -87,23 +87,127 @@ function getBaseUrl(): string {
 }
 
 // ═══════════════════════════════════════════════════════════
-// HubSpot Contact — Search or Create
+// Contact _fx — constants, types, normalizers
+// ═══════════════════════════════════════════════════════════
+
+const CONTACT_FX_PROPERTIES = [
+  'lista_proyectos_fx',
+  'proyecto_activo_fx',
+  'canal_atribucion_fx',
+  'tipo_persona_fx',
+  'cedula_fx',
+  'tipo_documento_fx',
+] as const;
+
+const CRITICAL_CONTACT_PROPS = [
+  'cedula_fx',
+  'tipo_documento_fx',
+  'tipo_persona_fx',
+] as const;
+
+type ContactCriticalProp = (typeof CRITICAL_CONTACT_PROPS)[number];
+
+interface ContactPatchAttempt {
+  readonly ok: boolean;
+  readonly status: number;
+  readonly error?: string;
+}
+
+interface EnsureContactResult {
+  readonly ok: boolean;
+  readonly contactId: string;
+  readonly attempted: Record<string, string>;
+  readonly failed: string[];
+  readonly failedCritical: string[];
+  readonly bulkStatus: number;
+  readonly bulkError?: string;
+  readonly individual: Record<string, ContactPatchAttempt>;
+  readonly dbValues: {
+    readonly buyerDocNumber: string | null;
+    readonly buyerDocType: string | null;
+    readonly buyerTipoPersona: string | null;
+  };
+}
+
+function truncateForDebug(value: string, max = 1000): string {
+  return value.length > max ? `${value.slice(0, max)}…[truncated]` : value;
+}
+
+async function readHubSpotError(res: Response): Promise<string> {
+  try {
+    return truncateForDebug(await res.text());
+  } catch {
+    return `Unable to read HubSpot error body. status=${res.status}`;
+  }
+}
+
+function normalizeTipoDocumentoForHubSpot(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const upper = value.trim().toUpperCase();
+  if (upper === 'CC') return 'CC';
+  if (upper === 'CE') return 'CE';
+  if (upper === 'NIT') return 'NIT';
+  if (upper === 'PASAPORTE' || upper === 'PP') return 'pp';
+  if (upper === 'TI') return 'ti';
+  return null;
+}
+
+function normalizeTipoPersonaContactForHubSpot(value: string | null | undefined): string {
+  const upper = (value || 'NATURAL').trim().toUpperCase();
+  return upper === 'JURIDICA' ? 'JURIDICA' : 'NATURAL';
+}
+
+function normalizeTipoPersonaDealForHubSpot(value: string | null | undefined): string {
+  const upper = (value || 'NATURAL').trim().toUpperCase();
+  return upper === 'JURIDICA' ? 'juridica' : 'natural';
+}
+
+/**
+ * Mapeo macro_name (Sinco inventario) → slug HubSpot (proyecto_activo_fx / lista_proyectos_fx).
+ * Estos campos son enumeration en HubSpot — no aceptan texto libre.
+ * Fuente: generate_globales.py + HubSpot portal Jiménez.
+ */
+const MACRO_NAME_TO_HUBSPOT_SLUG: Record<string, string> = {
+  'VENECIA DE LA SIERRA': 'venecia_de_la_sierra',
+  'CORALINA SUNSET': 'coralina_sunset',
+  'CORALINA DEL SOL': 'coralina_del_sol',
+  'MARENA': 'marena',
+  'RODADERO LIVING': 'rodadero_living',
+  'PORTO SABBIA SUITES': 'porto_sabbia_suites',
+  'PORTO SABBIA': 'porto_sabbia_suites',
+  'CORALINA SUITES': 'coralina_suites',
+  'CORALINA CARIBE': 'coralina_caribe',
+  'PORTO SABBIA RESIDENCES': 'porto_sabbia_residences',
+};
+
+function macroNameToHubSpotSlug(macroName: string): string {
+  const upper = macroName.trim().toUpperCase();
+  if (MACRO_NAME_TO_HUBSPOT_SLUG[upper]) {
+    return MACRO_NAME_TO_HUBSPOT_SLUG[upper];
+  }
+  // Fallback: slugify (lowercase, spaces→underscores, strip non-alphanumeric)
+  return upper.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HubSpot Contact — Search or Create (resolves contactId only)
 // ═══════════════════════════════════════════════════════════
 
 async function findOrCreateContact(
   token: string,
-  q: QuotationRow,
-  macroName: string,
+  email: string,
+  name: string,
+  lastname: string,
+  phone: string,
 ): Promise<{ contactId: string; created: boolean }> {
-  const email = String(q.buyer_email).trim().toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
 
-  // ── Step 1: Search by email ──
   const searchRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
     body: JSON.stringify({
-      filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: email }] }],
-      properties: ['email', 'firstname', 'lastname', 'lista_proyectos_fx', 'proyecto_activo_fx', 'canal_atribucion_fx'],
+      filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: normalizedEmail }] }],
+      properties: ['email'],
       limit: 1,
     }),
   });
@@ -114,81 +218,18 @@ async function findOrCreateContact(
 
   const searchData = await searchRes.json();
 
-  // ── Contact found → update proyecto_activo + append lista_proyectos ──
   if (searchData.results?.length > 0) {
-    const existing = searchData.results[0];
-    const contactId = existing.id;
-    const props = existing.properties ?? {};
-
-    // Append macro to lista_proyectos if not already there
-    const currentList = props.lista_proyectos_fx || '';
-    const projectsSet = new Set(currentList.split(';').map((s: string) => s.trim()).filter(Boolean));
-    projectsSet.add(macroName);
-
-    const updateProps: Record<string, string> = {
-      proyecto_activo_fx: macroName,
-      lista_proyectos_fx: [...projectsSet].join(';'),
-    };
-
-    // canal_atribucion_fx — NUNCA se pisa si ya tiene valor (regla v17)
-    if (!props.canal_atribucion_fx) {
-      updateProps.canal_atribucion_fx = 'Sala de Ventas Física';
-    }
-
-    // cedula_fx — llenar si vacío
-    if (!props.cedula_fx && q.buyer_doc_number) {
-      updateProps.cedula_fx = String(q.buyer_doc_number);
-    }
-
-    try {
-      await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ properties: updateProps }),
-      });
-    } catch {
-      console.warn(`[deal] Contact update failed (non-fatal) for ${contactId}`);
-    }
-
-    return { contactId, created: false };
+    return { contactId: searchData.results[0].id, created: false };
   }
 
-  // ── Contact not found → create (try full props, fallback to standard-only) ──
-  const fullProps: Record<string, string> = {
-    email,
-    firstname: q.buyer_name || '',
-    lastname: q.buyer_lastname || '',
-    phone: q.buyer_phone ? `${q.buyer_phone_cc || '+57'}${q.buyer_phone}` : '',
-    cedula_fx: String(q.buyer_doc_number || ''),
-    tipo_documento_fx: String(q.buyer_doc_type || 'CC'),
-    proyecto_activo_fx: macroName,
-    lista_proyectos_fx: macroName,
-    canal_atribucion_fx: 'Sala de Ventas Física',
-  };
-
-  const standardProps: Record<string, string> = {
-    email,
-    firstname: fullProps.firstname,
-    lastname: fullProps.lastname,
-    phone: fullProps.phone,
-  };
-
-  // Attempt 1: full properties (includes custom _fx fields)
-  let createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+  // Contact not found → create with standard props only
+  const createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ properties: fullProps }),
+    body: JSON.stringify({
+      properties: { email: normalizedEmail, firstname: name || '', lastname: lastname || '', phone: phone || '' },
+    }),
   });
-
-  // Attempt 2: if 400 (likely missing custom properties), retry with standard-only
-  if (createRes.status === 400) {
-    console.warn(`[deal] Contact create with _fx props failed (400), retrying with standard props only`);
-    createRes = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ properties: standardProps }),
-    });
-  }
 
   if (!createRes.ok) {
     const errBody = await createRes.text();
@@ -197,6 +238,163 @@ async function findOrCreateContact(
 
   const createData = await createRes.json();
   return { contactId: createData.id, created: true };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Ensure critical _fx properties on Contact
+// Runs ALWAYS — even if contactId was already known.
+// Uses GET /contacts/{id} (NOT search by hs_object_id).
+// Casing: Contact tipo_persona_fx = UPPERCASE (NATURAL/JURIDICA)
+//         Deal tipo_persona_fx = lowercase (natural/juridica)
+// ═══════════════════════════════════════════════════════════
+
+async function ensureContactFxProps(
+  token: string,
+  contactId: string,
+  q: QuotationRow,
+  macroName: string,
+): Promise<EnsureContactResult> {
+  const dbValues = {
+    buyerDocNumber: q.buyer_doc_number ? String(q.buyer_doc_number) : null,
+    buyerDocType: q.buyer_doc_type ? String(q.buyer_doc_type) : null,
+    buyerTipoPersona: q.buyer_tipo_persona ? String(q.buyer_tipo_persona) : null,
+  };
+
+  // 1. Read current contact state via GET (not search)
+  const propertiesQuery = CONTACT_FX_PROPERTIES.join(',');
+  const getRes = await fetch(
+    `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(contactId)}?properties=${encodeURIComponent(propertiesQuery)}`,
+    { method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  if (!getRes.ok) {
+    const getErr = await readHubSpotError(getRes);
+    return {
+      ok: false,
+      contactId,
+      attempted: {},
+      failed: [...CRITICAL_CONTACT_PROPS],
+      failedCritical: [...CRITICAL_CONTACT_PROPS],
+      bulkStatus: getRes.status,
+      bulkError: `Contact GET failed: ${getErr}`,
+      individual: {},
+      dbValues,
+    };
+  }
+
+  const getData = await getRes.json();
+  const props: Record<string, string | null | undefined> = getData.properties ?? {};
+
+  // 2. Build update — only fill empty fields (never overwrite)
+  const macroSlug = macroNameToHubSpotSlug(macroName);
+
+  const updateProps: Record<string, string> = {
+    proyecto_activo_fx: macroSlug,
+  };
+
+  const currentList = props.lista_proyectos_fx || '';
+  const projectsSet = new Set(currentList.split(';').map((s: string) => s.trim()).filter(Boolean));
+  projectsSet.add(macroSlug);
+  updateProps.lista_proyectos_fx = [...projectsSet].join(';');
+
+  if (!props.canal_atribucion_fx) {
+    updateProps.canal_atribucion_fx = 'sala_de_ventas_fisica';
+  }
+
+  // Critical props — normalized values
+  if (!props.cedula_fx && dbValues.buyerDocNumber) {
+    updateProps.cedula_fx = dbValues.buyerDocNumber;
+  }
+
+  const tipoDocumento = normalizeTipoDocumentoForHubSpot(dbValues.buyerDocType);
+  if (!props.tipo_documento_fx && tipoDocumento) {
+    updateProps.tipo_documento_fx = tipoDocumento;
+  }
+
+  if (!props.tipo_persona_fx) {
+    updateProps.tipo_persona_fx = normalizeTipoPersonaContactForHubSpot(dbValues.buyerTipoPersona);
+  }
+
+  // 2b. Pre-flight: are critical values available?
+  const missingCriticalFromDb: ContactCriticalProp[] = [];
+  if (!updateProps.cedula_fx && !props.cedula_fx) missingCriticalFromDb.push('cedula_fx');
+  if (!updateProps.tipo_documento_fx && !props.tipo_documento_fx) missingCriticalFromDb.push('tipo_documento_fx');
+  if (!updateProps.tipo_persona_fx && !props.tipo_persona_fx) missingCriticalFromDb.push('tipo_persona_fx');
+
+  if (missingCriticalFromDb.length > 0) {
+    return {
+      ok: false,
+      contactId,
+      attempted: updateProps,
+      failed: missingCriticalFromDb,
+      failedCritical: missingCriticalFromDb,
+      bulkStatus: 0,
+      bulkError: `Missing critical buyer DB values or invalid mapping: ${missingCriticalFromDb.join(', ')}`,
+      individual: {},
+      dbValues,
+    };
+  }
+
+  // 3. Bulk PATCH
+  const patchRes = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(contactId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ properties: updateProps }),
+  });
+
+  if (patchRes.ok) {
+    return { ok: true, contactId, attempted: updateProps, failed: [], failedCritical: [], bulkStatus: patchRes.status, individual: {}, dbValues };
+  }
+
+  // 4. Bulk failed → try one-by-one
+  const bulkError = await readHubSpotError(patchRes);
+  console.warn(`[deal] Contact bulk PATCH failed (${patchRes.status}): ${bulkError}`);
+
+  const failed: string[] = [];
+  const individual: Record<string, ContactPatchAttempt> = {};
+
+  for (const [propertyName, propertyValue] of Object.entries(updateProps)) {
+    const singleRes = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(contactId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ properties: { [propertyName]: propertyValue } }),
+    });
+
+    if (singleRes.ok) {
+      individual[propertyName] = { ok: true, status: singleRes.status };
+    } else {
+      const singleError = await readHubSpotError(singleRes);
+      failed.push(propertyName);
+      individual[propertyName] = { ok: false, status: singleRes.status, error: singleError };
+    }
+  }
+
+  const failedCritical = failed.filter(k => (CRITICAL_CONTACT_PROPS as readonly string[]).includes(k));
+  return { ok: failedCritical.length === 0, contactId, attempted: updateProps, failed, failedCritical, bulkStatus: patchRes.status, bulkError, individual, dbValues };
+}
+
+// ═══════════════════════════════════════════════════════════
+// Deal debug — read back critical props after creation
+// ═══════════════════════════════════════════════════════════
+
+async function readDealDebugProps(
+  token: string,
+  dealId: string,
+): Promise<Record<string, unknown>> {
+  const props = ['numero_documento_fx', 'tipo_identificacion_fx', 'tipo_persona_fx', 'writeback_status_fx'].join(',');
+  try {
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/deals/${encodeURIComponent(dealId)}?properties=${encodeURIComponent(props)}`,
+      { method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: await readHubSpotError(res) };
+    }
+    const data = await res.json();
+    return { ok: true, id: data.id, properties: data.properties ?? {} };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -254,17 +452,67 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!contactId && quotation.buyer_email) {
     try {
-      const result = await findOrCreateContact(token, quotation, String(quotation.macro_name));
+      const phone = quotation.buyer_phone ? `${quotation.buyer_phone_cc || '+57'}${quotation.buyer_phone}` : '';
+      const result = await findOrCreateContact(
+        token,
+        String(quotation.buyer_email),
+        String(quotation.buyer_name || ''),
+        String(quotation.buyer_lastname || ''),
+        phone,
+      );
       contactId = result.contactId;
       contactCreated = result.created;
 
       // Persist contact ID back to quotation
       await sql`UPDATE quotations SET hubspot_contact_id = ${contactId} WHERE id = ${quotation.id}`;
     } catch (err) {
-      // Contact failure is non-fatal — Deal still gets created, but we surface the error
       contactError = err instanceof Error ? err.message : String(err);
       console.warn(`[deal] Contact find/create failed (non-fatal): ${contactError}`);
     }
+  }
+
+  // ── 2b. Ensure critical _fx properties on contact (ALWAYS — fail-hard) ──
+  let contactFxResult: EnsureContactResult | null = null;
+
+  if (contactId) {
+    contactFxResult = await ensureContactFxProps(
+      token,
+      contactId,
+      quotation,
+      String(quotation.macro_name || ''),
+    );
+
+    if (!contactFxResult.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'HUBSPOT_CONTACT_CRITICAL_PROPS_FAILED',
+            message: `No se pudieron escribir propiedades críticas del contacto: ${contactFxResult.failedCritical.join(', ')}. El deal NO fue creado.`,
+          },
+          contactFx: contactFxResult,
+        },
+        { status: 502, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+  } else {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'HUBSPOT_CONTACT_NOT_RESOLVED',
+          message: 'No se pudo resolver o crear el contacto de HubSpot. El deal NO fue creado.',
+        },
+        contactFx: null,
+        dbValues: {
+          buyerEmail: quotation.buyer_email ?? null,
+          buyerDocNumber: quotation.buyer_doc_number ?? null,
+          buyerDocType: quotation.buyer_doc_type ?? null,
+          buyerTipoPersona: quotation.buyer_tipo_persona ?? null,
+        },
+      },
+      { status: 502, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 
   // ── 3. Build deal properties ──
@@ -317,6 +565,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     tipo_venta_fx: saleTypeValue,
     numero_documento_fx: quotation.buyer_doc_number,
+    tipo_persona_fx: normalizeTipoPersonaDealForHubSpot(quotation.buyer_tipo_persona),
+    tipo_identificacion_fx: String(quotation.buyer_doc_type || 'CC').toUpperCase(),
     origen_fx: 'cotizador',
     pdf_cotizacion_url_fx: `${baseUrl}/api/engine/quotations/pdf?clientId=${clientId}&cotNumber=${cotNumber}`,
     fecha_creacion_cotizacion_fx: toMidnightUtc(quotation.created_at),
@@ -447,7 +697,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error(`[deal] DB update error: ${err instanceof Error ? err.message : err}`);
   }
 
-  // ── 7. Response ──
+  // ── 7. Read-back deal debug props ──
+  const dealDebugProps = await readDealDebugProps(token, hubspotDealId);
+
+  // ── 8. Response ──
   const dealUrl = `https://app.hubspot.com/contacts/${clientConfig.hubspotPortalId}/deal/${hubspotDealId}`;
 
   return NextResponse.json(
@@ -461,6 +714,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         contactError,
         cotNumber,
         dealName: dealProperties.dealname,
+        contactFx: contactFxResult,
+        buyerDbValues: {
+          buyerDocNumber: quotation.buyer_doc_number ?? null,
+          buyerDocType: quotation.buyer_doc_type ?? null,
+          buyerTipoPersona: quotation.buyer_tipo_persona ?? null,
+        },
+        dealDebugProps,
         pdfUpload: {
           status: pdfUploadStatus,
           fileId: pdfHubspotFileId,
