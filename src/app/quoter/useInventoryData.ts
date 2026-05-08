@@ -150,6 +150,20 @@ interface ApiSelectableUnit {
   esPrincipal: boolean;
 }
 
+interface ApiQuarantinedGridItem {
+  sincoId: number;
+  nombre: string;
+  numero: string;
+  piso: number;
+  pos: string;
+  area: number | null;
+  estado: 'necesita_info';
+  code: string;
+  reason: string;
+  missingFields: string[];
+  projectSincoId: number;
+}
+
 interface ApiProject {
   hubspotId: string;
   sincoId: number;
@@ -161,6 +175,7 @@ interface ApiProject {
   codigo: string;
   selectionMode: 'agrupacion' | 'unidad';
   selectableItems: ApiSelectableUnit[];
+  quarantinedGridItems: ApiQuarantinedGridItem[];
   config: ApiProjectConfig;
 }
 
@@ -232,6 +247,8 @@ export interface InventoryData {
   getConfig: (torreId: number) => UIConfig;
   /** Canales de atribución dinámicos */
   canalesAtribucion: UICanal[];
+  /** Unidades en cuarentena con coordenadas de grid (visibles pero NO cotizables) */
+  getQuarantinedGridItems: (torreId: number) => ApiQuarantinedGridItem[];
   /** Warnings/diagnóstico del backend */
   warnings: ApiWarnings | null;
 }
@@ -303,6 +320,7 @@ function transformResponse(res: ApiInventoryResponse): InventoryData {
   const parkingByTorre: Record<number, UIUnit[]> = {};
   const storageByTorre: Record<number, UIUnit[]> = {};
   const configByTorre: Record<number, UIConfig> = {};
+  const quarantinedByTorre: Record<number, ApiQuarantinedGridItem[]> = {};
 
   for (const m of res.macros) {
     const torres: UITorre[] = [];
@@ -332,6 +350,9 @@ function transformResponse(res: ApiInventoryResponse): InventoryData {
       const pKey = String(torreId);
       parkingByTorre[torreId] = (res.parking[pKey] ?? []).map(apiUnitToUI);
       storageByTorre[torreId] = (res.storage[pKey] ?? []).map(apiUnitToUI);
+
+      // Quarantined grid items (visibles en grid, NO cotizables)
+      quarantinedByTorre[torreId] = p.quarantinedGridItems ?? [];
 
       // Config
       configByTorre[torreId] = {
@@ -365,6 +386,7 @@ function transformResponse(res: ApiInventoryResponse): InventoryData {
     getUnits: (torreId: number) => unitsByTorre[torreId] ?? [],
     getParking: (torreId: number) => parkingByTorre[torreId] ?? [],
     getStorage: (torreId: number) => storageByTorre[torreId] ?? [],
+    getQuarantinedGridItems: (torreId: number) => quarantinedByTorre[torreId] ?? [],
     getConfig: (torreId: number) => {
       const cfg = configByTorre[torreId];
       if (!cfg) {

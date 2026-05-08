@@ -49,7 +49,7 @@ const ASESORES = [
 ];
 
 // ── ESTADOS — lowercase strings matching endpoint output ──
-const ESTADOS = { D: "disponible", B: "bloqueada", V: "vendida", C: "cotizada" };
+const ESTADOS = { D: "disponible", B: "bloqueada", V: "vendida", C: "cotizada", N: "necesita_info" };
 
 // ── CONSECUTIVE QUOTATION NUMBER GENERATOR ──
 // Format: COT-{CÓDIGO_PROYECTO}-{AAMM}-{SECUENCIAL_4DIG}
@@ -73,8 +73,8 @@ function generateCotNumber(torre: any) {
 // ── HELPERS ──
 const fmt = n => new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",minimumFractionDigits:0,maximumFractionDigits:0}).format(n);
 const fmtS = n => { if(n>=1e9) return `$${(n/1e9).toFixed(1)}B`; if(n>=1e6) return `$${Math.round(n/1e6)}M`; return fmt(n); };
-const eColor = e => e===ESTADOS.D?"#16A34A":e===ESTADOS.B?"#D97706":e===ESTADOS.C?"#2563EB":"#DC2626";
-const eLabel = e => e===ESTADOS.D?"Disponible":e===ESTADOS.B?"Bloqueada":e===ESTADOS.C?"Cotizada":"Vendida";
+const eColor = e => e===ESTADOS.N?"#9333EA":e===ESTADOS.D?"#16A34A":e===ESTADOS.B?"#D97706":e===ESTADOS.C?"#2563EB":"#DC2626";
+const eLabel = e => e===ESTADOS.N?"Necesita Info":e===ESTADOS.D?"Disponible":e===ESTADOS.B?"Bloqueada":e===ESTADOS.C?"Cotizada":"Vendida";
 const validatePhone = (num: string, country: any) => { const digits = num.replace(/\D/g,""); return digits.length === country.len; };
 const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 // ── Safe parser for tipoPersona from external sources (stable — outside component) ──
@@ -186,6 +186,7 @@ export default function QuoterClient() {
   const getUnits = (torreId: number) => inventory?.getUnits(torreId) ?? [];
   const getParking = (torreId: number) => inventory?.getParking(torreId) ?? [];
   const getStorage = (torreId: number) => inventory?.getStorage(torreId) ?? [];
+  const getQuarantinedGridItems = (torreId: number) => inventory?.getQuarantinedGridItems(torreId) ?? [];
   const getConfig = (torreId: number): UIConfig => inventory?.getConfig(torreId) ?? {
     // Pre-fetch fallback — matches DEFAULT_CONFIG in useInventoryData.
     // Once inventory loads, getConfig always returns real config or hook's DEFAULT_CONFIG.
@@ -364,27 +365,42 @@ export default function QuoterClient() {
   const parking = torre ? getParking(torre.id) : [];
   const storage = torre ? getStorage(torre.id) : [];
 
+  // Quarantined grid items — visibles pero NO cotizables (DATA-3)
+  const quarantinedItems = torre ? getQuarantinedGridItems(torre.id) : [];
+
   const filtered = useMemo(()=>units.filter(u=>{
     if(filterPiso!=="all"&&u.piso!==+filterPiso) return false;
     if(filterTipo!=="all"&&u.tipologia!==filterTipo) return false;
     if(filterHabs!=="all"&&u.habs!==+filterHabs) return false;
     return true;
   }),[units,filterPiso,filterTipo,filterHabs]);
-  const pisos = useMemo(()=>Array.from(new Set(units.map((u:any)=>u.piso))).sort((a:any,b:any)=>a-b),[units]);
+  const pisos = useMemo(()=>{
+    const all = [...units.map((u:any)=>u.piso), ...quarantinedItems.filter(q=>q.piso>0).map(q=>q.piso)];
+    return Array.from(new Set(all)).sort((a:any,b:any)=>a-b);
+  },[units, quarantinedItems]);
   const tipos = useMemo(()=>Array.from(new Set(units.map((u:any)=>u.tipologia))).sort(),[units]);
   const habsOpts = useMemo(()=>Array.from(new Set(units.map((u:any)=>u.habs))).sort((a:any,b:any)=>a-b),[units]);
 
   // Tower grid: build a map of floor-pos → unit
   const TOWER_FLOORS = useMemo(()=>pisos.slice().sort((a,b)=>b-a),[pisos]); // descending
   const TOWER_POSITIONS = useMemo(()=>{
-    const positions = Array.from(new Set(units.map((u:any)=>u.pos).filter(Boolean))).sort();
+    const allPos = [...units.map((u:any)=>u.pos), ...quarantinedItems.filter(q=>q.piso>0).map(q=>q.pos)];
+    const positions = Array.from(new Set(allPos.filter(Boolean))).sort();
     return positions.length > 0 ? positions : ["01","02","03","04"];
-  },[units]);
+  },[units, quarantinedItems]);
+
   const unitMap = useMemo(()=>{
     const m = {};
     units.forEach(u => { if(u.pos) m[`${u.piso}-${u.pos}`] = u; });
+    // Merge quarantined items for RENDER ONLY — never for selection
+    quarantinedItems.forEach(q => {
+      const key = `${q.piso}-${q.pos}`;
+      if (!m[key] && q.piso > 0) {
+        m[key] = { ...q, id: q.sincoId, tipologia: '—', habs: 0, banos: 0, precio: 0, tipo_inmueble: 'APT', hubspotId: '', esPrincipal: false };
+      }
+    });
     return m;
-  },[units]);
+  },[units, quarantinedItems]);
 
   // PDF / Print
   const handlePrint = () => {
@@ -739,6 +755,7 @@ export default function QuoterClient() {
                 const disp = tu.filter(u=>u.estado===ESTADOS.D).length;
                 const vend = tu.filter(u=>u.estado===ESTADOS.V).length;
                 const pctVend = tu.length>0 ? Math.round(vend/tu.length*100) : 0;
+                const qCount = getQuarantinedGridItems(t.id).length;
                 return (
                   <div key={t.id} onClick={()=>{if(!isEmpty){setTorre(t);setSelectedUnit(null);setSelectedParking([]);setSelectedStorage([]);}}}
                     style={{ ...S.card, padding:24, cursor:isEmpty?"not-allowed":"pointer", borderColor:sel?C.gold:C.border, background:sel?C.goldBg:isEmpty?"#F5F3EE":C.white, opacity:isEmpty?.55:1, transition:"all .2s" }}>
@@ -765,6 +782,11 @@ export default function QuoterClient() {
                       <div><span style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Desde </span><span style={{ fontSize:18, fontWeight:600, color:C.gold, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{fmtS(t.precioDesde)}</span></div>
                       <span style={S.tag(C.greenBg, C.green, C.greenBorder)}>{disp} disp.</span>
                     </div>
+                    {qCount > 0 && (
+                      <div style={{ marginTop:8, padding:"6px 10px", background:"#F5F3FF", borderRadius:6, border:"1px solid #C4B5FD", fontSize:11, color:"#9333EA", fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", fontWeight:500 }}>
+                        ⚠ {qCount} {qCount===1?"unidad necesita":"unidades necesitan"} información
+                      </div>
+                    )}
                     </Fragment>
                     )}
                   </div>
@@ -826,6 +848,7 @@ export default function QuoterClient() {
                   <div style={{ display:"flex", gap:16, fontSize:11, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.greenBg, border:`2px solid ${C.green}` }}/> Disponible</span>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.redBg, border:`2px solid ${C.red}` }}/> Vendida</span>
+                    <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:"#F5F3FF", border:`2px solid #9333EA`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:8 }}>⚠</span> Necesita Info</span>
                     <span style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:14, height:14, borderRadius:3, background:C.borderLight, border:`1px solid ${C.border}` }}/> Sin data</span>
                   </div>
                 </div>
@@ -846,24 +869,32 @@ export default function QuoterClient() {
                           const unit = unitMap[key];
                           if(!unit) return <div key={pos} style={{ width:36, height:30, background:C.borderLight, borderRadius:4, border:`1px solid ${C.border}` }} />;
                           const isDisp = unit.estado===ESTADOS.D;
+                          const isQuarantine = unit.estado===ESTADOS.N;
                           const isHov = hoveredUnit?.id===unit.id;
                           const isSel = selectedUnit?.id===unit.id;
+                          // Colors based on state
+                          const cellBg = isQuarantine ? "#F5F3FF" : isDisp ? C.greenBg : C.redBg;
+                          const cellBorder = isQuarantine ? "#C4B5FD" : isDisp ? C.greenBorder : C.redBorder;
+                          const cellHoverBorder = isQuarantine ? "#9333EA" : isDisp ? C.green : C.red;
                           return (
                             <div key={pos}
                               onMouseEnter={()=>setHoveredUnit(unit)}
                               onMouseLeave={()=>setHoveredUnit(null)}
-                              onClick={()=>{ if(isDisp){setSelectedUnit(unit);setStep(4);} }}
+                              onClick={()=>{ if(isQuarantine) return; if(isDisp){setSelectedUnit(unit);setStep(4);} }}
                               style={{
                                 width:36, height:30, borderRadius:4,
                                 cursor: isDisp ? "pointer" : "default",
-                                background: isDisp ? C.greenBg : C.redBg,
-                                border: isSel ? `2.5px solid ${C.gold}` : isHov ? `2px solid ${isDisp?C.green:C.red}` : `1.5px solid ${isDisp?C.greenBorder:C.redBorder}`,
+                                background: cellBg,
+                                border: isSel ? `2.5px solid ${C.gold}` : isHov ? `2px solid ${cellHoverBorder}` : `1.5px solid ${cellBorder}`,
                                 transition:"all 0.12s ease",
                                 transform: isHov ? "scale(1.15)" : "scale(1)",
                                 zIndex: isHov ? 2 : 1,
                                 position:"relative",
+                                display:"flex", alignItems:"center", justifyContent:"center",
                               }}
-                            />
+                            >
+                              {isQuarantine && <span style={{ fontSize:12, color:"#9333EA" }}>⚠</span>}
+                            </div>
                           );
                         })}
                       </div>
@@ -872,23 +903,44 @@ export default function QuoterClient() {
                 </div>
                 {/* Hover detail bar */}
                 {hoveredUnit && (
-                  <div style={{ marginTop:14, padding:"12px 16px", background:C.goldBg, borderRadius:8, border:`1px solid ${C.goldBorder}`, display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
-                    {[
-                      {l:"Unidad", v:`APT-${hoveredUnit.numero}`, bold:true},
-                      {l:"Piso", v:hoveredUnit.piso},
-                      {l:"Área", v:`${hoveredUnit.area} m²`},
-                      {l:"Tipo", v:hoveredUnit.tipologia},
-                      {l:"Precio", v:fmtS(hoveredUnit.precio)},
-                      {l:"Estado", v:eLabel(hoveredUnit.estado), c:eColor(hoveredUnit.estado)},
-                      {l:"ID Sinco", v:hoveredUnit.sincoId||hoveredUnit.id},
-                    ].map((d,i)=>(
-                      <div key={i}>
-                        <div style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.l}</div>
-                        <div style={{ fontSize:d.bold?15:13, fontWeight:d.bold?700:600, color:d.c||C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.v}</div>
-                      </div>
-                    ))}
-                    {hoveredUnit.estado===ESTADOS.D && (
-                      <button style={{...S.btn("sm"), marginLeft:"auto"}} onClick={()=>{setSelectedUnit(hoveredUnit);setStep(4);}}>Seleccionar →</button>
+                  <div style={{ marginTop:14, padding:"12px 16px", background: hoveredUnit.estado===ESTADOS.N ? "#F5F3FF" : C.goldBg, borderRadius:8, border:`1px solid ${hoveredUnit.estado===ESTADOS.N ? "#C4B5FD" : C.goldBorder}`, display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
+                    {hoveredUnit.estado===ESTADOS.N ? (
+                      <>
+                        {[
+                          {l:"Unidad", v:`APT-${hoveredUnit.numero}`, bold:true},
+                          {l:"Piso", v:hoveredUnit.piso},
+                          {l:"Área", v:hoveredUnit.area ? `${hoveredUnit.area} m²` : "—"},
+                          {l:"Estado", v:"Necesita Info", c:"#9333EA"},
+                        ].map((d,i)=>(
+                          <div key={i}>
+                            <div style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.l}</div>
+                            <div style={{ fontSize:d.bold?15:13, fontWeight:d.bold?700:600, color:d.c||C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.v}</div>
+                          </div>
+                        ))}
+                        <div style={{ marginLeft:"auto", fontSize:12, color:"#9333EA", fontWeight:600, fontStyle:"italic", maxWidth:280 }}>
+                          ⚠ {hoveredUnit.reason || "Esta unidad necesita información para poder ser cotizada"}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {[
+                          {l:"Unidad", v:`APT-${hoveredUnit.numero}`, bold:true},
+                          {l:"Piso", v:hoveredUnit.piso},
+                          {l:"Área", v:`${hoveredUnit.area} m²`},
+                          {l:"Tipo", v:hoveredUnit.tipologia},
+                          {l:"Precio", v:fmtS(hoveredUnit.precio)},
+                          {l:"Estado", v:eLabel(hoveredUnit.estado), c:eColor(hoveredUnit.estado)},
+                          {l:"ID Sinco", v:hoveredUnit.sincoId||hoveredUnit.id},
+                        ].map((d,i)=>(
+                          <div key={i}>
+                            <div style={{ fontSize:9, letterSpacing:"1.5px", textTransform:"uppercase", color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.l}</div>
+                            <div style={{ fontSize:d.bold?15:13, fontWeight:d.bold?700:600, color:d.c||C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{d.v}</div>
+                          </div>
+                        ))}
+                        {hoveredUnit.estado===ESTADOS.D && (
+                          <button style={{...S.btn("sm"), marginLeft:"auto"}} onClick={()=>{setSelectedUnit(hoveredUnit);setStep(4);}}>Seleccionar →</button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

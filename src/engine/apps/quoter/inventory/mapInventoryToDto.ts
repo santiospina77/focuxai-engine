@@ -42,6 +42,7 @@ import type {
   SkippedProjectDetail,
   ClientOverlayConfig,
   QuarantinedInventoryItem,
+  QuarantinedGridItem,
 } from './types';
 
 import { fetchAllPages } from './fetchAllPages';
@@ -350,6 +351,7 @@ export async function mapInventoryToDto(
       const parkUnits: SelectableUnit[] = [];
       const storUnits: SelectableUnit[] = [];
       const allAptAreas: number[] = [];
+      const projQuarantinedGrid: QuarantinedGridItem[] = [];
 
       for (const uRec of projUnitsFiltered) {
         const uId = tryNum(uRec, 'id_sinco_fx');
@@ -374,6 +376,18 @@ export async function mapInventoryToDto(
             reason: `tipo_unidad no matchea ninguna categoría conocida`,
             source: 'inventory_validation',
           });
+          // Grid visibility: parsear coordenadas para que el asesor vea la unidad
+          const qParsed = parseUnitName(uNombre);
+          if (qParsed.piso > 0) {
+            projQuarantinedGrid.push({
+              sincoId: uId, nombre: uNombre, numero: qParsed.numero,
+              piso: qParsed.piso, pos: qParsed.pos,
+              area: num(uRec, 'area_construida_fx') || null,
+              estado: 'necesita_info', code: 'INVALID_TYPE',
+              reason: 'Tipo de unidad no reconocido',
+              missingFields: ['tipo_unidad'], projectSincoId: projId,
+            });
+          }
           continue;
         }
 
@@ -393,6 +407,15 @@ export async function mapInventoryToDto(
               reason: `area_construida_fx=${area} inválida`,
               source: 'inventory_validation',
             });
+            if (parsed.piso > 0) {
+              projQuarantinedGrid.push({
+                sincoId: uId, nombre: uNombre, numero: parsed.numero,
+                piso: parsed.piso, pos: parsed.pos,
+                area: area || null, estado: 'necesita_info', code: 'INVALID_VALUE',
+                reason: 'Área construida inválida o no registrada',
+                missingFields: ['area_construida'], projectSincoId: projId,
+              });
+            }
             continue;
           }
           if (uEstado === 'disponible' && precio <= 0) {
@@ -402,6 +425,15 @@ export async function mapInventoryToDto(
               reason: `precio_lista_fx=${precio} inválido para unidad disponible`,
               source: 'inventory_validation',
             });
+            if (parsed.piso > 0) {
+              projQuarantinedGrid.push({
+                sincoId: uId, nombre: uNombre, numero: parsed.numero,
+                piso: parsed.piso, pos: parsed.pos,
+                area: area || null, estado: 'necesita_info', code: 'INVALID_VALUE',
+                reason: 'Precio no registrado para unidad disponible',
+                missingFields: ['precio_lista'], projectSincoId: projId,
+              });
+            }
             continue;
           }
           const fbResult = resolveUnitFallbacks(area, undefined, num(uRec, 'alcobas_fx') || null, num(uRec, 'banos_fx') || null, projRules);
@@ -413,6 +445,15 @@ export async function mapInventoryToDto(
               reason: fbResult.error.message,
               source: 'typology_resolution',
             });
+            if (parsed.piso > 0) {
+              projQuarantinedGrid.push({
+                sincoId: uId, nombre: uNombre, numero: parsed.numero,
+                piso: parsed.piso, pos: parsed.pos,
+                area: area || null, estado: 'necesita_info', code: 'FALLBACK_ERROR',
+                reason: 'Error al resolver tipología de la unidad',
+                missingFields: ['tipologia', 'habs', 'banos'], projectSincoId: projId,
+              });
+            }
             continue;
           }
           const fb = fbResult.value;
@@ -425,6 +466,16 @@ export async function mapInventoryToDto(
               reason: `area=${area} no matchea ninguna regla de tipología`,
               source: 'typology_resolution',
             });
+            if (parsed.piso > 0) {
+              projQuarantinedGrid.push({
+                sincoId: uId, nombre: uNombre, numero: parsed.numero,
+                piso: parsed.piso, pos: parsed.pos,
+                area: area || null, estado: 'necesita_info', code: 'UNMAPPED_AREA',
+                reason: `Área ${area} m² no corresponde a ninguna tipología configurada`,
+                missingFields: fb.fallbackFields as string[],
+                projectSincoId: projId,
+              });
+            }
             continue;
           }
           tipologia = fb.tipologia;
@@ -615,6 +666,7 @@ export async function mapInventoryToDto(
         codigo: ov.codigo,
         selectionMode,
         selectableItems,
+        quarantinedGridItems: projQuarantinedGrid,
         config,
       });
     }

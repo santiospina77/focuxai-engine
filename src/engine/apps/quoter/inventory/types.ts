@@ -71,6 +71,34 @@ export interface QuarantinedInventoryItem {
 }
 
 // ═══════════════════════════════════════════════════════════
+// QuarantinedGridItem — Unidades visibles en grid pero NO cotizables
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Unidad en cuarentena con coordenadas de grid para render visual.
+ *
+ * CONTRATO (Architect DATA-3 v2):
+ *   - Visible en el grid con estado 'necesita_info' (#9333EA purple ⚠)
+ *   - NO seleccionable, NO genera PDF, NO genera Deal
+ *   - Hover muestra tooltip con reason (texto comercial, NO técnico)
+ *   - Vive a nivel de ProjectDto, NO en selectableItems
+ *   - Si parseUnitName no puede resolver coordenadas → solo audit report, NO grid
+ */
+export interface QuarantinedGridItem {
+  readonly sincoId: number;
+  readonly nombre: string;
+  readonly numero: string;
+  readonly piso: number;
+  readonly pos: string;
+  readonly area: number | null;
+  readonly estado: 'necesita_info';
+  readonly code: QuarantineCode;
+  readonly reason: string;
+  readonly missingFields: readonly string[];
+  readonly projectSincoId: number;
+}
+
+// ═══════════════════════════════════════════════════════════
 // Macro (Macroproyecto)
 // ═══════════════════════════════════════════════════════════
 
@@ -120,6 +148,16 @@ export interface ProjectDto {
    * NUNCA decide por su cuenta si leer de unidades o agrupaciones.
    */
   readonly selectableItems: readonly SelectableUnit[];
+  /**
+   * Unidades en cuarentena con coordenadas para render en grid visual.
+   *
+   * CONTRATO (Architect DATA-3 v2):
+   *   - Visibles en grid como purple ⚠ "necesita_info"
+   *   - NO cotizables, NO clickables
+   *   - Separadas de selectableItems — NUNCA mezclar
+   *   - El frontend hace merge solo para render, NUNCA para selección
+   */
+  readonly quarantinedGridItems: readonly QuarantinedGridItem[];
   readonly config: ProjectConfig;
 }
 
