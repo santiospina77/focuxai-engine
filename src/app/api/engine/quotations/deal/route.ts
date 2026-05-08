@@ -582,6 +582,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     valor_exclusiones_fx: 0,
 
     ...(quotation.observaciones ? { observaciones_venta_fx: String(quotation.observaciones).slice(0, 5000) } : {}),
+
+    // WB-3: Sinco ID mirror props — solo si existen en la cotización
+    ...(quotation.sinco_agrupacion_id
+      ? { id_agrupacion_sinco_fx: String(quotation.sinco_agrupacion_id) }
+      : {}),
+    ...(quotation.sinco_proyecto_id
+      ? { id_proyecto_sinco_fx: String(quotation.sinco_proyecto_id) }
+      : {}),
+    // sinco_unidad_id se guarda en DB para trazabilidad pero NO se escribe al Deal
+    // porque id_unidad_sinco_fx no existe aún en HubSpot
   };
 
   // ── Inmueble (duplicadas de Unidad → Deal para tarjeta CRM) ──
@@ -697,8 +707,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error(`[deal] DB update error: ${err instanceof Error ? err.message : err}`);
   }
 
-  // ── 7. Read-back deal debug props ──
-  const dealDebugProps = await readDealDebugProps(token, hubspotDealId);
+  // ── 7. Debug gate (WB-3) ──
+  const debugEnabled =
+    request.nextUrl.searchParams.get('debug') === 'true' &&
+    process.env.ENABLE_DEBUG_RESPONSES === 'true';
+
+  // Only call HubSpot read-back in debug mode (saves 1 API call in production)
+  const dealDebugProps = debugEnabled
+    ? await readDealDebugProps(token, hubspotDealId)
+    : null;
 
   // ── 8. Response ──
   const dealUrl = `https://app.hubspot.com/contacts/${clientConfig.hubspotPortalId}/deal/${hubspotDealId}`;
@@ -714,13 +731,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         contactError,
         cotNumber,
         dealName: dealProperties.dealname,
-        contactFx: contactFxResult,
-        buyerDbValues: {
-          buyerDocNumber: quotation.buyer_doc_number ?? null,
-          buyerDocType: quotation.buyer_doc_type ?? null,
-          buyerTipoPersona: quotation.buyer_tipo_persona ?? null,
-        },
-        dealDebugProps,
         pdfUpload: {
           status: pdfUploadStatus,
           fileId: pdfHubspotFileId,
@@ -728,6 +738,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           url: pdfHubspotUrl,
           error: pdfUploadError,
         },
+        // Debug-only fields — never in production unless ENABLE_DEBUG_RESPONSES=true
+        ...(debugEnabled ? {
+          contactFx: contactFxResult,
+          buyerDbValues: {
+            buyerDocNumber: quotation.buyer_doc_number ?? null,
+            buyerDocType: quotation.buyer_doc_type ?? null,
+            buyerTipoPersona: quotation.buyer_tipo_persona ?? null,
+          },
+          dealDebugProps,
+          quotationSincoIds: {
+            sincoAgrupacionId: quotation.sinco_agrupacion_id,
+            sincoUnidadId: quotation.sinco_unidad_id,
+            sincoProyectoId: quotation.sinco_proyecto_id,
+          },
+        } : {}),
       },
     },
     { status: 201, headers: { 'Cache-Control': 'no-store' } },

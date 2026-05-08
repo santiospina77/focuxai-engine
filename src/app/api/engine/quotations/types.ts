@@ -39,6 +39,12 @@ export interface QuotationInput {
     storage: Array<{ numero: string; price: number }>;
     includesParking: boolean;
     includesStorage: boolean;
+    /** ID agrupación Sinco — solo cuando selectionMode='agrupacion' */
+    sincoAgrupacionId?: number | null;
+    /** ID unidad Sinco — solo cuando selectionMode='unidad' */
+    sincoUnidadId?: number | null;
+    /** ID proyecto Sinco — siempre disponible (= torre.sincoId) */
+    sincoProyectoId?: number | null;
   };
 
   // Asesor
@@ -135,6 +141,10 @@ export interface QuotationRow {
   bonuses: unknown[];
   observaciones: string | null;
   config_snapshot: Record<string, unknown>;
+  // Sinco ERP IDs (WB-3)
+  sinco_agrupacion_id: number | null;
+  sinco_unidad_id: number | null;
+  sinco_proyecto_id: number | null;
   status: string;
   hubspot_deal_id: string | null;
   deal_created_at: string | null;

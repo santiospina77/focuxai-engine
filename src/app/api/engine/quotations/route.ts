@@ -70,6 +70,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   const buyerTipoPersona = parsedTipoPersona.data;
 
+  // ── Validate + parse Sinco IDs (WB-3) ──
+  const OptionalPositiveInt = z.number().int().positive().nullable().optional().default(null);
+  const sincoAgrupacionId = OptionalPositiveInt.safeParse(property.sincoAgrupacionId ?? null);
+  const sincoUnidadId = OptionalPositiveInt.safeParse(property.sincoUnidadId ?? null);
+  const sincoProyectoId = OptionalPositiveInt.safeParse(property.sincoProyectoId ?? null);
+
+  if (!sincoAgrupacionId.success) {
+    return errorResponse(400, 'INVALID_SINCO_AGRUPACION_ID', 'property.sincoAgrupacionId debe ser entero positivo o null.');
+  }
+  if (!sincoUnidadId.success) {
+    return errorResponse(400, 'INVALID_SINCO_UNIDAD_ID', 'property.sincoUnidadId debe ser entero positivo o null.');
+  }
+  if (!sincoProyectoId.success) {
+    return errorResponse(400, 'INVALID_SINCO_PROYECTO_ID', 'property.sincoProyectoId debe ser entero positivo o null.');
+  }
+
   // ── Calcular expiración ──
   const vigenciaDias = config?.vigenciaDias ?? 7;
   const expiresAt = new Date();
@@ -88,6 +104,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         unit_number, unit_tipologia, unit_piso, unit_area,
         unit_habs, unit_banos, unit_price,
         parking, storage, includes_parking, includes_storage,
+        sinco_agrupacion_id, sinco_unidad_id, sinco_proyecto_id,
         advisor_id, advisor_name,
         sale_type, subtotal, discount_commercial, discount_financial,
         total_discounts, net_value, separation_amount,
@@ -106,6 +123,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ${property.unitHabs ?? null}, ${property.unitBanos ?? null}, ${property.unitPrice},
         ${JSON.stringify(property.parking)}, ${JSON.stringify(property.storage)},
         ${property.includesParking}, ${property.includesStorage},
+        ${sincoAgrupacionId.data}, ${sincoUnidadId.data}, ${sincoProyectoId.data},
         ${advisor.id}, ${advisor.name},
         ${financial.saleType}, ${financial.subtotal},
         ${financial.discountCommercial}, ${financial.discountFinancial},
