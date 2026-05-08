@@ -39,6 +39,7 @@ import type {
   GroupingRecord,
   CanalOption,
   WarningsDto,
+  SkippedProjectDetail,
   ClientOverlayConfig,
   QuarantinedInventoryItem,
 } from './types';
@@ -236,6 +237,8 @@ export async function mapInventoryToDto(
   let wTipologia = 0, wHabs = 0, wBanos = 0, wPiso = 0, wUnmapped = 0;
   let wJoinsFK = 0, wJoinsNombre = 0;
   let wExcludedGroupings = 0;
+  let wUnmappedUnits = 0;
+  const skippedProjectsList: SkippedProjectDetail[] = [];
 
   const quarantinedItems: QuarantinedInventoryItem[] = [];
   const allUnidades: Record<number, SelectableUnit[]> = {};
@@ -267,25 +270,28 @@ export async function mapInventoryToDto(
       }
       const ctx = `Proyecto ${projId} ("${projNombre}")`;
 
-      // Overlay — obligatorio
+      // Overlay — si no existe, skip con warning estructurado (proyecto no configurado para cotizador)
       const ov = overlay.projects[projId];
       if (!ov) {
-        return err(ValidationError.mappingFailed(
-          `${ctx}: sin overlay config. codigo obligatorio.`,
-          { projectId: projId },
-        ));
+        logger.info({ projectId: projId, nombre: projNombre },
+          'mapInventoryToDto: proyecto sin overlay config — omitido del cotizador');
+        skippedProjectsList.push({
+          projectId: projId,
+          nombre: projNombre,
+          reason: 'MISSING_OVERLAY_CONFIG',
+        });
+        continue;
       }
       if (!ov.codigo || ov.codigo.trim().length === 0) {
         return err(ValidationError.missingField('codigo', ctx, { projectId: projId }));
       }
 
-      // Typology rules — obligatorias por proyecto
-      const projRules = typologyRules[projId];
-      if (!projRules || projRules.length === 0) {
-        return err(ValidationError.mappingFailed(
-          `${ctx}: sin typologyRules configuradas`,
-          { projectId: projId },
-        ));
+      // Typology rules — opcionales: si no existen, unidades pasan con tipología '?'
+      // y el PDF se genera sin sección de render/plano (desaparece limpiamente).
+      const projRules = typologyRules[projId] ?? [];
+      if (projRules.length === 0) {
+        logger.warn({ projectId: projId, nombre: projNombre },
+          'mapInventoryToDto: proyecto sin typologyRules — unidades pasarán con tipología "?"');
       }
 
       // agrupacionesPreestablecidas — config operativa, vive en overlay
@@ -613,6 +619,13 @@ export async function mapInventoryToDto(
       });
     }
 
+    // Macro con 0 proyectos cotizables → omitir del response (Architect: no mostrar macro vacío en UI)
+    if (proyectos.length === 0) {
+      logger.info({ macroId, nombre: macroNombre },
+        'mapInventoryToDto: macro con 0 proyectos cotizables — omitido del response');
+      continue;
+    }
+
     macros.push({
       hubspotId: macroRec.id,
       sincoId: macroId,
@@ -638,6 +651,9 @@ export async function mapInventoryToDto(
     joinsNombre: wJoinsNombre,
     excludedUnits: excludedUnitSet.size,
     excludedGroupings: wExcludedGroupings,
+    skippedProjects: skippedProjectsList.length,
+    skippedProjectDetails: skippedProjectsList,
+    unmappedUnits: wUnmapped,
   };
 
   logger.info({ warnings, quarantinedCount: quarantinedItems.length }, 'mapInventoryToDto: completed');

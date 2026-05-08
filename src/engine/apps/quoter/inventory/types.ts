@@ -205,6 +205,12 @@ export interface CanalOption {
   readonly value: string;
 }
 
+export interface SkippedProjectDetail {
+  readonly projectId: number;
+  readonly nombre: string;
+  readonly reason: 'MISSING_OVERLAY_CONFIG';
+}
+
 export interface WarningsDto {
   readonly fallbackTipologia: number;
   readonly fallbackHabs: number;
@@ -226,6 +232,12 @@ export interface WarningsDto {
   readonly excludedUnits: number;
   /** Agrupaciones excluidas en cascada (unidad principal en cuarentena) */
   readonly excludedGroupings: number;
+  /** Proyectos omitidos por falta de overlay config — no tumbaron el endpoint */
+  readonly skippedProjects: number;
+  /** Detalle de proyectos omitidos — para QA, admin y reporte de cuarentena */
+  readonly skippedProjectDetails: readonly SkippedProjectDetail[];
+  /** Unidades con unmappedArea=true por datos incompletos — no cotizables */
+  readonly unmappedUnits: number;
 }
 
 // ═══════════════════════════════════════════════════════════

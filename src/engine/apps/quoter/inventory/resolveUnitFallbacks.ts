@@ -107,6 +107,38 @@ export function resolveUnitFallbacks(
   hubspotBanos: number | null | undefined,
   rules: readonly TypologyRule[],
 ): Result<UnitFallbackResult, EngineError> {
+  // Sin reglas de tipología → evaluar si HubSpot/Sinco trae datos explícitos completos.
+  // Solo unmappedArea=false (cotizable) si los 3 campos están poblados y válidos.
+  // Datos incompletos → unmappedArea=true → cuarentena → no cotizable.
+  // PDF omite sección imágenes limpiamente cuando no hay renders/planos.
+  if (rules.length === 0) {
+    const hasExplicitTypology = isValidString(hubspotTipologia);
+    const hasExplicitHabs = isValidPositiveNumber(hubspotAlcobas);
+    const hasExplicitBanos = isValidPositiveNumber(hubspotBanos);
+
+    if (hasExplicitTypology && hasExplicitHabs && hasExplicitBanos) {
+      // Datos completos explícitos de HubSpot/Sinco → unidad válida, cotizable
+      return ok({
+        tipologia: hubspotTipologia,
+        habs: hubspotAlcobas,
+        banos: hubspotBanos,
+        usedFallback: false,
+        fallbackFields: [],
+        unmappedArea: false,
+      });
+    }
+
+    // Datos incompletos → cuarentena, NO cotizable
+    return ok({
+      tipologia: '?',
+      habs: 0,
+      banos: 0,
+      usedFallback: true,
+      fallbackFields: ['tipologia', 'habs', 'banos'],
+      unmappedArea: true,
+    });
+  }
+
   const tolerancesResult = getOrComputeTolerances(rules);
   if (tolerancesResult.isErr()) return tolerancesResult as Result<never, EngineError>;
 
