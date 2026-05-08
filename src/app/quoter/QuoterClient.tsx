@@ -482,6 +482,14 @@ export default function QuoterClient() {
             parking: selectedParking.map((p: any) => ({ numero: p.numero, price: p.precio })),
             storage: selectedStorage.map((d: any) => ({ numero: d.numero, price: d.precio })),
             includesParking: incluyeParq, includesStorage: incluyeDep,
+            // WB-3: Sinco IDs — semántica según selectionMode
+            sincoAgrupacionId: CONFIG.agrupaciones_preestablecidas
+              ? (selectedUnit?.sincoId ?? null)
+              : null,
+            sincoUnidadId: CONFIG.agrupaciones_preestablecidas
+              ? null
+              : (selectedUnit?.sincoId ?? null),
+            sincoProyectoId: torre?.id ?? null,
           },
           advisor: { id: asesor.id, name: asesor.nombre },
           financial: {
