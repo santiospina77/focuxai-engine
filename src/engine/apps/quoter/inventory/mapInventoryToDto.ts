@@ -173,6 +173,11 @@ export async function mapInventoryToDto(
   const OBJECT_TYPE_DELAY_MS = 500; // Cooldown between object types to avoid cumulative rate limiting
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // 50 pages × 100 HubSpot page size = 5,000 records.
+  // Required for Jiménez full inventory (3,745 unidades, 3,032 agrupaciones).
+  // Macro/proyecto stay at default (20 pages = 2,000) — never exceed ~100 records.
+  const HIGH_VOLUME_OBJECT_MAX_PAGES = 50;
+
   const macroResult = await fetchAllPages(adapter, { objectType: 'macroproyecto', properties: [...MACRO_PROPS] }, logger);
   if (macroResult.isErr()) return err(macroResult.error);
 
@@ -181,11 +186,11 @@ export async function mapInventoryToDto(
   if (proyectoResult.isErr()) return err(proyectoResult.error);
 
   await sleep(OBJECT_TYPE_DELAY_MS);
-  const unidadResult = await fetchAllPages(adapter, { objectType: 'unidad', properties: [...UNIDAD_PROPS] }, logger);
+  const unidadResult = await fetchAllPages(adapter, { objectType: 'unidad', properties: [...UNIDAD_PROPS], maxPages: HIGH_VOLUME_OBJECT_MAX_PAGES }, logger);
   if (unidadResult.isErr()) return err(unidadResult.error);
 
   await sleep(OBJECT_TYPE_DELAY_MS);
-  const agrupacionResult = await fetchAllPages(adapter, { objectType: 'agrupacion', properties: [...AGRUPACION_PROPS] }, logger);
+  const agrupacionResult = await fetchAllPages(adapter, { objectType: 'agrupacion', properties: [...AGRUPACION_PROPS], maxPages: HIGH_VOLUME_OBJECT_MAX_PAGES }, logger);
   if (agrupacionResult.isErr()) return err(agrupacionResult.error);
 
   const macroRecords = macroResult.value.records;
