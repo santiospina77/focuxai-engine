@@ -171,6 +171,8 @@ export interface QuotationCreated {
     id: number;
     cotNumber: string;
     url: string;
+    /** Signed PDF URL for HubSpot/email links (7-day TTL, CRITICAL-3) */
+    pdfUrl: string;
     expiresAt: string;
     createdAt: string;
   };
