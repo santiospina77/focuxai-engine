@@ -51,26 +51,36 @@ const SUMMARY_ONLY = process.argv.includes('--summary');
 const SKIP_FILTER = process.argv.includes('--all'); // --all = traer los 37 macros, no solo activos
 
 // ═══════════════════════════════════════════════════════════
-// Whitelist de macroproyectos activos (fuente: JSON v17)
-// Solo estos están en comercialización. Los demás son históricos.
+// Whitelist de macroproyectos activos
+// Fuente: --listMacros contra Sinco producción 12-mayo-2026
+//
+// REGLA: Usar IDs exactos (confiable) + nombres como fallback.
+// Los nombres en Sinco no siempre coinciden con los del JSON v17.
+// Ejemplo: JSON v17 lista "Coralina Sunset/Del Sol/Caribe" como macros
+// separados, pero en Sinco son proyectos dentro del macro 38 "CORALINA".
 // ═══════════════════════════════════════════════════════════
+const ACTIVE_MACRO_IDS = new Set([
+  38,   // CORALINA — contiene Sunset(274,288,303), entregadas(296,313,321,329), y más
+  46,   // VENECIA DEL SOL
+  47,   // VENECIA DE LA SIERRA
+  54,   // MARENA
+  58,   // PORTO SABBIA — contiene Suites(361) + Residencial(360)
+  59,   // RODADERO LIVING
+]);
+
+// Fallback por nombre — solo si el ID no matcheó
 const ACTIVE_MACRO_NAMES: readonly string[] = [
   'VENECIA DEL SOL',
   'VENECIA DE LA SIERRA',
-  'CORALINA SUNSET',
-  'CORALINA DEL SOL',
+  'CORALINA',
   'MARENA',
   'RODADERO LIVING',
-  'PORTO SABBIA',          // Macro 58 — contiene Suites (361) + Residencial (360)
-  'CORALINA SUITES',
-  'CORALINA CARIBE',
-  // NOTA: JSON v17 lista "Porto Sabbia Suites" y "Porto Sabbia Residences"
-  // como macros separados, pero en Sinco son proyectos dentro del macro "PORTO SABBIA".
-  // Si Sinco tiene nombres diferentes, agregar variantes aquí.
+  'PORTO SABBIA',
 ];
 
-function isActiveMacro(nombre: string): boolean {
+function isActiveMacro(id: number, nombre: string): boolean {
   if (SKIP_FILTER) return true;
+  if (ACTIVE_MACRO_IDS.has(id)) return true;
   const normalized = nombre.trim().toUpperCase();
   return ACTIVE_MACRO_NAMES.some((active) => normalized.includes(active));
 }
@@ -105,6 +115,14 @@ const CLIENTS: ClientConfig[] = [
   },
 ];
 
+// ── Torres entregadas — marcadas en output pero NO excluidas ──
+const TORRES_ENTREGADAS_SINCO_IDS = new Set([
+  296,  // CORALINA SUITES TORRE 1
+  313,  // CORALINA SUITES TORRE 2
+  321,  // CORALINA CARIBE T 1
+  329,  // CORALINA CARIBE T2
+]);
+
 // ── Types ───────────────────────────────────────────────────
 
 interface DiscoveredTypology {
@@ -113,6 +131,77 @@ interface DiscoveredTypology {
   habs: number;
   banos: number;
   count: number;
+}
+
+// ── Registros individuales para sync (Architect-approved fields) ──
+
+interface DiscoveredMacro {
+  idSinco: number;
+  nombre: string;
+  estado: string | null;          // raw de Sinco
+  activo: boolean;
+}
+
+interface DiscoveredProyectoRecord {
+  idSinco: number;
+  idMacroSinco: number;
+  nombre: string;
+  estado: string | null;
+  activo: boolean;
+  esEntregada: boolean;           // true si sincoId in TORRES_ENTREGADAS
+  estrato: number | null;
+  valorSeparacion: number | null;
+  porcentajeFinanciacion: number | null;
+  fechaEntrega: string | null;
+  numeroDiasReserva: number | null;
+}
+
+interface DiscoveredUnidadRecord {
+  idSinco: number;
+  idProyectoSinco: number;
+  nombre: string;
+  estado: string;                  // DISPONIBLE | BLOQUEADA | RESERVADA | VENDIDA | ESCRITURADA
+  tipoUnidadSinco: number | null;  // tipoCodigo del ERP
+  tipoUnidad: string;              // APARTAMENTO | PARQUEADERO | DEPOSITO | OTRO
+  esPrincipal: boolean;
+  precioLista: number;
+  areaConstruida: number | null;
+  areaPrivada: number | null;
+  areaTotal: number | null;
+  piso: number | null;
+  alcobas: number | null;
+  banos: number | null;
+  clasificacion: string | null;
+  bloqueadoEnErp: boolean | null;
+  tipoInmuebleId: number | null;
+}
+
+interface DiscoveredAgrupacionRecord {
+  idSinco: number;
+  idProyectoSinco: number;
+  nombre: string;
+  estado: string;                  // DISPONIBLE | COTIZADA | BLOQUEADA | SEPARADA | VENDIDA
+  valorSubtotal: number | null;
+  valorDescuento: number | null;
+  valorDescuentoFinanciero: number | null;
+  valorTotalNeto: number | null;
+  valorSeparacion: number | null;
+  idUnidadPrincipalSinco: number | null;
+  unidadesSincoIds: number[];      // IDs de unidades que componen esta agrupación
+  idCompradorSinco: number | null;
+  idVendedorSinco: number | null;
+  tipoVentaCodigo: number | null;
+  fechaVenta: string | null;
+  observaciones: string | null;
+  numeroEncargo: string | null;
+  fechaSeparacion: string | null;
+  fechaCreacionErp: string | null;
+  idMedioPublicitario: number | null;
+  ventaExterior: boolean | null;
+  valorAdicionales: number | null;
+  valorExclusiones: number | null;
+  valorSobrecosto: number | null;
+  compradorNumeroIdentificacion: string | null;
 }
 
 interface DiscoveredProject {
@@ -146,6 +235,7 @@ interface DiscoveryResult {
   totalMacroproyectos: number;
   totalProyectos: number;
   totalAgrupaciones: number;
+  totalUnidades: number;
   totalUnidadesDisponibles: number;
   summary: {
     ready: number;
@@ -153,8 +243,15 @@ interface DiscoveryResult {
     needsReview: number;
     blocked: number;
   };
+  // ── Registros individuales para sync ──
+  macroproyectos: DiscoveredMacro[];
+  proyectosDetalle: DiscoveredProyectoRecord[];
+  unidades: DiscoveredUnidadRecord[];
+  agrupaciones: DiscoveredAgrupacionRecord[];
+  // ── Stats legacy (compatibilidad) ──
   proyectos: DiscoveredProject[];
   errors: string[];
+  warnings: string[];
 }
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -265,7 +362,12 @@ async function main() {
   const erp = erpResult.value;
 
   const errors: string[] = [];
+  const warnings: string[] = [];
   const allProjects: DiscoveredProject[] = [];
+  const allMacros: DiscoveredMacro[] = [];
+  const allProyectosDetalle: DiscoveredProyectoRecord[] = [];
+  const allUnidades: DiscoveredUnidadRecord[] = [];
+  const allAgrupaciones: DiscoveredAgrupacionRecord[] = [];
   let projectCount = 0;
 
   // ── Step 1: List macroproyectos ──
@@ -286,7 +388,7 @@ async function main() {
     console.log('Id'.padEnd(8) + 'Nombre'.padEnd(45) + 'Activo'.padEnd(10) + 'Match');
     console.log('─'.repeat(80));
     for (const m of macros) {
-      const matches = isActiveMacro(m.nombre);
+      const matches = isActiveMacro(m.externalId, m.nombre);
       console.log(
         String(m.externalId).padEnd(8) +
         m.nombre.slice(0, 43).padEnd(45) +
@@ -295,12 +397,12 @@ async function main() {
       );
     }
     console.log('─'.repeat(80));
-    console.log(`\nTotal: ${macros.length} | Matchean filtro: ${macros.filter(m => isActiveMacro(m.nombre)).length}`);
+    console.log(`\nTotal: ${macros.length} | Matchean filtro: ${macros.filter(m => isActiveMacro(m.externalId, m.nombre)).length}`);
     process.exit(0);
   }
 
   // ── Step 2: For each macro, list projects (only active from JSON v17) ──
-  const activeMacros = macros.filter((m) => isActiveMacro(m.nombre));
+  const activeMacros = macros.filter((m) => isActiveMacro(m.externalId, m.nombre));
   const skippedMacros = macros.length - activeMacros.length;
   if (skippedMacros > 0) {
     console.log(`   ⏭️  ${skippedMacros} macros históricos filtrados (usa --all para ver todos)\n`);
@@ -308,6 +410,14 @@ async function main() {
 
   for (const macro of activeMacros) {
     console.log(`📂 Macro ${macro.externalId}: ${macro.nombre} (activo=${macro.activo})`);
+
+    // ── Recolectar macro record ──
+    allMacros.push({
+      idSinco: macro.externalId,
+      nombre: macro.nombre,
+      estado: macro.estado ?? null,
+      activo: macro.activo,
+    });
 
     await sleep(THROTTLE_MS);
     const projectsResult = await erp.getProyectosByMacroproyecto(macro.externalId);
@@ -355,6 +465,79 @@ async function main() {
         errors.push(msg);
       } else {
         units = unitsResult.value;
+      }
+
+      // ── Recolectar proyecto detalle ──
+      const esEntregada = TORRES_ENTREGADAS_SINCO_IDS.has(project.externalId);
+      allProyectosDetalle.push({
+        idSinco: project.externalId,
+        idMacroSinco: macro.externalId,
+        nombre: project.nombre,
+        estado: project.estado ?? null,
+        activo: project.activo,
+        esEntregada,
+        estrato: project.estrato ?? null,
+        valorSeparacion: project.valorSeparacion ?? null,
+        porcentajeFinanciacion: project.porcentajeFinanciacion ?? null,
+        fechaEntrega: project.fechaEntrega ?? null,
+        numeroDiasReserva: project.numeroDiasReservaOpcionVenta ?? null,
+      });
+      if (esEntregada) {
+        warnings.push(`Proyecto ${project.externalId} (${project.nombre}) marcado como ENTREGADO`);
+      }
+
+      // ── Recolectar unidades individuales ──
+      for (const u of units) {
+        allUnidades.push({
+          idSinco: u.externalId,
+          idProyectoSinco: project.externalId,
+          nombre: u.nombre,
+          estado: u.estado,
+          tipoUnidadSinco: u.tipoCodigo ?? null,
+          tipoUnidad: u.tipo,
+          esPrincipal: u.esPrincipal,
+          precioLista: u.precio,
+          areaConstruida: u.areaConstruida ?? null,
+          areaPrivada: u.areaPrivada ?? null,
+          areaTotal: u.areaTotal ?? null,
+          piso: u.piso ?? null,
+          alcobas: u.cantidadAlcobas ?? null,
+          banos: u.cantidadBanos ?? null,
+          clasificacion: u.clasificacion ?? null,
+          bloqueadoEnErp: u.bloqueadoEnErp ?? null,
+          tipoInmuebleId: u.tipoInmuebleId ?? null,
+        });
+      }
+
+      // ── Recolectar agrupaciones individuales ──
+      for (const a of agrupaciones) {
+        allAgrupaciones.push({
+          idSinco: a.externalId,
+          idProyectoSinco: project.externalId,
+          nombre: a.nombre,
+          estado: a.estado,
+          valorSubtotal: a.valorSubtotal ?? null,
+          valorDescuento: a.valorDescuento ?? null,
+          valorDescuentoFinanciero: a.valorDescuentoFinanciero ?? null,
+          valorTotalNeto: a.valorTotalNeto ?? null,
+          valorSeparacion: a.valorSeparacion ?? null,
+          idUnidadPrincipalSinco: a.idUnidadPrincipalExternalId ?? null,
+          unidadesSincoIds: a.unidades.map(u => u.externalId),
+          idCompradorSinco: a.compradorExternalId ?? null,
+          idVendedorSinco: a.vendedorExternalId ?? null,
+          tipoVentaCodigo: a.tipoVentaCodigo ?? null,
+          fechaVenta: a.fechaVenta ?? null,
+          observaciones: a.observaciones ?? null,
+          numeroEncargo: a.numeroEncargo ?? null,
+          fechaSeparacion: a.fechaSeparacion ?? null,
+          fechaCreacionErp: a.fechaCreacionErp ?? null,
+          idMedioPublicitario: a.idMedioPublicitario ?? null,
+          ventaExterior: a.ventaExterior ?? null,
+          valorAdicionales: a.valorAdicionales ?? null,
+          valorExclusiones: a.valorExclusiones ?? null,
+          valorSobrecosto: a.valorSobrecosto ?? null,
+          compradorNumeroIdentificacion: a.compradorNumeroIdentificacion ?? null,
+        });
       }
 
       // ── Compute stats ──
@@ -454,9 +637,10 @@ async function main() {
     clientId: CLIENT_ID,
     generatedAt: new Date().toISOString(),
     duration: `${(durationMs / 1000).toFixed(1)}s`,
-    totalMacroproyectos: macros.length,
-    totalProyectos: allProjects.length,
-    totalAgrupaciones: allProjects.reduce((sum, p) => sum + p.totalAgrupaciones, 0),
+    totalMacroproyectos: allMacros.length,
+    totalProyectos: allProyectosDetalle.length,
+    totalAgrupaciones: allAgrupaciones.length,
+    totalUnidades: allUnidades.length,
     totalUnidadesDisponibles: allProjects.reduce((sum, p) => sum + p.disponibles, 0),
     summary: {
       ready: allProjects.filter((p) => p.quoterReady === 'ready').length,
@@ -464,8 +648,15 @@ async function main() {
       needsReview: allProjects.filter((p) => p.quoterReady === 'needs_review').length,
       blocked: allProjects.filter((p) => p.quoterReady === 'blocked').length,
     },
+    // ── Registros individuales para sync ──
+    macroproyectos: allMacros,
+    proyectosDetalle: allProyectosDetalle,
+    unidades: allUnidades,
+    agrupaciones: allAgrupaciones,
+    // ── Stats legacy ──
     proyectos: allProjects,
     errors,
+    warnings,
   };
 
   // ── Write output ──
@@ -477,13 +668,18 @@ async function main() {
   writeFileSync(outputPath, JSON.stringify(result, null, 2), 'utf-8');
 
   // ── Print summary ──
+  const torresEntregadas = allProyectosDetalle.filter(p => p.esEntregada).length;
+  const torresActivas = allProyectosDetalle.length - torresEntregadas;
+  const unidadesDisponibles = allUnidades.filter(u => u.estado === 'DISPONIBLE').length;
+  const agrupacionesDisponibles = allAgrupaciones.filter(a => a.estado === 'DISPONIBLE').length;
+
   console.log('\n═══════════════════════════════════════════════════════════');
   console.log('  RESUMEN DISCOVERY');
   console.log('═══════════════════════════════════════════════════════════');
-  console.log(`  Macroproyectos:     ${result.totalMacroproyectos}`);
-  console.log(`  Proyectos:          ${result.totalProyectos}`);
-  console.log(`  Agrupaciones:       ${result.totalAgrupaciones}`);
-  console.log(`  Disponibles:        ${result.totalUnidadesDisponibles}`);
+  console.log(`  Macroproyectos:           ${result.totalMacroproyectos}`);
+  console.log(`  Proyectos (torres):       ${result.totalProyectos} (${torresActivas} activas, ${torresEntregadas} entregadas)`);
+  console.log(`  Agrupaciones individuales: ${result.totalAgrupaciones} (${agrupacionesDisponibles} disponibles)`);
+  console.log(`  Unidades individuales:     ${result.totalUnidades} (${unidadesDisponibles} disponibles)`);
   console.log();
   console.log(`  🟢 Ready:                ${result.summary.ready}`);
   console.log(`  🟡 Needs typology rules: ${result.summary.needsTypologyRules}`);
@@ -491,7 +687,13 @@ async function main() {
   console.log(`  🔴 Blocked:              ${result.summary.blocked}`);
   console.log();
   if (errors.length > 0) {
-    console.log(`  ⚠️  ${errors.length} error(es) parciales (ver JSON)`);
+    console.log(`  ❌ ${errors.length} error(es) parciales (ver JSON)`);
+  }
+  if (warnings.length > 0) {
+    console.log(`  ⚠️  ${warnings.length} warning(s):`);
+    for (const w of warnings.slice(0, 10)) {
+      console.log(`     ${w}`);
+    }
   }
   console.log(`  Duración: ${result.duration}`);
   console.log(`  Output: ${outputPath}`);

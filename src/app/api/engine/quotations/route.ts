@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getDb } from '@/engine/core/db/neon';
+import { validateQuoterSession, validateSessionClientId, createPdfAccessToken } from '@/engine/core/auth/quoterSession';
 import type { QuotationInput, QuotationCreated, QuotationDetail, ErrorResponse } from './types';
 
 // ═══════════════════════════════════════════════════════════
@@ -44,12 +45,20 @@ function getBaseUrl(): string {
 // ═══════════════════════════════════════════════════════════
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // ── AUTH-1: Session validation ──
+  const sessionOrError = validateQuoterSession(request);
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
   let body: QuotationInput;
   try {
     body = await request.json();
   } catch {
     return errorResponse(400, 'INVALID_BODY', 'Body debe ser JSON válido.');
   }
+
+  // ── AUTH-1: Compare session clientId vs body clientId ──
+  const clientMismatch = validateSessionClientId(sessionOrError, body.clientId);
+  if (clientMismatch) return clientMismatch;
 
   // ── Validación mínima ──
   const { clientId, cotNumber, buyer, property, advisor, financial, config, observaciones } = body;
@@ -142,12 +151,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const row = rows[0];
     const baseUrl = getBaseUrl();
 
+    // Generate signed PDF access token for HubSpot/email links (CRITICAL-3)
+    const pdfToken = createPdfAccessToken({ clientId, cotNumber: row.cot_number });
+
+    // Architect HIGH-3: fail-hard in production if token generation fails
+    if (!pdfToken && process.env.QUOTER_REQUIRE_HUBSPOT_LAUNCH === 'true') {
+      console.error('[quotations/POST] PDF token generation failed — QUOTER_SESSION_SECRET missing?');
+      return errorResponse(500, 'PDF_TOKEN_GENERATION_FAILED', 'No se pudo generar token seguro para PDF.');
+    }
+
+    // Fallback only in dev/demo mode
+    const pdfUrl = pdfToken
+      ? `${baseUrl}/api/engine/quotations/pdf?token=${pdfToken}`
+      : `${baseUrl}/api/engine/quotations/pdf?clientId=${clientId}&cotNumber=${row.cot_number}`;
+
     const result: QuotationCreated = {
       success: true,
       quotation: {
         id: row.id,
         cotNumber: row.cot_number,
         url: `${baseUrl}/cotizacion/${row.cot_number}`,
+        pdfUrl,
         expiresAt: row.expires_at,
         createdAt: row.created_at,
       },
@@ -175,12 +199,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 // ═══════════════════════════════════════════════════════════
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  // ── AUTH-1: Session validation ──
+  const sessionOrError = validateQuoterSession(request);
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
   const { searchParams } = new URL(request.url);
   const cotNumber = searchParams.get('cotNumber')?.trim();
   const clientId = searchParams.get('clientId')?.trim();
 
   if (!cotNumber) return errorResponse(400, 'MISSING_COT_NUMBER', 'cotNumber query param es obligatorio.');
   if (!clientId) return errorResponse(400, 'MISSING_CLIENT_ID', 'clientId query param es obligatorio.');
+
+  // ── AUTH-1: Compare session clientId vs query clientId ──
+  const clientMismatch = validateSessionClientId(sessionOrError, clientId);
+  if (clientMismatch) return clientMismatch;
 
   try {
     const sql = getDb();

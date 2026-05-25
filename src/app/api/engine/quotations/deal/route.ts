@@ -26,6 +26,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/engine/core/db/neon';
+import { validateQuoterSession, validateSessionClientId } from '@/engine/core/auth/quoterSession';
 import type { QuotationRow, ErrorResponse } from '../types';
 import type { PdfAssetOptions } from '@/app/api/engine/quotations/pdf/pdfBuilder';
 import { syncQuotationPdfToHubSpot } from '@/engine/apps/quoter/pdf/pdfHubSpotSyncService';
@@ -402,6 +403,10 @@ async function readDealDebugProps(
 // ═══════════════════════════════════════════════════════════
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // ── AUTH-1: Session validation ──
+  const sessionOrError = validateQuoterSession(request);
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
   let body: { clientId: string; cotNumber: string };
   try {
     body = await request.json();
@@ -412,6 +417,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { clientId, cotNumber } = body;
   if (!clientId?.trim()) return errorResponse(400, 'MISSING_CLIENT_ID', 'clientId es obligatorio.');
   if (!cotNumber?.trim()) return errorResponse(400, 'MISSING_COT_NUMBER', 'cotNumber es obligatorio.');
+
+  // ── AUTH-1: Compare session clientId vs body clientId ──
+  const clientMismatch = validateSessionClientId(sessionOrError, clientId);
+  if (clientMismatch) return clientMismatch;
 
   const clientConfig = CLIENT_REGISTRY[clientId];
   if (!clientConfig) {

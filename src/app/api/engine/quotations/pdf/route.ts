@@ -9,6 +9,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/engine/core/db/neon';
+import {
+  validateQuoterSession,
+  validateSessionClientId,
+  verifyPdfAccessToken,
+} from '@/engine/core/auth/quoterSession';
 import { buildPdfBuffer } from './pdfBuilder';
 import type { PdfAssetOptions } from './pdfBuilder';
 import type { QuotationRow } from '../types';
@@ -65,21 +70,53 @@ async function generatePdf(clientId: string, cotNumber: string): Promise<NextRes
   }
 }
 
-// ── POST (frontend) ──
+// ── POST (frontend — session-protected) ──
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // ── AUTH-1: Session validation ──
+  const sessionOrError = validateQuoterSession(request);
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
   let body: { clientId: string; cotNumber: string };
   try {
     body = await request.json();
   } catch {
     return errorResponse(400, 'INVALID_BODY', 'Body debe ser JSON con { clientId, cotNumber }.');
   }
+
+  // ── AUTH-1: Compare session clientId vs body clientId ──
+  const clientMismatch = validateSessionClientId(sessionOrError, body.clientId);
+  if (clientMismatch) return clientMismatch;
+
   return generatePdf(body.clientId, body.cotNumber);
 }
 
-// ── GET (link directo desde HubSpot / email) ──
+// ── GET (link directo desde HubSpot / email — protected by pdfAccessToken) ──
+// HubSpot CRM card links and emails don't carry session cookies.
+// Architect CRITICAL-3: PDF contains commercial + buyer data, cannot be public.
+// Requires signed pdfAccessToken (HMAC, 7-day TTL) OR valid session cookie.
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
+  const tokenParam = searchParams.get('token');
+
+  // ── Path A: pdfAccessToken in query string (HubSpot/email links) ──
+  if (tokenParam) {
+    const tokenPayload = verifyPdfAccessToken(tokenParam);
+    if (!tokenPayload) {
+      return errorResponse(401, 'INVALID_PDF_TOKEN', 'Token de acceso a PDF inválido o expirado.');
+    }
+    return generatePdf(tokenPayload.clientId, tokenPayload.cotNumber);
+  }
+
+  // ── Path B: session cookie (frontend / authenticated user) ──
+  const sessionOrError = validateQuoterSession(request);
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
   const clientId = searchParams.get('clientId') || '';
   const cotNumber = searchParams.get('cotNumber') || '';
+
+  // If session exists, validate clientId match
+  const clientMismatch = validateSessionClientId(sessionOrError, clientId);
+  if (clientMismatch) return clientMismatch;
+
   return generatePdf(clientId, cotNumber);
 }
