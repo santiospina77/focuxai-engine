@@ -731,7 +731,7 @@ export default function QuoterClient() {
             <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", letterSpacing:"1px" }}>ASESOR</div>
             <div style={{ fontSize:12, color:C.navy, fontWeight:600, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{asesor.nombre}</div>
           </div>
-          <span style={{ ...S.tag(C.goldBg, C.textGold, C.goldBorder), fontSize:9, letterSpacing:"1.5px" }}>COTIZADOR FOCUXAI</span>
+          <span style={{ ...S.tag(C.goldBg, C.textGold, C.goldBorder), fontSize:9, letterSpacing:"1.5px" }}>COTIZADOR FOCUX®</span>
         </div>
       </header>
 
@@ -790,7 +790,8 @@ export default function QuoterClient() {
                 );
               })}
             </div>
-            <div style={{ marginTop:24, display:"flex", justifyContent:"flex-end" }}>
+            <div style={{ marginTop:24, display:"flex", justifyContent:"space-between" }}>
+              <button style={S.btn("outline")} onClick={()=>setStep(0)}>← Comprador</button>
               <button style={S.btn("primary",!macro)} disabled={!macro} onClick={()=>setStep(2)}>Continuar →</button>
             </div>
           </div>
@@ -1800,7 +1801,7 @@ export default function QuoterClient() {
       {/* Footer */}
       <div style={{ textAlign:"center", padding:"24px", borderTop:`1px solid ${C.border}` }}>
         <div style={{ fontSize:9, letterSpacing:"2px", textTransform:"uppercase", color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
-          Powered by FocuxAI Engine™ · Focux Digital Group S.A.S.
+          Quote by Focux®
         </div>
       </div>
     </div>
