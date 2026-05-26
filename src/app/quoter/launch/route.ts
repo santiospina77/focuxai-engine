@@ -71,7 +71,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Session data lives in the cookie. Frontend reads it via GET /api/engine/quoter/session.
   const cookieOptions = getSessionCookieOptions();
 
-  const response = NextResponse.redirect(`${baseUrl}/quoter`, { status: 302 });
+  const response = NextResponse.redirect(
+    `${baseUrl}/quoter?clientId=${encodeURIComponent(payload.clientId)}`,
+    { status: 302 },
+  );
 
   response.cookies.set(cookieOptions.name, cookieValue, {
     httpOnly: cookieOptions.httpOnly,
