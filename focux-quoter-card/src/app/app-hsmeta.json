@@ -1,0 +1,31 @@
+{
+  "uid": "focux_quoter_card_app",
+  "type": "app",
+  "config": {
+    "description": "Focux Quoter — App Card para lanzar el cotizador desde un Contact en HubSpot CRM.",
+    "name": "Focux®",
+    "distribution": "private",
+    "auth": {
+      "type": "static",
+      "requiredScopes": [
+        "crm.objects.contacts.read",
+        "oauth"
+      ],
+      "optionalScopes": [],
+      "conditionallyRequiredScopes": []
+    },
+    "permittedUrls": {
+      "fetch": [
+        "https://engine.focux.co"
+      ],
+      "iframe": [],
+      "img": []
+    },
+    "support": {
+      "supportEmail": "santiago.ospina@focuxdigital.com",
+      "documentationUrl": "https://focux.co",
+      "supportUrl": "https://focux.co",
+      "supportPhone": "+573001234567"
+    }
+  }
+}

@@ -348,10 +348,10 @@ export async function buildPdfBuffer(q: QuotationRow, assetOpts?: PdfAssetOption
 
   // Asesor
   const saleLabel = Number(q.sale_type) === 0 ? 'Contado' : Number(q.sale_type) === 1 ? 'Crédito' : 'Leasing';
-  const h3 = drawCol(MG + (colW + colGap) * 2, 'ASESOR', String(q.advisor_name), [
-    `ID Sinco: ${q.advisor_id}`,
-    `Tipo venta: ${saleLabel}`,
-  ]);
+  const asesorLines: string[] = [];
+  if (q.advisor_id && q.advisor_id !== 'unknown') asesorLines.push(q.advisor_id);
+  asesorLines.push(`Tipo venta: ${saleLabel}`);
+  const h3 = drawCol(MG + (colW + colGap) * 2, 'ASESOR', String(q.advisor_name), asesorLines);
 
   // Dynamic spacing: use tallest column + 16pt padding
   y -= Math.max(h1, h2, h3) + 16;

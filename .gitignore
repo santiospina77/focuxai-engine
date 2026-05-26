@@ -12,3 +12,6 @@ next-env.d.ts
 
 # Discovery output (data operativa, no va en git)
 scripts/output/
+
+# HubSpot config file
+hubspot.config.yml

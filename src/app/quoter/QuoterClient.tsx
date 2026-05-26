@@ -36,17 +36,13 @@ const COUNTRIES = [
   { code: "+54", flag: "🇦🇷", name: "Argentina", len: 10 },
 ];
 
-// ── MOCK ASESORES (until HubSpot OAuth login — phase 2) ──
-const ASESORES = [
-  { id: 101, nombre: "María Camila Rodríguez" },
-  { id: 102, nombre: "Carlos Andrés Jiménez" },
-  { id: 103, nombre: "Ana Lucía Ospina" },
-  { id: 104, nombre: "Juan Pablo Mejía" },
-  { id: 105, nombre: "Laura Valentina Torres" },
-  { id: 106, nombre: "Santiago Bolaño" },
-  { id: 107, nombre: "Daniela Herrera" },
-  { id: 108, nombre: "Andrés Felipe Castro" },
-];
+// ── ASESOR TYPE (resolved from HubSpot owner or session fallback) ──
+interface AsesorInfo {
+  nombre: string;
+  email: string;
+  source: 'owner' | 'session' | 'default';
+}
+const DEFAULT_ASESOR: AsesorInfo = { nombre: "Cargando...", email: "", source: 'default' };
 
 // ── ESTADOS — lowercase strings matching endpoint output ──
 const ESTADOS = { D: "disponible", B: "bloqueada", V: "vendida", C: "cotizada", N: "necesita_info" };
@@ -289,8 +285,82 @@ export default function QuoterClient() {
     }
   }, [clientId, searchAndPrefillContact]);
 
-  // Asesor
-  const [asesor, setAsesor] = useState(ASESORES[0]);
+  // Asesor — resolved from HubSpot owner (via session endpoint)
+  const [asesor, setAsesor] = useState<AsesorInfo>(DEFAULT_ASESOR);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+
+  // ── Fetch session + contact + owner on mount (AUTH-1 prefill) ──
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/engine/quoter/session');
+        if (!res.ok) { setSessionLoaded(true); return; }
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        if (!data.authenticated) {
+          // Direct access mode — no session, asesor stays default
+          setAsesor({ nombre: 'Acceso directo', email: '', source: 'default' });
+          setSessionLoaded(true);
+          return;
+        }
+
+        // ── Prefill asesor from owner ──
+        if (data.owner) {
+          const ownerName = [data.owner.firstName, data.owner.lastName].filter(Boolean).join(' ');
+          setAsesor({
+            nombre: ownerName || data.owner.email,
+            email: data.owner.email,
+            source: 'owner',
+          });
+        } else if (data.ownerFallback) {
+          // No owner on contact — use session userEmail
+          setAsesor({
+            nombre: data.ownerFallback.email,
+            email: data.ownerFallback.email,
+            source: 'session',
+          });
+        }
+
+        // ── Prefill buyer data from contact ──
+        if (data.contact) {
+          const c = data.contact;
+          if (c.firstname) setNombre(c.firstname);
+          if (c.lastname) setApellido(c.lastname);
+          if (c.email) setEmail(c.email);
+          if (c.cedula) setCedula(c.cedula);
+          if (c.phone) setPhone(c.phone);
+          if (c.tipoDocumento) setTipoDoc(c.tipoDocumento);
+          const tp = parseTipoPersona(c.tipoPersona);
+          if (tp) setTipoPersona(tp);
+          // Mark contact as found so the form doesn't show "not found" state
+          if (c.hubspotId) {
+            setContactExists(true);
+            setContactSearched(true);
+            setContactData({
+              hubspotId: c.hubspotId,
+              firstname: c.firstname,
+              lastname: c.lastname,
+              cedula: c.cedula,
+              phone: c.phone,
+              canal: c.canal,
+              proyectos: c.listaProyectos,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[Cotizador] Session fetch failed:', err);
+      } finally {
+        if (!cancelled) setSessionLoaded(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [clientId]);
   // Plan — initialized with defaults, reset when torre changes
   const [separacionMode, setSeparacionMode] = useState<"%"|"$">("$"); // toggle: % or fixed $
   const [separacionFijo, setSeparacionFijo] = useState(3000000); // fixed value when mode="$", default $3M
@@ -507,7 +577,7 @@ export default function QuoterClient() {
               : (selectedUnit?.sincoId ?? null),
             sincoProyectoId: torre?.id ?? null,
           },
-          advisor: { id: asesor.id, name: asesor.nombre },
+          advisor: { id: null, name: asesor.nombre, email: asesor.email },
           financial: {
             saleType: tipoVenta, subtotal,
             discountCommercial: dtoComercial, discountFinancial: dtoFinanciero,
@@ -1222,25 +1292,32 @@ export default function QuoterClient() {
                   })()}
                 </div>
               </div>
-              {/* Asesor card — read-only from login (HubSpot OAuth) */}
+              {/* Asesor card — read-only from HubSpot owner */}
               <div style={{ ...S.card, padding:24 }}>
                 <div style={{ ...S.label, marginBottom:16, fontSize:12, color:C.gold }}>Asesor que Cotiza</div>
                 <div style={{ padding:"16px 18px", background:C.goldBg, borderRadius:8, border:`1px solid ${C.goldBorder}` }}>
                   <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
                     <div style={{ width:40, height:40, borderRadius:"50%", background:C.gold, display:"flex", alignItems:"center", justifyContent:"center", color:C.white, fontWeight:700, fontSize:15, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
-                      {asesor.nombre.split(" ").map(n=>n[0]).slice(0,2).join("")}
+                      {asesor.nombre.split(" ").filter(Boolean).map(n=>n[0]).slice(0,2).join("").toUpperCase() || "?"}
                     </div>
                     <div>
                       <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{asesor.nombre}</div>
-                      <div style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Sesión activa via HubSpot OAuth</div>
+                      <div style={{ fontSize:11, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
+                        {asesor.source === 'owner' ? 'Owner del contacto en HubSpot' : asesor.source === 'session' ? 'Sesión HubSpot (contacto sin owner)' : 'Acceso directo'}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                    <div><span style={{...S.label,fontSize:9}}>ID SINCO</span><div style={{fontSize:12,fontWeight:600,fontFamily:"'AinslieSans','Helvetica Neue',sans-serif",color:C.navy}}>{asesor.id}</div></div>
-                    <div><span style={{...S.label,fontSize:9}}>HUBSPOT OWNER</span><div style={{fontSize:12,fontWeight:600,fontFamily:"'AinslieSans','Helvetica Neue',sans-serif",color:C.navy}}>owner_{asesor.id}</div></div>
-                  </div>
+                  {asesor.email && (
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:8 }}>
+                      <div><span style={{...S.label,fontSize:9}}>EMAIL</span><div style={{fontSize:12,fontWeight:600,fontFamily:"'AinslieSans','Helvetica Neue',sans-serif",color:C.navy}}>{asesor.email}</div></div>
+                    </div>
+                  )}
                   <div style={{ fontSize:10, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", marginTop:8, borderTop:`1px solid ${C.goldBorder}`, paddingTop:8 }}>
-                    Precargado del login. El Deal se asignará a este asesor como owner + id_vendedor_sinco_fx para write-back.
+                    {asesor.source === 'owner'
+                      ? 'Precargado del owner del contacto. El Deal se asignará a este asesor.'
+                      : asesor.source === 'session'
+                      ? 'El contacto no tiene owner asignado. Se usará el usuario de la sesión.'
+                      : 'Sin sesión activa — modo acceso directo.'}
                   </div>
                 </div>
                 {macro && torre && selectedUnit ? (
@@ -1545,7 +1622,7 @@ export default function QuoterClient() {
                 <div>
                   <div style={{ ...S.label, marginBottom:8, color:C.gold }}>Asesor</div>
                   <div style={{ fontSize:15, fontWeight:600, color:C.navy, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{asesor.nombre}</div>
-                  <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>ID Sinco: {asesor.id}</div>
+                  {asesor.email && <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>{asesor.email}</div>}
                   <div style={{ fontSize:12, color:C.textSec, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>Tipo venta: {tipoVenta===0?"Contado":tipoVenta===1?"Crédito":"Leasing"}</div>
                 </div>
               </div>

@@ -122,7 +122,7 @@ export interface QuotationRow {
   storage: unknown[];
   includes_parking: boolean;
   includes_storage: boolean;
-  advisor_id: number;
+  advisor_id: string;
   advisor_name: string;
   sale_type: number;
   subtotal: number;

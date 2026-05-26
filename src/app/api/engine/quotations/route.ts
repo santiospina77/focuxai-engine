@@ -133,7 +133,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ${JSON.stringify(property.parking)}, ${JSON.stringify(property.storage)},
         ${property.includesParking}, ${property.includesStorage},
         ${sincoAgrupacionId.data}, ${sincoUnidadId.data}, ${sincoProyectoId.data},
-        ${advisor.id}, ${advisor.name},
+        ${advisor.email || advisor.id || 'unknown'}, ${advisor.name},
         ${financial.saleType}, ${financial.subtotal},
         ${financial.discountCommercial}, ${financial.discountFinancial},
         ${financial.totalDiscounts}, ${financial.netValue}, ${financial.separationAmount},

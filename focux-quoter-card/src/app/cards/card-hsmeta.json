@@ -1,0 +1,12 @@
+{
+  "uid": "focux_quoter_card_card",
+  "type": "card",
+  "config": {
+    "name": "Cotizador",
+    "location": "crm.record.sidebar",
+    "entrypoint": "/app/cards/QuoterCard.tsx",
+    "objectTypes": [
+      "contacts"
+    ]
+  }
+}
