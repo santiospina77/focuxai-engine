@@ -1716,7 +1716,7 @@ export default function QuoterClient() {
               {/* Footer branding — visible in print */}
               <div style={{ marginTop:18, paddingTop:12, borderTop:`1px solid ${C.borderLight}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div style={{ fontSize:9, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif", letterSpacing:"1px" }}>
-                  Generado por FocuxAI Engine™ · {new Date().toLocaleString("es-CO")}
+                  Quote by Focux® · {new Date().toLocaleString("es-CO")}
                 </div>
                 <div style={{ fontSize:9, color:C.textTer, fontFamily:"'AinslieSans','Helvetica Neue',sans-serif" }}>
                   {cotNum}
