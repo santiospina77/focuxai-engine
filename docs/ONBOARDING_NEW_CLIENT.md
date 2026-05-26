@@ -1,38 +1,38 @@
-# FocuxAI Engine™ — Onboarding a New Client
+# FocuxAI Engine™ — Onboarding de un Nuevo Cliente
 
-> **Audience:** Engineers replicating the Engine for a new construction company.
-> **Last updated:** 2026-05-25
-> **Time estimate:** ~4-6 hours (first time), ~2-3 hours (experienced)
-> **Prerequisites:** `ARCHITECTURE.md` and `SETUP.md` read. Local dev running.
-> **Confidential** — Focux Digital Group S.A.S. Internal use only.
-
----
-
-## Overview
-
-Adding a new client to the Engine means creating an isolated tenant: its own HubSpot portal, Sinco credentials, env vars, config files, App Card, and (optionally) custom branding. The Engine code itself does not change — you configure, not code.
-
-This playbook uses `acme` as the example clientId. Replace with the real client slug (lowercase, underscores, e.g. `urbansa_prod`).
+> **Audiencia:** Ingenieros replicando el Engine para una nueva constructora.
+> **Última actualización:** 2026-05-26
+> **Tiempo estimado:** ~4-6 horas (primera vez), ~2-3 horas (con experiencia)
+> **Prerrequisitos:** Haber leído `ARCHITECTURE.md` y `SETUP.md`. Dev local corriendo.
+> **Confidencial** — Focux Digital Group S.A.S. Uso interno exclusivo.
 
 ---
 
-## Pre-Flight Checklist
+## Visión general
 
-Before starting, confirm you have:
+Agregar un nuevo cliente al Engine significa crear un tenant aislado: su propio portal HubSpot, credenciales Sinco, env vars, archivos de configuración, App Card, y (opcionalmente) branding personalizado. El código del Engine no cambia — se configura, no se codifica.
 
-- [ ] HubSpot portal ID (e.g. `12345678`) with admin access
-- [ ] HubSpot Private App token with scopes: `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.objects.deals.read`, `crm.objects.deals.write`, `crm.objects.custom.read`, `crm.objects.custom.write`, `files`, `crm.objects.owners.read`, `crm.schemas.custom.read`
-- [ ] Sinco ERP credentials (username + password) — solicitar al contacto técnico del cliente
-- [ ] Sinco base URL (e.g. `https://api.sinco-cliente.com`) — confirmar con contacto técnico
+Este playbook usa `acme` como clientId de ejemplo. Reemplazar con el slug real del cliente (minúsculas, underscores, ej. `urbansa_prod`).
+
+---
+
+## Checklist Pre-Vuelo
+
+Antes de empezar, confirmar que se tiene:
+
+- [ ] Portal ID de HubSpot (ej. `12345678`) con acceso admin
+- [ ] Token de Private App de HubSpot con scopes: `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.objects.deals.read`, `crm.objects.deals.write`, `crm.objects.custom.read`, `crm.objects.custom.write`, `files`, `crm.objects.owners.read`, `crm.schemas.custom.read`
+- [ ] Credenciales Sinco ERP (usuario + contraseña) — solicitar al contacto técnico del cliente
+- [ ] URL base de Sinco (ej. `https://api.sinco-cliente.com`) — confirmar con contacto técnico
 - [ ] Inventario de macroproyectos y proyectos activos (nombres, IDs Sinco)
-- [ ] Assets del cliente: renders (.png), planos (.png), logo, branding colors
+- [ ] Assets del cliente: renders (.png), planos (.png), logo, colores de marca
 - [ ] Pipeline y stages definidos en HubSpot (o definirlos en este proceso)
 
 ---
 
-## Step 1 — Register Client in Engine
+## Paso 1 — Registrar cliente en el Engine
 
-**File:** `src/engine/core/config/clientRegistry.ts`
+**Archivo:** `src/engine/core/config/clientRegistry.ts`
 
 Agregar el nuevo client al registro:
 
@@ -54,9 +54,9 @@ const CLIENTS: Record<string, ClientBaseConfig> = {
 
 ---
 
-## Step 2 — Add Portal Mapping (AUTH-1)
+## Paso 2 — Agregar mapeo de portal (AUTH-1)
 
-**File:** `src/engine/core/auth/quoterSession.ts`
+**Archivo:** `src/engine/core/auth/quoterSession.ts`
 
 Agregar el portal al `PORTAL_CLIENT_MAP`:
 
@@ -71,9 +71,9 @@ const PORTAL_CLIENT_MAP: Record<string, string> = {
 
 ---
 
-## Step 3 — Create Client Quoter Config
+## Paso 3 — Crear configuración del cotizador para el cliente
 
-**File:** `src/engine/apps/quoter/inventory/clientConfigs/acme.ts` (nuevo)
+**Archivo:** `src/engine/apps/quoter/inventory/clientConfigs/acme.ts` (nuevo)
 
 Copiar la estructura de `jimenez_demo.ts` y adaptar:
 
@@ -90,7 +90,7 @@ export const ACME_CONFIG: QuoterClientConfig = {
   },
   overlay: {
     // Mapeo de assets por proyecto (renders, planos, branding)
-    // Se configura después de subir assets al CDN (Step 8)
+    // Se configura después de subir assets al CDN (Paso 8)
   },
   canalesAtribucion: [
     'portal_web',
@@ -111,13 +111,13 @@ curl "https://api.hubapi.com/crm/v3/schemas" \
   -H "Authorization: Bearer $HUBSPOT_ACME_PRIVATE_APP_TOKEN" | jq '.results[] | {name, objectTypeId}'
 ```
 
-Si los Custom Objects no existen aún, crearlos primero (Step 5).
+Si los Custom Objects no existen aún, crearlos primero (Paso 5).
 
 ---
 
-## Step 4 — Wire Config in Inventory Route
+## Paso 4 — Conectar config en la ruta de inventario
 
-**File:** `src/app/api/engine/inventory/route.ts`
+**Archivo:** `src/app/api/engine/inventory/route.ts`
 
 Agregar el case para el nuevo client en el switch/map donde se selecciona la config del quoter:
 
@@ -130,12 +130,12 @@ case 'acme': return ACME_CONFIG;
 
 ---
 
-## Step 5 — Create HubSpot Custom Objects
+## Paso 5 — Crear Custom Objects en HubSpot
 
 Si el portal del cliente no tiene los Custom Objects del Engine, crearlos. Los 4 objetos requeridos:
 
-| Object | Label | Properties key (_fx suffix) |
-|--------|-------|----------------------------|
+| Objeto | Label | Propiedades clave (sufijo _fx) |
+|--------|-------|-------------------------------|
 | Macroproyecto | Macroproyecto | `nombre_fx`, `id_sinco_fx`, `estado_fx`, `ciudad_fx` |
 | Proyecto | Proyecto | `nombre_fx`, `id_sinco_fx`, `estado_fx`, `id_macroproyecto_sinco_fx` |
 | Unidad | Unidad | `nombre_fx`, `id_sinco_fx`, `estado_fx`, `area_fx`, `precio_fx`, `piso_fx`, `tipologia_fx`, `id_proyecto_sinco_fx` |
@@ -158,18 +158,18 @@ curl -X POST "https://api.hubapi.com/crm/v3/schemas" \
   }'
 ```
 
-Después de crear, anotar los `objectTypeId` que retorna cada uno y ponerlos en la config (Step 3).
+Después de crear, anotar los `objectTypeId` que retorna cada uno y ponerlos en la config (Paso 3).
 
 ---
 
-## Step 6 — Create HubSpot Properties on Contacts & Deals
+## Paso 6 — Crear propiedades HubSpot en Contacts y Deals
 
 El Engine usa propiedades `_fx` en Contacts y Deals para sincronizar datos. Crearlas en el grupo `focux`:
 
-**Contact properties (_fx):**
+**Propiedades de Contact (_fx):**
 
-| Property | Type | Description |
-|----------|------|-------------|
+| Propiedad | Tipo | Descripción |
+|-----------|------|-------------|
 | `cedula_fx` | string | Número de documento |
 | `tipo_documento_fx` | enumeration | CC, CE, NIT, PP, TI |
 | `tipo_persona_fx` | enumeration | NATURAL, JURIDICA |
@@ -178,7 +178,7 @@ El Engine usa propiedades `_fx` en Contacts y Deals para sincronizar datos. Crea
 | `proyecto_activo_fx` | string | Proyecto activo |
 | `autoriza_datos_fx` | booleancheckbox | Autorización datos personales |
 
-**Deal properties (_fx):** ~25 propiedades (cotNumber, buyer data, property data, financial data, PDF URL, Sinco IDs). Copiar del portal demo.
+**Propiedades de Deal (_fx):** ~25 propiedades (cotNumber, datos de comprador, datos de inmueble, datos financieros, URL del PDF, IDs Sinco). Copiar del portal demo.
 
 **⚠️ Reglas críticas:**
 - `groupName` SIEMPRE `"focux"` (minúsculas)
@@ -201,9 +201,9 @@ curl -X POST "https://api.hubapi.com/crm/v3/properties/contacts" \
 
 ---
 
-## Step 7 — Configure Sinco Connector
+## Paso 7 — Configurar conector de Sinco
 
-**File:** `src/engine/index.ts` (o donde viva el `EnvSecretStore`)
+**Archivo:** `src/engine/index.ts` (o donde viva el `EnvSecretStore`)
 
 Agregar las credenciales del nuevo client al secret store. El patrón de env vars:
 
@@ -222,7 +222,7 @@ Debe retornar `erp.ok: true` y `crm.ok: true`.
 
 ---
 
-## Step 8 — Upload Assets to HubSpot CDN
+## Paso 8 — Subir assets al CDN de HubSpot
 
 Los assets del cotizador (renders, planos, logos) se suben al File Manager de HubSpot del portal del cliente.
 
@@ -247,11 +247,11 @@ curl -X POST "https://api.hubapi.com/filemanager/api/v3/files/upload" \
 
 **`PUBLIC_NOT_INDEXABLE`** — accesible por URL pero no indexado por Google. Decisión de data sovereignty: los assets viven en el portal del cliente, no en el nuestro.
 
-Después de subir, actualizar el `overlay` en la config del client (Step 3) con las URLs del CDN.
+Después de subir, actualizar el `overlay` en la config del client (Paso 3) con las URLs del CDN.
 
 ---
 
-## Step 9 — Set Environment Variables in Vercel
+## Paso 9 — Configurar variables de entorno en Vercel
 
 **⚠️ SIEMPRE usar `printf`, NUNCA `echo`** (ver `SETUP.md` §11).
 
@@ -259,20 +259,20 @@ Después de subir, actualizar el `overlay` en la config del client (Step 3) con 
 # HubSpot token
 printf 'pat-na1-...' | vercel env add HUBSPOT_ACME_PRIVATE_APP_TOKEN production
 
-# Sinco credentials
+# Credenciales Sinco
 printf 'APICBR' | vercel env add SINCO_ACME_USERNAME production
 printf 'sinco_password_here' | vercel env add SINCO_ACME_PASSWORD production
 
-# AUTH-1 secrets (generar nuevos para cada cliente)
+# Secretos AUTH-1 (generar nuevos para cada cliente)
 printf "$(openssl rand -hex 32)" | vercel env add HUBSPOT_CARD_LAUNCH_SECRET_ACME production
 
-# Webhook secret (si write-back activo)
+# Secreto de webhook (si write-back activo)
 printf "$(openssl rand -hex 32)" | vercel env add WEBHOOK_SECRET_ACME production
 ```
 
 ---
 
-## Step 10 — Create & Deploy HubSpot App Card
+## Paso 10 — Crear y desplegar App Card de HubSpot
 
 Los archivos de la App Card NO viven en el repo Git — se crean en un proyecto HubSpot separado.
 
@@ -284,16 +284,16 @@ focux-quoter-card/
 │   ├── app.json                          ← Permisos y scopes
 │   ├── extensions/
 │   │   ├── QuoterCard.tsx               ← UI del card (sidebar contacto)
-│   │   └── QuoterCard.json             ← Card metadata (title, location)
+│   │   └── QuoterCard.json             ← Metadata del card (título, ubicación)
 │   └── app.functions/
 │       ├── launchQuoter.js              ← App Function (serverless)
-│       └── launchQuoter.json            ← Function metadata
+│       └── launchQuoter.json            ← Metadata de la función
 └── hsproject.json                        ← Proyecto HubSpot
 ```
 
 **Cambios por cliente:**
 1. `hsproject.json` → `accountId` del portal del cliente
-2. `launchQuoter.js` → URL del Engine (`ENGINE_URL`), secret del launch
+2. `launchQuoter.js` → URL del Engine (`ENGINE_URL`), secreto del launch
 3. `QuoterCard.tsx` → Texto del botón, branding si aplica
 
 **Deploy:**
@@ -305,7 +305,7 @@ npx hs project upload --account=<portalId>
 
 ---
 
-## Step 11 — Run Initial Inventory Sync
+## Paso 11 — Ejecutar sync inicial de inventario
 
 ```bash
 # Sync completo (primera vez — puede tardar ~5min)
@@ -318,7 +318,7 @@ curl "https://engine.focux.co/api/engine/inventory?clientId=acme" | jq '.macros 
 
 **Configurar Vercel Cron** para sync automático diario:
 
-**File:** `vercel.json` — agregar entrada:
+**Archivo:** `vercel.json` — agregar entrada:
 
 ```json
 {
@@ -333,9 +333,9 @@ curl "https://engine.focux.co/api/engine/inventory?clientId=acme" | jq '.macros 
 
 ---
 
-## Step 12 — Verify E2E Flow
+## Paso 12 — Verificación E2E
 
-### 12a. Cotizador (acceso directo — demo mode)
+### 12a. Cotizador (acceso directo — modo demo)
 
 Con `QUOTER_ALLOW_DIRECT_ACCESS=true`:
 
@@ -351,7 +351,7 @@ Verificar:
 - [ ] Deal se crea en HubSpot con todas las propiedades `_fx`
 - [ ] PDF se sube y adjunta al Deal
 
-### 12b. AUTH-1 Flow (App Card → Cotizador)
+### 12b. Flujo AUTH-1 (App Card → Cotizador)
 
 1. Abrir un contacto en HubSpot del portal del cliente
 2. Verificar que el App Card aparece en el sidebar
@@ -359,7 +359,7 @@ Verificar:
 4. Verificar que abre nueva pestaña con datos del buyer precargados
 5. Verificar que el asesor es el Owner del contacto
 
-### 12c. Audit
+### 12c. Auditoría
 
 ```bash
 curl "https://engine.focux.co/api/engine/audit/inventory?clientId=acme" \
@@ -368,39 +368,39 @@ curl "https://engine.focux.co/api/engine/audit/inventory?clientId=acme" \
 
 ---
 
-## Step 13 — Go-Live Checklist
+## Paso 13 — Checklist de salida a producción
 
-| # | Item | Status |
+| # | Ítem | Estado |
 |---|------|--------|
-| 1 | Client registrado en `clientRegistry.ts` | ☐ |
-| 2 | Portal mapping en `quoterSession.ts` | ☐ |
+| 1 | Cliente registrado en `clientRegistry.ts` | ☐ |
+| 2 | Mapeo de portal en `quoterSession.ts` | ☐ |
 | 3 | Config de quoter creada (`clientConfigs/acme.ts`) | ☐ |
-| 4 | Config wired en inventory route | ☐ |
+| 4 | Config conectada en ruta de inventario | ☐ |
 | 5 | Custom Objects creados en HubSpot | ☐ |
-| 6 | Properties `_fx` creadas en Contacts y Deals | ☐ |
-| 7 | Sinco connector configurado y health OK | ☐ |
-| 8 | Assets subidos a HubSpot CDN | ☐ |
+| 6 | Propiedades `_fx` creadas en Contacts y Deals | ☐ |
+| 7 | Conector de Sinco configurado y health OK | ☐ |
+| 8 | Assets subidos al CDN de HubSpot | ☐ |
 | 9 | Env vars en Vercel (con `printf`) | ☐ |
-| 10 | App Card deployada | ☐ |
-| 11 | Inventory sync ejecutado y verificado | ☐ |
-| 12 | E2E verified (cotizador + AUTH-1 + deal + PDF) | ☐ |
+| 10 | App Card desplegada | ☐ |
+| 11 | Sync de inventario ejecutado y verificado | ☐ |
+| 12 | E2E verificado (cotizador + AUTH-1 + deal + PDF) | ☐ |
 | 13 | Cron configurado en `vercel.json` | ☐ |
-| 14 | `QUOTER_REQUIRE_HUBSPOT_LAUNCH=true` (flip to prod) | ☐ |
-| 15 | `QUOTER_ALLOW_DIRECT_ACCESS=false` (flip to prod) | ☐ |
-| 16 | Debug output removido de App Card | ☐ |
-| 17 | Audit report clean (0 quarantined, 0 warnings) | ☐ |
+| 14 | `QUOTER_REQUIRE_HUBSPOT_LAUNCH=true` (flip a prod) | ☐ |
+| 15 | `QUOTER_ALLOW_DIRECT_ACCESS=false` (flip a prod) | ☐ |
+| 16 | Output de debug removido de App Card | ☐ |
+| 17 | Reporte de auditoría limpio (0 en cuarentena, 0 warnings) | ☐ |
 
 ---
 
-## Common Pitfalls
+## Errores comunes
 
-| Pitfall | Solution |
-|---------|----------|
+| Error | Solución |
+|-------|----------|
 | `objectTypeIds` copiados del portal equivocado | Son únicos por portal. Siempre obtener con `GET /crm/v3/schemas` del portal correcto. |
 | Env var con trailing `\n` | Siempre `printf`, nunca `echo`. Ver `SETUP.md` §11. |
-| Properties no aparecen en HubSpot | Verificar `groupName: "focux"` (minúsculas exactas). |
-| Enum values no matchean en workflows | Usar slug (`sala_de_ventas_fisica`), no display name. |
-| Sync timeout en primera corrida | Usar filtro: `?macroproyectoId=X` para sincronizar un macro a la vez. |
+| Propiedades no aparecen en HubSpot | Verificar `groupName: "focux"` (minúsculas exactas). |
+| Valores de enum no matchean en workflows | Usar slug (`sala_de_ventas_fisica`), no display name. |
+| Timeout en sync de primera corrida | Usar filtro: `?macroproyectoId=X` para sincronizar un macro a la vez. |
 | App Card no aparece en sidebar | Verificar que el App Card está en `contact` location, no `deal`. Verificar scopes en `app.json`. |
 | Asesor vacío en cotizador | El contacto no tiene Owner asignado en HubSpot. Asignar Owner primero. |
 
