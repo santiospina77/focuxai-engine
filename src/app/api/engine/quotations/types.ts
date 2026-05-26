@@ -49,8 +49,9 @@ export interface QuotationInput {
 
   // Asesor
   advisor: {
-    id: number;
+    id?: number | string | null;
     name: string;
+    email?: string;
   };
 
   // Financiero
